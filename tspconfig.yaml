@@ -1,0 +1,12 @@
+emit:
+  - "@typespec/openapi3"
+
+options:
+  "@typespec/openapi3":
+    output-file: "openapi.yaml"
+
+output-dir: "{cwd}/codegen/nize-api/tsp-output"
+
+linter:
+  extends:
+    - "@typespec/http/all"

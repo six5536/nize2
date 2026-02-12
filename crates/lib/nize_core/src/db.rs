@@ -1,7 +1,9 @@
-//! PostgreSQL sidecar database management.
+//! PostgreSQL database management.
 //!
-//! Provides `DbManager` for lifecycle management of a PostgreSQL instance
-//! via process spawning (`initdb`, `pg_ctl`, `pg_isready`).
+//! Provides `LocalDbManager` for lifecycle management of a local PostgreSQL
+//! sidecar instance via process spawning (`initdb`, `pg_ctl`, `pg_isready`),
+//! and `DbProvisioner` for database/extension provisioning against any
+//! reachable PostgreSQL instance (local or remote).
 
 use std::net::TcpListener;
 use std::path::PathBuf;
@@ -101,15 +103,15 @@ impl PgConfig {
 ///
 /// Spawns `initdb`, `pg_ctl`, and `pg_isready` as child processes.
 /// Data persists across restarts unless `temporary` is set.
-pub struct DbManager {
+pub struct LocalDbManager {
     config: PgConfig,
     started: bool,
-    /// Holds the tempdir so it lives as long as DbManager (dropped = cleaned up).
+    /// Holds the tempdir so it lives as long as LocalDbManager (dropped = cleaned up).
     _tempdir: Option<tempfile::TempDir>,
 }
 
-impl DbManager {
-    /// Creates a new `DbManager` with the given configuration.
+impl LocalDbManager {
+    /// Creates a new `LocalDbManager` with the given configuration.
     pub fn new(config: PgConfig) -> Self {
         Self {
             config,
@@ -118,7 +120,7 @@ impl DbManager {
         }
     }
 
-    /// Creates a new `DbManager` using the platform-appropriate application data directory.
+    /// Creates a new `LocalDbManager` using the platform-appropriate application data directory.
     ///
     /// PG binaries discovered via `pg_config` on PATH.
     /// Data is stored at `$APP_DATA/nize/pgdata/`.
@@ -128,10 +130,10 @@ impl DbManager {
         Ok(Self::new(config))
     }
 
-    /// Creates a new `DbManager` with ephemeral (temporary) storage for testing.
+    /// Creates a new `LocalDbManager` with ephemeral (temporary) storage for testing.
     ///
     /// PG binaries discovered via `pg_config` on PATH.
-    /// Data is cleaned up when the `DbManager` is dropped.
+    /// Data is cleaned up when the `LocalDbManager` is dropped.
     pub async fn ephemeral() -> Result<Self> {
         let tempdir = tempfile::tempdir()?;
         let data_dir = tempdir.path().join("pgdata");
@@ -182,11 +184,39 @@ impl DbManager {
             self.config.port = find_free_port()?;
         }
 
+        let pg_ctl = self.config.bin_dir.join("pg_ctl");
+
+        // Stop any stale server left over from a previous unclean shutdown.
+        let status = Command::new(&pg_ctl)
+            .arg("-D")
+            .arg(&self.config.data_dir)
+            .arg("status")
+            .output()
+            .await?;
+
+        if status.status.success() {
+            log::info!("Stale PostgreSQL server detected — stopping before restart");
+            let stop = Command::new(&pg_ctl)
+                .arg("-D")
+                .arg(&self.config.data_dir)
+                .arg("-m")
+                .arg("fast")
+                .arg("stop")
+                .output()
+                .await?;
+
+            if !stop.status.success() {
+                let stderr = String::from_utf8_lossy(&stop.stderr);
+                return Err(DbError::Command(format!(
+                    "pg_ctl stop (stale) failed: {stderr}"
+                )));
+            }
+        }
+
         log::info!("Starting PostgreSQL on port {}...", self.config.port);
 
-        let pg_ctl = self.config.bin_dir.join("pg_ctl");
         let port_opt = format!(
-            "-p {} -k {} -h localhost",
+            "-p {} -k \"{}\" -h localhost",
             self.config.port,
             self.config.data_dir.display()
         );
@@ -214,11 +244,13 @@ impl DbManager {
 
         log::info!("PostgreSQL started on port {}", self.config.port);
 
-        // Create application database if it doesn't exist
-        self.create_database_if_missing().await?;
-
-        // Enable the vector extension in the application database
-        self.enable_vector_extension().await?;
+        // Provision the application database (create if missing, enable extensions).
+        let provisioner = DbProvisioner::new(
+            &self.connection_url(),
+            &self.config.database_name,
+            self.config.port,
+        );
+        provisioner.provision(ProvisionMode::Strict).await?;
 
         log::info!(
             "Database '{}' ready at {}",
@@ -274,6 +306,18 @@ impl DbManager {
         self.started
     }
 
+    /// Returns a shell command string that will stop this PostgreSQL instance.
+    ///
+    /// Suitable for writing to a cleanup manifest (e.g. for `nize_terminator`).
+    /// The command uses `pg_ctl -D <data_dir> -m fast stop`.
+    pub fn pg_ctl_stop_command(&self) -> String {
+        format!(
+            "{} -D {} -m fast stop",
+            shell_escape(self.config.bin_dir.join("pg_ctl").display().to_string()),
+            shell_escape(self.config.data_dir.display().to_string()),
+        )
+    }
+
     /// Wait for PostgreSQL to become ready, polling `pg_isready`.
     async fn wait_for_ready(&self) -> Result<()> {
         let pg_isready = self.config.bin_dir.join("pg_isready");
@@ -299,23 +343,97 @@ impl DbManager {
             sleep(PG_READY_POLL).await;
         }
     }
+}
+
+/// Controls how provisioning errors are handled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProvisionMode {
+    /// Errors are fatal — propagated to the caller.
+    Strict,
+    /// Errors are logged as warnings and swallowed.
+    Lenient,
+}
+
+/// Provisions a PostgreSQL database: creates the application database if
+/// missing and enables required extensions (e.g. `vector`).
+///
+/// Works against any reachable PostgreSQL instance (local or remote).
+pub struct DbProvisioner {
+    /// Connection URL for the application database.
+    connection_url: String,
+    /// Database name to create if missing.
+    database_name: String,
+    /// Port of the PostgreSQL instance (used for the maintenance connection).
+    port: u16,
+}
+
+impl DbProvisioner {
+    /// Creates a new provisioner.
+    pub fn new(connection_url: &str, database_name: &str, port: u16) -> Self {
+        Self {
+            connection_url: connection_url.to_string(),
+            database_name: database_name.to_string(),
+            port,
+        }
+    }
+
+    /// Creates a provisioner from a full connection URL, extracting the database
+    /// name and port from the URL.
+    pub fn from_url(connection_url: &str) -> std::result::Result<Self, String> {
+        let url: url::Url = connection_url
+            .parse()
+            .map_err(|e| format!("invalid connection URL: {e}"))?;
+        let port = url.port().unwrap_or(5432);
+        let database_name = url.path().trim_start_matches('/').to_string();
+        if database_name.is_empty() {
+            return Err("connection URL has no database name".into());
+        }
+        Ok(Self {
+            connection_url: connection_url.to_string(),
+            database_name,
+            port,
+        })
+    }
+
+    /// Run provisioning: create the database if missing, then enable extensions.
+    pub async fn provision(&self, mode: ProvisionMode) -> Result<()> {
+        if let Err(e) = self.create_database_if_missing().await {
+            match mode {
+                ProvisionMode::Strict => return Err(e),
+                ProvisionMode::Lenient => {
+                    log::warn!("Provisioning: create database failed (lenient): {e}");
+                }
+            }
+        }
+
+        if let Err(e) = self.enable_vector_extension().await {
+            match mode {
+                ProvisionMode::Strict => return Err(e),
+                ProvisionMode::Lenient => {
+                    log::warn!("Provisioning: enable vector extension failed (lenient): {e}");
+                }
+            }
+        }
+
+        Ok(())
+    }
 
     /// Create the application database if it doesn't exist.
     async fn create_database_if_missing(&self) -> Result<()> {
         // Connect to the default `postgres` database to check/create our database
-        let maintenance_url = format!("postgresql://localhost:{}/postgres", self.config.port);
+        let maintenance_url = format!("postgresql://localhost:{}/postgres", self.port);
         let pool = PgPool::connect(&maintenance_url).await?;
 
         let exists: bool =
             sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)")
-                .bind(&self.config.database_name)
+                .bind(&self.database_name)
                 .fetch_one(&pool)
                 .await?;
 
         if !exists {
-            log::info!("Creating database '{}'...", self.config.database_name);
+            log::info!("Creating database '{}'...", self.database_name);
             // CREATE DATABASE cannot use bind parameters
-            let sql = format!("CREATE DATABASE \"{}\"", self.config.database_name);
+            let sql = format!("CREATE DATABASE \"{}\"", self.database_name);
             sqlx::query(&sql).execute(&pool).await?;
         }
 
@@ -325,8 +443,7 @@ impl DbManager {
 
     /// Enable the `vector` extension in the application database.
     async fn enable_vector_extension(&self) -> Result<()> {
-        let url = self.connection_url();
-        let pool = PgPool::connect(&url).await?;
+        let pool = PgPool::connect(&self.connection_url).await?;
 
         sqlx::query("CREATE EXTENSION IF NOT EXISTS vector")
             .execute(&pool)
@@ -354,6 +471,18 @@ pub fn default_data_dir() -> Option<PathBuf> {
     dirs::data_dir().map(|d| d.join("nize").join("pgdata"))
 }
 
+/// Wraps a string in single quotes for shell safety if it contains spaces or
+/// special characters. Single quotes within the value are escaped.
+fn shell_escape(s: String) -> String {
+    if s.chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '/' || c == '-' || c == '_' || c == '.')
+    {
+        s
+    } else {
+        format!("'{}'", s.replace('\'', "'\\''"))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -369,13 +498,15 @@ mod tests {
 
     #[tokio::test]
     async fn ephemeral_manager_has_zero_port() {
-        let mgr = DbManager::ephemeral().await.expect("ephemeral DbManager");
+        let mgr = LocalDbManager::ephemeral()
+            .await
+            .expect("ephemeral LocalDbManager");
         assert_eq!(0, mgr.port());
     }
 
     #[tokio::test]
     async fn lifecycle_setup_start_stop() -> Result<()> {
-        let mut mgr = DbManager::ephemeral().await?;
+        let mut mgr = LocalDbManager::ephemeral().await?;
 
         mgr.setup().await?;
         assert!(!mgr.is_started());
@@ -397,7 +528,7 @@ mod tests {
 
     #[tokio::test]
     async fn vector_extension_is_available() -> Result<()> {
-        let mut mgr = DbManager::ephemeral().await?;
+        let mut mgr = LocalDbManager::ephemeral().await?;
         mgr.setup().await?;
         mgr.start().await?;
 

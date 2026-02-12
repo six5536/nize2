@@ -3,6 +3,8 @@
 //! Core domain logic for Nize.
 
 pub mod db;
+pub mod hello;
+pub mod node_sidecar;
 
 /// Returns the crate version.
 pub fn version() -> &'static str {

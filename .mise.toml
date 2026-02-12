@@ -1,4 +1,5 @@
 [tools]
+java = "temurin-21.0.10+7.0.LTS"
 node = '24'
 
 # Use rustup

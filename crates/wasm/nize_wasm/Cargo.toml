@@ -1,5 +1,5 @@
 [package]
-name = "nize-wasm"
+name = "nize_wasm"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -12,8 +12,8 @@ license.workspace = true
 crate-type = ["cdylib"]
 
 [dependencies]
-nize-core = { workspace = true }
-nize-mcp = { workspace = true }
+nize_core = { workspace = true }
+nize_mcp = { workspace = true }
 wasm-bindgen.workspace = true
 
 [package.metadata.wasm-pack.profile.release]

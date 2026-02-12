@@ -1,0 +1,25 @@
+[package]
+name = "nize_api_client"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "Typed HTTP client for the Nize API, generated from OpenAPI spec via progenitor."
+repository.workspace = true
+readme.workspace = true
+keywords = ["nize", "api", "client", "openapi"]
+categories.workspace = true
+license.workspace = true
+
+[build-dependencies]
+progenitor = { workspace = true }
+serde_json = { workspace = true }
+prettyplease = { workspace = true }
+syn = { workspace = true }
+
+[dependencies]
+progenitor-client = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+futures = { workspace = true }

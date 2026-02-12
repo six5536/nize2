@@ -1,17 +1,19 @@
 [package]
-name = "nize_mcp"
+name = "nize_terminator"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
-description = "MCP protocol layer for Nize."
+description = "Nize Terminator — process reaper for unclean shutdown cleanup."
 repository.workspace = true
 readme.workspace = true
-keywords = ["nize", "mcp", "model-context-protocol"]
+keywords = ["nize", "terminator", "cleanup"]
 categories.workspace = true
 license.workspace = true
 
 [dependencies]
-nize_core.workspace = true
+clap = { workspace = true, features = ["derive"] }
+libc = "0.2"
 
 [dev-dependencies]
+tempfile = { workspace = true }

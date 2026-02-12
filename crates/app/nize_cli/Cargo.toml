@@ -1,5 +1,5 @@
 [package]
-name = "nize-cli"
+name = "nize_cli"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -12,8 +12,8 @@ categories.workspace = true
 license.workspace = true
 
 [dependencies]
-nize-core = { workspace = true }
-nize-mcp = { workspace = true }
+nize_core = { workspace = true }
+nize_mcp = { workspace = true }
 thiserror = { workspace = true }
 flexi_logger = { workspace = true, features = ["colors"] }
 log = { workspace = true }

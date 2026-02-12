@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../../../packages/nize-desktop/dist",
     "devUrl": "http://localhost:1420",
-    "beforeDevCommand": "npm run --prefix packages/nize-desktop dev",
-    "beforeBuildCommand": "npm run --prefix packages/nize-desktop build"
+    "beforeDevCommand": "cargo build -p nize_api_server -p nize_terminator && npm run --prefix packages/nize-desktop dev",
+    "beforeBuildCommand": "cargo build -p nize_api_server -p nize_terminator --release && npm run --prefix packages/nize-desktop build"
   },
   "app": {
     "windows": [

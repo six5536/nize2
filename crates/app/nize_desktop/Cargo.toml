@@ -1,5 +1,5 @@
 [package]
-name = "nize-desktop"
+name = "nize_desktop"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -15,9 +15,13 @@ license.workspace = true
 tauri-build = { workspace = true, features = [] }
 
 [dependencies]
-nize-core = { workspace = true }
-nize-mcp = { workspace = true }
+nize_core = { workspace = true }
+nize_mcp = { workspace = true }
+nize_api_client = { workspace = true }
 tauri = { workspace = true, features = [] }
 tauri-plugin-shell = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

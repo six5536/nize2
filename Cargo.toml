@@ -1,19 +1,24 @@
 [workspace]
 members = [
     # Applications
-    "crates/app/nize-cli",
-    "crates/app/nize-desktop",
+    "crates/app/nize_cli",
+    "crates/app/nize_desktop",
+    "crates/app/nize_api_server",
+    "crates/app/nize_codegen",
+    "crates/app/nize_terminator",
 
     # Libraries
     "crates/lib/nize_core",
     "crates/lib/nize_mcp",
+    "crates/lib/nize_api",
+    "crates/lib/nize_api_client",
 
     # WASM
     "crates/wasm/nize_wasm",
 ]
 default-members = [
     # Applications
-    "crates/app/nize-cli",
+    "crates/app/nize_cli",
 
     # Libraries
     "crates/lib/nize_core",
@@ -34,8 +39,8 @@ edition = "2024"
 rust-version = "1.93.0"
 
 [workspace.dependencies]
-nize-core = { path = "crates/lib/nize_core" }
-nize-mcp = { path = "crates/lib/nize_mcp" }
+nize_core = { path = "crates/lib/nize_core" }
+nize_mcp = { path = "crates/lib/nize_mcp" }
 
 thiserror = "^2.0"
 clap = "^4.5"
@@ -43,6 +48,7 @@ flexi_logger = "^0.29"
 log = "^0.4"
 serde = "1.0"
 serde_json = "1.0"
+serde_yaml = "0.9"
 wasm-bindgen = "0.2"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres"] }
@@ -53,6 +59,20 @@ tauri-plugin-shell = "2"
 assert_cmd = "2.0"
 predicates = "3.1"
 tempfile = "3.20"
+axum = { version = "0.7", features = ["macros", "json"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+utoipa = { version = "4", features = ["axum_extras"] }
+dotenvy = "0.15"
+reqwest = { version = "0.13", features = ["json", "stream", "query"] }
+nize_api = { path = "crates/lib/nize_api" }
+nize_api_client = { path = "crates/lib/nize_api_client" }
+progenitor = "0.12"
+progenitor-client = "0.12"
+futures = "0.3"
+prettyplease = "0.2"
+syn = "2.0"
+url = "2.5"
 
 # Optimize release builds for size (especially WASM)
 [profile.release]
