@@ -1,0 +1,23 @@
+[package]
+name = "nize-desktop"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "Nize Desktop — Tauri application"
+repository.workspace = true
+readme.workspace = true
+keywords = ["nize", "tauri", "desktop"]
+categories.workspace = true
+license.workspace = true
+
+[build-dependencies]
+tauri-build = { workspace = true, features = [] }
+
+[dependencies]
+nize-core = { workspace = true }
+nize-mcp = { workspace = true }
+tauri = { workspace = true, features = [] }
+tauri-plugin-shell = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }

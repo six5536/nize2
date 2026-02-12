@@ -1,0 +1,67 @@
+{
+  "name": "@six5536/nize-cli",
+  "version": "0.1.0",
+  "description": "Nize MCP — Model Context Protocol tools, powered by WebAssembly.",
+  "author": "Six5536 Ltd",
+  "license": "ISC",
+  "homepage": "https://github.com/six5536/nize-mcp#readme",
+  "bin": {
+    "nize-cli": "./dist/cli.cli.js"
+  },
+  "type": "module",
+  "module": "./dist/index.js",
+  "main": "./dist/index.cjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./cjs": {
+      "import": "./dist/index.cjs",
+      "require": "./dist/index.cjs"
+    },
+    "./esm": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "wasm",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build:wasm": "bash scripts/build-wasm.sh",
+    "build:ts": "tsup",
+    "build": "npm run build:wasm && npm run build:ts",
+    "test": "echo 'No tests yet'",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "dependencies": {
+    "commander": "^14.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.8.0"
+  },
+  "engines": {
+    "node": ">=20",
+    "npm": ">=10"
+  },
+  "keywords": [
+    "nize",
+    "mcp",
+    "model-context-protocol",
+    "wasm",
+    "webassembly"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/six5536/nize-mcp.git"
+  }
+}

@@ -1,0 +1,22 @@
+[package]
+name = "nize-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "Core domain logic for Nize."
+repository.workspace = true
+readme.workspace = true
+keywords = ["nize", "mcp", "core"]
+categories.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio = { workspace = true, features = ["process", "time"] }
+sqlx = { workspace = true }
+thiserror = { workspace = true }
+log = { workspace = true }
+dirs = { workspace = true }
+tempfile = { workspace = true }
+
+[dev-dependencies]

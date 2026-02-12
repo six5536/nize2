@@ -1,0 +1,63 @@
+[workspace]
+members = [
+    # Applications
+    "crates/app/nize-cli",
+    "crates/app/nize-desktop",
+
+    # Libraries
+    "crates/lib/nize_core",
+    "crates/lib/nize_mcp",
+
+    # WASM
+    "crates/wasm/nize_wasm",
+]
+default-members = [
+    # Applications
+    "crates/app/nize-cli",
+
+    # Libraries
+    "crates/lib/nize_core",
+    "crates/lib/nize_mcp",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+authors = ["Six5536 Ltd"]
+description = "Nize MCP — Model Context Protocol tools."
+repository = "https://github.com/six5536/nize-mcp"
+readme = "README.md"
+keywords = ["nize", "mcp", "model-context-protocol"]
+categories = ["command-line-utilities"]
+license = "ISC"
+edition = "2024"
+rust-version = "1.93.0"
+
+[workspace.dependencies]
+nize-core = { path = "crates/lib/nize_core" }
+nize-mcp = { path = "crates/lib/nize_mcp" }
+
+thiserror = "^2.0"
+clap = "^4.5"
+flexi_logger = "^0.29"
+log = "^0.4"
+serde = "1.0"
+serde_json = "1.0"
+wasm-bindgen = "0.2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres"] }
+dirs = "6.0"
+tauri = "2"
+tauri-build = "2"
+tauri-plugin-shell = "2"
+assert_cmd = "2.0"
+predicates = "3.1"
+tempfile = "3.20"
+
+# Optimize release builds for size (especially WASM)
+[profile.release]
+opt-level = "z"   # optimize aggressively for size
+lto = true        # full link-time optimization across all crates
+codegen-units = 1 # single codegen unit → better optimization
+panic = "abort"   # no unwinding overhead
+strip = true      # strip debug info and symbols

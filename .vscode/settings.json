@@ -1,0 +1,25 @@
+{
+  "editor.insertSpaces": true,
+  "editor.formatOnSave": true,
+  "files.eol": "\n",
+  "files.autoSave": "onFocusChange",
+  "files.trimTrailingWhitespace": true,
+  "rust-analyzer.restartServerOnConfigChange": true,
+  "rust-analyzer.showSyntaxTree": false,
+  "rust-analyzer.testExplorer": true,
+  "rust-analyzer.debug.buildBeforeRestart": true,
+  "rust-analyzer.diagnostics.styleLints.enable": true,
+  "rust-analyzer.check.command": "clippy",
+  "mise.configureExtensionsUseSymLinks": true,
+  "python.defaultInterpreterPath": "${workspaceFolder}/.vscode/mise-tools/python",
+  "debug.javascript.defaultRuntimeExecutable": {
+    "pwa-node": "${workspaceFolder}/.vscode/mise-tools/node"
+  },
+  "chat.tools.terminal.autoApprove": {
+    "cargo clippy": true,
+    "cargo bench": true,
+    "wasm-pack": true,
+    "npx tsc": true,
+    "npx tsup": true
+  }
+}

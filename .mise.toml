@@ -1,0 +1,7 @@
+[tools]
+node = '24'
+
+# Use rustup
+#rust = 'latest'
+
+postgres = '18'

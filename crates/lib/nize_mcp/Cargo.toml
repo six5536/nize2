@@ -1,0 +1,17 @@
+[package]
+name = "nize-mcp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "MCP protocol layer for Nize."
+repository.workspace = true
+readme.workspace = true
+keywords = ["nize", "mcp", "model-context-protocol"]
+categories.workspace = true
+license.workspace = true
+
+[dependencies]
+nize-core.workspace = true
+
+[dev-dependencies]

@@ -1,0 +1,9 @@
+[submodule "submodules/nize"]
+	path = submodules/nize
+	url = git@github.com:six5536/nize.git
+[submodule "submodules/bitmark-parser-rust"]
+	path = submodules/bitmark-parser-rust
+	url = git@github.com:getMoreBrain/bitmark-parser-rust.git
+[submodule "submodules/bitmark-configurator-api"]
+	path = submodules/bitmark-configurator-api
+	url = git@github.com:getMoreBrain/bitmark-configurator-api.git
