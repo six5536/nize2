@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../../../packages/nize-desktop/dist",
     "devUrl": "http://localhost:1420",
-    "beforeDevCommand": "cargo build -p nize_api_server -p nize_terminator && bash scripts/setup-sidecar-binaries.sh && npm run --prefix packages/nize-desktop build:pglite-server && npm run --prefix packages/nize-desktop dev",
-    "beforeBuildCommand": "cargo build -p nize_api_server -p nize_terminator --release && bash scripts/setup-sidecar-binaries.sh release && npm run --prefix packages/nize-desktop build:pglite-server && npm run --prefix packages/nize-desktop build"
+    "beforeDevCommand": "cargo build -p nize_desktop_server -p nize_terminator && bash scripts/setup-sidecar-binaries.sh && npm run --prefix packages/nize-desktop build:pglite-server && npm run --prefix packages/nize-desktop dev",
+    "beforeBuildCommand": "cargo build -p nize_desktop_server -p nize_terminator --release && bash scripts/setup-sidecar-binaries.sh release && npm run --prefix packages/nize-desktop build:pglite-server && npm run --prefix packages/nize-desktop build"
   },
   "app": {
     "windows": [
@@ -25,7 +25,7 @@
     "active": true,
     "targets": "all",
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
-    "externalBin": ["binaries/nize_api_server", "binaries/nize_terminator", "binaries/node"],
+    "externalBin": ["binaries/nize_desktop_server", "binaries/nize_terminator", "binaries/node"],
     "resources": {
       "resources/pglite/*": "pglite/"
     },

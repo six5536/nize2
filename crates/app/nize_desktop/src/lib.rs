@@ -35,10 +35,13 @@ struct AppServices {
     manifest_path: Option<PathBuf>,
 }
 
-/// Spawns the `nize_api_server` binary and reads the port from its JSON stdout line.
+/// Spawns the `nize_desktop_server` binary and reads the port from its JSON stdout line.
 fn start_api_sidecar(database_url: &str, max_connections: u32) -> Result<ApiSidecar, String> {
     let exe = std::env::current_exe().map_err(|e| format!("current_exe: {e}"))?;
-    let sidecar_path = exe.parent().ok_or("no parent dir")?.join("nize_api_server");
+    let sidecar_path = exe
+        .parent()
+        .ok_or("no parent dir")?
+        .join("nize_desktop_server");
 
     info!(path = %sidecar_path.display(), "starting API sidecar");
 

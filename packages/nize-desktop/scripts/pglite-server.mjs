@@ -3,7 +3,7 @@
 //
 // Starts a PGlite instance with pgvector and exposes the standard PG wire
 // protocol via pglite-socket. Prints {"port": N} to stdout once listening
-// (matches the nize_api_server sidecar protocol).
+// (matches the nize_desktop_server sidecar protocol).
 //
 // Usage:
 //   node pglite-server.mjs --db=<path> --port=<N> --database=<name>

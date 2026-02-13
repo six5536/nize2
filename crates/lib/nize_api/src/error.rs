@@ -72,3 +72,17 @@ impl From<sqlx::Error> for AppError {
         }
     }
 }
+
+impl From<nize_core::auth::AuthError> for AppError {
+    fn from(e: nize_core::auth::AuthError) -> Self {
+        match e {
+            nize_core::auth::AuthError::CredentialError => {
+                AppError::Unauthorized("Invalid credentials".into())
+            }
+            nize_core::auth::AuthError::TokenError(msg) => AppError::Unauthorized(msg),
+            nize_core::auth::AuthError::ValidationError(msg) => AppError::Validation(msg),
+            nize_core::auth::AuthError::DbError(e) => AppError::from(e),
+            nize_core::auth::AuthError::Internal(msg) => AppError::Internal(msg),
+        }
+    }
+}

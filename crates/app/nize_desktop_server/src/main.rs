@@ -1,19 +1,24 @@
-//! Nize API sidecar server binary.
+//! Nize desktop sidecar server binary.
 //!
 //! Started by the Tauri desktop app as a child process.
 //! Prints `{"port": N}` to stdout so the parent can discover the bound port.
 
 use clap::Parser;
 use sqlx::postgres::PgPoolOptions;
+use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-/// CLI arguments for the API sidecar.
+/// CLI arguments for the desktop sidecar.
 #[derive(Parser, Debug)]
-#[command(name = "nize_api_server", about = "Nize API sidecar server")]
+#[command(name = "nize_desktop_server", about = "Nize desktop sidecar server")]
 struct Args {
     /// Port to listen on (0 = ephemeral).
     #[arg(long, default_value_t = 0)]
     port: u16,
+
+    /// MCP server port (0 = ephemeral).
+    #[arg(long, default_value_t = 0)]
+    mcp_port: u16,
 
     /// PostgreSQL connection URL.
     #[arg(
@@ -54,7 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let args = Args::parse();
 
-    info!(database_url = %args.database_url, port = args.port, "starting nize_api_server");
+    info!(database_url = %args.database_url, port = args.port, "starting nize_desktop_server");
 
     info!(
         max_connections = args.max_connections,
@@ -78,6 +83,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         jwt_secret: nize_api::services::auth::resolve_jwt_secret(),
     };
 
+    // Clone pool for MCP server before moving into API state.
+    let mcp_pool = pool.clone();
+
     let state = nize_api::AppState {
         pool,
         config: config.clone(),
@@ -88,8 +96,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = tokio::net::TcpListener::bind(&config.bind_addr).await?;
     let local_addr = listener.local_addr()?;
 
-    // Report the bound port as JSON on stdout so the parent process (Tauri) can read it.
-    println!("{}", serde_json::json!({"port": local_addr.port()}));
+    // Build MCP server on a separate port.
+    let mcp_ct = CancellationToken::new();
+    let mcp_app = nize_mcp::mcp_router(mcp_pool, mcp_ct.clone());
+    let mcp_bind = format!("127.0.0.1:{}", args.mcp_port);
+    let mcp_listener = tokio::net::TcpListener::bind(&mcp_bind).await?;
+    let mcp_addr = mcp_listener.local_addr()?;
+
+    // Report both bound ports as JSON on stdout so the parent process (Tauri) can read them.
+    println!(
+        "{}",
+        serde_json::json!({"port": local_addr.port(), "mcpPort": mcp_addr.port()})
+    );
 
     if args.sidecar {
         info!("sidecar mode: will exit when parent pipe closes");
@@ -104,8 +122,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
-    info!(addr = %local_addr, "listening");
-    axum::serve(listener, app).await?;
+    info!(addr = %local_addr, "REST API listening");
+    info!(addr = %mcp_addr, "MCP server listening");
+
+    // Spawn MCP server.
+    let mcp_handle = tokio::spawn({
+        let mcp_ct = mcp_ct.clone();
+        async move {
+            axum::serve(mcp_listener, mcp_app)
+                .with_graceful_shutdown(async move { mcp_ct.cancelled().await })
+                .await
+        }
+    });
+
+    // Run REST API on the main task.
+    let api_result = axum::serve(listener, app).await;
+
+    // When the REST API exits, also cancel MCP.
+    mcp_ct.cancel();
+    let _ = mcp_handle.await;
+
+    api_result?;
 
     Ok(())
 }

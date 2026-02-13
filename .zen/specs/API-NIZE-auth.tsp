@@ -109,6 +109,61 @@ model AuthStatusResponse {
 }
 
 // ============================================================================
+// MCP Token Models
+// ============================================================================
+
+/** Request to create an MCP API token */
+model CreateMcpTokenRequest {
+  @doc("Human-readable name for the token")
+  name: string;
+}
+
+/** Response after creating an MCP API token (contains plaintext token once) */
+model CreateMcpTokenResponse {
+  @doc("Token ID")
+  id: string;
+
+  @doc("Plaintext token (shown only once)")
+  token: string;
+
+  @doc("Token name")
+  name: string;
+
+  @doc("Creation timestamp")
+  createdAt: string;
+}
+
+/** An MCP API token record (without sensitive data) */
+model McpTokenInfo {
+  @doc("Token ID")
+  id: string;
+
+  @doc("Token name")
+  name: string;
+
+  @doc("Creation timestamp")
+  createdAt: string;
+
+  @doc("Expiry timestamp (if set)")
+  expiresAt?: string;
+
+  @doc("Revocation timestamp (if revoked)")
+  revokedAt?: string;
+}
+
+/** List of MCP tokens */
+model McpTokenListResponse {
+  @doc("List of tokens")
+  tokens: McpTokenInfo[];
+}
+
+/** Generic success response */
+model SuccessResponse {
+  @doc("Operation result")
+  success: true;
+}
+
+// ============================================================================
 // Auth Routes
 // ============================================================================
 
@@ -165,4 +220,34 @@ interface AuthRoutes {
   @route("/status")
   @summary("Check auth status")
   status(): AuthStatusResponse;
+
+  /**
+   * Create an MCP API token.
+   * Requires authentication. Returns plaintext token once.
+   */
+  @post
+  @route("/mcp-tokens")
+  @summary("Create MCP token")
+  createMcpToken(@body body: CreateMcpTokenRequest): {
+    @statusCode statusCode: 201;
+    @body body: CreateMcpTokenResponse;
+  } | NizeApi.UnauthorizedError;
+
+  /**
+   * List MCP API tokens for the authenticated user.
+   * Requires authentication. Does not return plaintext tokens.
+   */
+  @get
+  @route("/mcp-tokens")
+  @summary("List MCP tokens")
+  listMcpTokens(): McpTokenListResponse | NizeApi.UnauthorizedError;
+
+  /**
+   * Revoke an MCP API token.
+   * Requires authentication.
+   */
+  @delete
+  @route("/mcp-tokens/{id}")
+  @summary("Revoke MCP token")
+  revokeMcpToken(@path id: string): SuccessResponse | NizeApi.UnauthorizedError;
 }

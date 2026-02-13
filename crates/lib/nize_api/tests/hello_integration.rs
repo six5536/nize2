@@ -24,6 +24,7 @@ async fn hello_endpoint_returns_expected_shape() {
         config: ApiConfig {
             bind_addr: "127.0.0.1:0".into(),
             pg_connection_url: db.connection_url(),
+            jwt_secret: "test-secret".into(),
         },
     };
 

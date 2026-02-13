@@ -2,15 +2,11 @@
 // @zen-component: AUTH-CredentialService
 // @zen-component: AUTH-RefreshTokenStore
 //
-//! Authentication service — JWT token management, password hashing, login/register flows.
-
-use std::path::PathBuf;
+//! Authentication service — login/register flows delegating to `nize_core::auth`.
 
 use chrono::{Duration, Utc};
-use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use rand::distr::Alphanumeric;
 use rand::{Rng, rng};
-use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use tracing::info;
@@ -18,45 +14,30 @@ use tracing::info;
 use crate::error::{AppError, AppResult};
 use crate::generated::models::{AuthStatusResponse, AuthUser, LogoutResponse, TokenResponse};
 
+// Re-export from nize_core for backward compatibility.
+pub use nize_core::auth::jwt::{resolve_jwt_secret, verify_access_token};
+pub use nize_core::models::auth::TokenClaims;
+
 /// Access token lifetime: 15 minutes.
 const ACCESS_TOKEN_EXPIRY_SECS: i64 = 15 * 60;
 
 /// Refresh token lifetime: 30 days.
 const REFRESH_TOKEN_EXPIRY_DAYS: i64 = 30;
 
-/// bcrypt cost factor (matches ref code).
-const BCRYPT_COST: u32 = 10;
-
-/// JWT claims embedded in access tokens.
-// @zen-impl: AUTH-1_AC-3
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TokenClaims {
-    /// Subject — user ID (standard JWT `sub` claim).
-    pub sub: String,
-    /// User email.
-    pub email: String,
-    /// User roles (e.g. `["admin"]`).
-    pub roles: Vec<String>,
-    /// Expiry (unix timestamp).
-    pub exp: i64,
-    /// Issued at (unix timestamp).
-    pub iat: i64,
-}
-
 // ---------------------------------------------------------------------------
-// Password hashing
+// Password hashing (delegate to nize_core)
 // ---------------------------------------------------------------------------
 
 // @zen-impl: AUTH-1.1_AC-1
 /// Hash a password with bcrypt (cost 10).
 pub fn hash_password(password: &str) -> AppResult<String> {
-    bcrypt::hash(password, BCRYPT_COST).map_err(|e| AppError::Internal(format!("bcrypt hash: {e}")))
+    nize_core::auth::password::hash_password(password).map_err(AppError::from)
 }
 
 // @zen-impl: AUTH-1.1_AC-1
 /// Verify a password against a bcrypt hash.
 pub fn verify_password(password: &str, hash: &str) -> AppResult<bool> {
-    bcrypt::verify(password, hash).map_err(|e| AppError::Internal(format!("bcrypt verify: {e}")))
+    nize_core::auth::password::verify_password(password, hash).map_err(AppError::from)
 }
 
 // ---------------------------------------------------------------------------
@@ -80,7 +61,7 @@ fn hash_refresh_token(token: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// JWT generation & verification
+// JWT generation & verification (delegate to nize_core)
 // ---------------------------------------------------------------------------
 
 // @zen-impl: AUTH-1_AC-1, AUTH-1_AC-3
@@ -91,76 +72,8 @@ pub fn generate_access_token(
     roles: &[String],
     secret: &[u8],
 ) -> AppResult<String> {
-    let now = Utc::now();
-    let claims = TokenClaims {
-        sub: user_id.to_string(),
-        email: email.to_string(),
-        roles: roles.to_vec(),
-        exp: (now + Duration::seconds(ACCESS_TOKEN_EXPIRY_SECS)).timestamp(),
-        iat: now.timestamp(),
-    };
-    encode(
-        &Header::default(),
-        &claims,
-        &EncodingKey::from_secret(secret),
-    )
-    .map_err(|e| AppError::Internal(format!("jwt encode: {e}")))
-}
-
-// @zen-impl: AUTH-2_AC-4
-/// Verify a JWT access token, returning the claims on success.
-pub fn verify_access_token(token: &str, secret: &[u8]) -> Option<TokenClaims> {
-    let key = DecodingKey::from_secret(secret);
-    let mut validation = Validation::default();
-    validation.validate_exp = true;
-    decode::<TokenClaims>(token, &key, &validation)
-        .ok()
-        .map(|data| data.claims)
-}
-
-// ---------------------------------------------------------------------------
-// JWT secret management
-// ---------------------------------------------------------------------------
-
-/// Resolve the JWT secret: env var `JWT_SECRET` → `AUTH_SECRET` → persisted file.
-pub fn resolve_jwt_secret() -> String {
-    if let Ok(secret) = std::env::var("JWT_SECRET") {
-        if !secret.is_empty() {
-            return secret;
-        }
-    }
-    if let Ok(secret) = std::env::var("AUTH_SECRET") {
-        if !secret.is_empty() {
-            return secret;
-        }
-    }
-    // Generate and persist
-    let secret_path = jwt_secret_path();
-    if let Ok(existing) = std::fs::read_to_string(&secret_path) {
-        let trimmed = existing.trim();
-        if !trimmed.is_empty() {
-            return trimmed.to_string();
-        }
-    }
-    let secret: String = rng()
-        .sample_iter(&Alphanumeric)
-        .take(64)
-        .map(char::from)
-        .collect();
-    if let Some(parent) = secret_path.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
-    let _ = std::fs::write(&secret_path, &secret);
-    info!(path = %secret_path.display(), "generated new JWT secret");
-    secret
-}
-
-/// Path to the persisted JWT secret file.
-fn jwt_secret_path() -> PathBuf {
-    dirs::data_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("nize")
-        .join("jwt-secret")
+    nize_core::auth::jwt::generate_access_token(user_id, email, roles, secret)
+        .map_err(AppError::from)
 }
 
 // ---------------------------------------------------------------------------
@@ -170,13 +83,9 @@ fn jwt_secret_path() -> PathBuf {
 /// Fetch user roles from the `user_roles` table.
 // @zen-impl: PRM-9_AC-1
 async fn get_user_roles(pool: &PgPool, user_id: &str) -> AppResult<Vec<String>> {
-    let rows = sqlx::query_scalar::<_, String>(
-        "SELECT role::text FROM user_roles WHERE user_id = $1::uuid",
-    )
-    .bind(user_id)
-    .fetch_all(pool)
-    .await?;
-    Ok(rows)
+    nize_core::auth::queries::get_user_roles(pool, user_id)
+        .await
+        .map_err(AppError::from)
 }
 
 /// Build a `TokenResponse` from user data plus a fresh token pair.
@@ -214,12 +123,7 @@ pub async fn login(
     password: &str,
     jwt_secret: &[u8],
 ) -> AppResult<TokenResponse> {
-    let row = sqlx::query_as::<_, (String, Option<String>, Option<String>)>(
-        "SELECT id::text, name, password_hash FROM users WHERE email = $1",
-    )
-    .bind(email)
-    .fetch_optional(pool)
-    .await?;
+    let row = nize_core::auth::queries::find_user_by_email(pool, email).await?;
 
     let (user_id, name, pw_hash) = match row {
         // @zen-impl: AUTH-1_AC-2 — generic error for wrong email
@@ -244,14 +148,7 @@ pub async fn login(
 
     // @zen-impl: AUTH-1_AC-4
     let expires_at = Utc::now() + Duration::days(REFRESH_TOKEN_EXPIRY_DAYS);
-    sqlx::query(
-        "INSERT INTO refresh_tokens (token_hash, user_id, expires_at) VALUES ($1, $2::uuid, $3)",
-    )
-    .bind(&token_hash)
-    .bind(&user_id)
-    .bind(expires_at)
-    .execute(pool)
-    .await?;
+    nize_core::auth::queries::store_refresh_token(pool, &token_hash, &user_id, expires_at).await?;
 
     Ok(build_token_response(
         &user_id,
@@ -281,40 +178,22 @@ pub async fn register(
     }
 
     // Check duplicate email
-    let exists =
-        sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)")
-            .bind(email)
-            .fetch_one(pool)
-            .await?;
-    if exists {
+    if nize_core::auth::queries::email_exists(pool, email).await? {
         return Err(AppError::Validation("Email already registered".into()));
     }
 
     // Check if this is the first user
-    let user_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM users")
-        .fetch_one(pool)
-        .await?;
-    let is_first_user = user_count == 0;
+    let is_first_user = nize_core::auth::queries::user_count(pool).await? == 0;
 
     // @zen-impl: AUTH-1.1_AC-1
     let pw_hash = hash_password(password)?;
 
-    let user_id = sqlx::query_scalar::<_, String>(
-        "INSERT INTO users (email, name, password_hash) VALUES ($1, $2, $3) RETURNING id::text",
-    )
-    .bind(email)
-    .bind(name)
-    .bind(&pw_hash)
-    .fetch_one(pool)
-    .await?;
+    let user_id = nize_core::auth::queries::create_user(pool, email, name, &pw_hash).await?;
 
     // @zen-impl: PRM-9_AC-1
     let mut roles = Vec::new();
     if is_first_user {
-        sqlx::query("INSERT INTO user_roles (user_id, role) VALUES ($1::uuid, 'admin')")
-            .bind(&user_id)
-            .execute(pool)
-            .await?;
+        nize_core::auth::queries::grant_role(pool, &user_id, "admin").await?;
         roles.push("admin".to_string());
         info!(email, "first user granted admin role");
     }
@@ -324,14 +203,7 @@ pub async fn register(
     let token_hash = hash_refresh_token(&refresh_token);
 
     let expires_at = Utc::now() + Duration::days(REFRESH_TOKEN_EXPIRY_DAYS);
-    sqlx::query(
-        "INSERT INTO refresh_tokens (token_hash, user_id, expires_at) VALUES ($1, $2::uuid, $3)",
-    )
-    .bind(&token_hash)
-    .bind(&user_id)
-    .bind(expires_at)
-    .execute(pool)
-    .await?;
+    nize_core::auth::queries::store_refresh_token(pool, &token_hash, &user_id, expires_at).await?;
 
     Ok(build_token_response(
         &user_id,
@@ -353,16 +225,7 @@ pub async fn refresh(
     let token_hash = hash_refresh_token(refresh_token);
 
     // Find valid, non-revoked, non-expired token
-    let row = sqlx::query_as::<_, (String, String)>(
-        "SELECT rt.id::text, rt.user_id::text \
-         FROM refresh_tokens rt \
-         WHERE rt.token_hash = $1 \
-           AND rt.revoked_at IS NULL \
-           AND rt.expires_at > now()",
-    )
-    .bind(&token_hash)
-    .fetch_optional(pool)
-    .await?;
+    let row = nize_core::auth::queries::find_valid_refresh_token(pool, &token_hash).await?;
 
     let (token_id, user_id) = match row {
         // @zen-impl: AUTH-3_AC-3
@@ -371,42 +234,27 @@ pub async fn refresh(
     };
 
     // @zen-impl: AUTH-3_AC-4 — revoke old token
-    sqlx::query("UPDATE refresh_tokens SET revoked_at = now() WHERE id = $1::uuid")
-        .bind(&token_id)
-        .execute(pool)
-        .await?;
+    nize_core::auth::queries::revoke_refresh_token(pool, &token_id).await?;
 
     // Fetch user
-    let user = sqlx::query_as::<_, (String, Option<String>)>(
-        "SELECT email, name FROM users WHERE id = $1::uuid",
-    )
-    .bind(&user_id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or_else(|| AppError::Unauthorized("User not found".into()))?;
+    let user = nize_core::auth::queries::get_user_by_id(pool, &user_id)
+        .await?
+        .ok_or_else(|| AppError::Unauthorized("User not found".into()))?;
 
-    let (email, name) = user;
     let roles = get_user_roles(pool, &user_id).await?;
 
     // Issue new token pair
-    let access_token = generate_access_token(&user_id, &email, &roles, jwt_secret)?;
+    let access_token = generate_access_token(&user_id, &user.email, &roles, jwt_secret)?;
     let new_refresh = generate_refresh_token();
     let new_hash = hash_refresh_token(&new_refresh);
 
     let expires_at = Utc::now() + Duration::days(REFRESH_TOKEN_EXPIRY_DAYS);
-    sqlx::query(
-        "INSERT INTO refresh_tokens (token_hash, user_id, expires_at) VALUES ($1, $2::uuid, $3)",
-    )
-    .bind(&new_hash)
-    .bind(&user_id)
-    .bind(expires_at)
-    .execute(pool)
-    .await?;
+    nize_core::auth::queries::store_refresh_token(pool, &new_hash, &user_id, expires_at).await?;
 
     Ok(build_token_response(
         &user_id,
-        &email,
-        name.as_deref(),
+        &user.email,
+        user.name.as_deref(),
         &roles,
         access_token,
         new_refresh,
@@ -418,36 +266,20 @@ pub async fn refresh(
 pub async fn logout(pool: &PgPool, refresh_token: Option<&str>) -> AppResult<LogoutResponse> {
     if let Some(token) = refresh_token {
         let token_hash = hash_refresh_token(token);
-        sqlx::query(
-            "UPDATE refresh_tokens SET revoked_at = now() \
-             WHERE token_hash = $1 AND revoked_at IS NULL",
-        )
-        .bind(&token_hash)
-        .execute(pool)
-        .await?;
+        nize_core::auth::queries::revoke_refresh_token_by_hash(pool, &token_hash).await?;
     }
     Ok(LogoutResponse { success: true })
 }
 
 /// Logout all sessions — revoke all refresh tokens for a user.
 pub async fn logout_all(pool: &PgPool, user_id: &str) -> AppResult<LogoutResponse> {
-    sqlx::query(
-        "UPDATE refresh_tokens SET revoked_at = now() \
-         WHERE user_id = $1::uuid AND revoked_at IS NULL",
-    )
-    .bind(user_id)
-    .execute(pool)
-    .await?;
+    nize_core::auth::queries::revoke_all_refresh_tokens(pool, user_id).await?;
     Ok(LogoutResponse { success: true })
 }
 
 /// Check whether an admin user exists (for first-run detection).
 pub async fn admin_exists(pool: &PgPool) -> AppResult<AuthStatusResponse> {
-    let exists = sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS(SELECT 1 FROM user_roles WHERE role = 'admin')",
-    )
-    .fetch_one(pool)
-    .await?;
+    let exists = nize_core::auth::queries::admin_exists(pool).await?;
     Ok(AuthStatusResponse {
         admin_exists: exists,
     })

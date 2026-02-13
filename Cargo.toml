@@ -3,7 +3,7 @@ members = [
     # Applications
     "crates/app/nize_cli",
     "crates/app/nize_desktop",
-    "crates/app/nize_api_server",
+    "crates/app/nize_desktop_server",
     "crates/app/nize_codegen",
     "crates/app/nize_terminator",
 
@@ -64,6 +64,7 @@ jsonwebtoken = "9"
 sha2 = "0.10"
 rand = "0.9"
 chrono = { version = "0.4", features = ["serde"] }
+tower = "0.5"
 tower-http = { version = "0.6", features = ["cors"] }
 tauri = "2"
 tauri-build = "2"
@@ -71,10 +72,9 @@ tauri-plugin-shell = "2"
 assert_cmd = "2.0"
 predicates = "3.1"
 tempfile = "3.20"
-axum = { version = "0.7", features = ["macros", "json"] }
+axum = { version = "0.8", features = ["macros", "json"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
-utoipa = { version = "4", features = ["axum_extras"] }
 dotenvy = "0.15"
 reqwest = { version = "0.13", features = ["json", "stream", "query"] }
 nize_api = { path = "crates/lib/nize_api" }
@@ -85,6 +85,9 @@ futures = "0.3"
 prettyplease = "0.2"
 syn = "2.0"
 url = "2.5"
+rmcp = { version = "0.15", features = ["transport-streamable-http-server"] }
+schemars = { version = "1", features = ["derive"] }
+tokio-util = "0.7"
 
 # Optimize release builds for size (especially WASM)
 [profile.release]

@@ -2,8 +2,11 @@
 //!
 //! Core domain logic for Nize.
 
+pub mod auth;
 pub mod db;
 pub mod hello;
+pub mod migrate;
+pub mod models;
 pub mod node_sidecar;
 
 /// Returns the crate version.

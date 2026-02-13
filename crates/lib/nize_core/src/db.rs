@@ -352,7 +352,7 @@ impl LocalDbManager {
 /// Manages a PGlite instance running inside a Node.js process via pglite-socket.
 ///
 /// Spawns `node pglite-server.mjs` and exposes the standard PG wire protocol on
-/// `localhost:<port>`. The `nize_api_server` connects via `sqlx::PgPool` unchanged.
+/// `localhost:<port>`. The `nize_desktop_server` connects via `sqlx::PgPool` unchanged.
 pub struct PgLiteManager {
     /// Path to the PGlite data directory.
     data_dir: PathBuf,

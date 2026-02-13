@@ -136,7 +136,7 @@ jobs:
 
       # ── Build sidecars ───────────────────────────────────────────────
       - name: Build sidecar binaries
-        run: cargo build -p nize_api_server -p nize_terminator --release --target ${{ matrix.target }}
+        run: cargo build -p nize_desktop_server -p nize_terminator --release --target ${{ matrix.target }}
 
       - name: Setup sidecar binaries
         shell: bash

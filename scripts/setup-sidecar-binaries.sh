@@ -26,7 +26,7 @@ fi
 mkdir -p "$BINARIES_DIR"
 
 # Sidecar binaries to copy.
-SIDECARS="nize_api_server nize_terminator"
+SIDECARS="nize_desktop_server nize_terminator"
 
 for BIN in $SIDECARS; do
   SRC="$SRC_DIR/$BIN"
