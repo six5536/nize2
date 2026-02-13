@@ -20,6 +20,13 @@ struct SidecarReady {
     mcp_port: u16,
 }
 
+// @zen-impl: PLAN-012-3.1 — nize-web sidecar ready payload
+/// JSON payload the nize-web sidecar prints to stdout on startup.
+#[derive(Deserialize)]
+struct NizeWebReady {
+    port: u16,
+}
+
 /// State shared across Tauri commands.
 struct ApiSidecar {
     client: ApiClient,
@@ -30,9 +37,18 @@ struct ApiSidecar {
     mcp_port: u16,
 }
 
+// @zen-impl: PLAN-012-3.1 — nize-web sidecar state
+/// Holds the nize-web child process and its bound port.
+struct NizeWebSidecar {
+    _process: Child,
+    port: u16,
+}
+
 /// Holds the managed PGlite instance and API sidecar for the app lifetime.
 struct AppServices {
     sidecar: Option<ApiSidecar>,
+    /// nize-web sidecar (Next.js hello world app).
+    nize_web: Option<NizeWebSidecar>,
     /// Held to keep the PGlite process alive (killed when stopped).
     _pglite: Option<PgLiteManager>,
     /// nize_terminator child process (killed on graceful exit).
@@ -93,6 +109,38 @@ fn start_api_sidecar(database_url: &str, max_connections: u32) -> Result<ApiSide
         _process: child,
         port: ready.port,
         mcp_port: ready.mcp_port,
+    })
+}
+
+// @zen-impl: PLAN-012-3.2 — spawn nize-web sidecar
+/// Spawns `node nize-web-server.mjs --port=0` and reads the port from its JSON stdout line.
+fn start_nize_web_sidecar(node_bin: &Path, server_script: &Path) -> Result<NizeWebSidecar, String> {
+    info!(script = %server_script.display(), "starting nize-web sidecar");
+
+    let mut child = Command::new(node_bin)
+        .arg(server_script)
+        .arg("--port=0")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .map_err(|e| format!("spawn nize-web: {e}"))?;
+
+    let stdout = child.stdout.take().ok_or("no stdout")?;
+    let mut reader = std::io::BufReader::new(stdout);
+    let mut first_line = String::new();
+    reader
+        .read_line(&mut first_line)
+        .map_err(|e| format!("read nize-web stdout: {e}"))?;
+
+    let ready: NizeWebReady =
+        serde_json::from_str(&first_line).map_err(|e| format!("parse nize-web JSON: {e}"))?;
+
+    info!(port = ready.port, "nize-web sidecar ready");
+
+    Ok(NizeWebSidecar {
+        _process: child,
+        port: ready.port,
     })
 }
 
@@ -184,6 +232,16 @@ async fn get_mcp_port(state: tauri::State<'_, Mutex<AppServices>>) -> Result<u16
     }
 }
 
+// @zen-impl: PLAN-012-3.5 — Tauri command to expose nize-web port to frontend
+#[tauri::command]
+async fn get_nize_web_port(state: tauri::State<'_, Mutex<AppServices>>) -> Result<u16, String> {
+    let guard = state.lock().map_err(|e| format!("lock: {e}"))?;
+    match &guard.nize_web {
+        Some(s) => Ok(s.port),
+        None => Err("nize-web sidecar not running".into()),
+    }
+}
+
 pub fn run() {
     // Initialize logging so PgLiteManager (log crate) and tracing messages are visible.
     tracing_subscriber::fmt()
@@ -224,6 +282,7 @@ pub fn run() {
 
         return run_tauri(AppServices {
             sidecar,
+            nize_web: None,
             _pglite: None,
             terminator,
             manifest_path: Some(manifest_path),
@@ -271,6 +330,7 @@ pub fn run() {
             );
             return run_tauri(AppServices {
                 sidecar: None,
+                nize_web: None,
                 _pglite: None,
                 terminator,
                 manifest_path: Some(manifest_path),
@@ -284,6 +344,7 @@ pub fn run() {
                 error!("Failed to create PgLiteManager: {e}");
                 return run_tauri(AppServices {
                     sidecar: None,
+                    nize_web: None,
                     _pglite: None,
                     terminator,
                     manifest_path: Some(manifest_path),
@@ -295,6 +356,7 @@ pub fn run() {
             error!("PGlite start failed: {e}");
             return run_tauri(AppServices {
                 sidecar: None,
+                nize_web: None,
                 _pglite: None,
                 terminator,
                 manifest_path: Some(manifest_path),
@@ -319,8 +381,45 @@ pub fn run() {
             }
         };
 
+        // @zen-impl: PLAN-012-3.4 — start nize-web sidecar after API sidecar
+        let nize_web_script = {
+            let resource = exe_dir.parent().map(|p| {
+                p.join("Resources")
+                    .join("nize-web")
+                    .join("nize-web-server.mjs")
+            });
+            match resource {
+                Some(ref p) if p.exists() => p.clone(),
+                _ => PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("resources")
+                    .join("nize-web")
+                    .join("nize-web-server.mjs"),
+            }
+        };
+
+        let nize_web = if nize_web_script.exists() {
+            match start_nize_web_sidecar(&node_bin, &nize_web_script) {
+                Ok(s) => {
+                    // Append kill command to terminator manifest.
+                    let kill_cmd = format!("kill {}", s._process.id());
+                    if let Err(e) = append_cleanup(&manifest_path, &kill_cmd) {
+                        error!("Failed to write nize-web cleanup to manifest: {e}");
+                    }
+                    Some(s)
+                }
+                Err(e) => {
+                    error!("Failed to start nize-web sidecar: {e}");
+                    None
+                }
+            }
+        } else {
+            info!("nize-web-server.mjs not found — skipping nize-web sidecar");
+            None
+        };
+
         AppServices {
             sidecar,
+            nize_web,
             _pglite: Some(pglite),
             terminator,
             manifest_path: Some(manifest_path),
@@ -341,6 +440,7 @@ fn run_tauri(services: AppServices) {
             hello_world,
             get_api_port,
             get_mcp_port,
+            get_nize_web_port,
             mcp_clients::get_mcp_client_statuses,
             mcp_clients::configure_mcp_client,
             mcp_clients::remove_mcp_client
@@ -363,6 +463,9 @@ fn run_tauri(services: AppServices) {
                 if let Ok(mut guard) = state.lock() {
                     // Drop the sidecar first so it releases PG connections.
                     guard.sidecar.take();
+
+                    // @zen-impl: PLAN-012-3.7 — kill nize-web sidecar on exit
+                    guard.nize_web.take();
 
                     // @zen-impl: PLAN-007-5.3 — stop PGlite on exit.
                     if let Some(mut pglite) = guard._pglite.take() {

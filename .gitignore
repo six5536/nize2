@@ -25,5 +25,8 @@
 /crates/app/nize_desktop/resources/pglite/
 !/crates/app/nize_desktop/resources/pglite/.gitkeep
 
+# Bundled nize-web standalone (built by npm run build:nize-web)
+/crates/app/nize_desktop/resources/nize-web/
+
 # PG download cache
 /.cache/

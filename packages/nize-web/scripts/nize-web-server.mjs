@@ -1,0 +1,81 @@
+// @zen-component: PLAN-012-NizeWebServer
+// nize-web sidecar wrapper.
+//
+// Starts the Next.js standalone server on an ephemeral port and prints
+// {"port": N} to stdout once the server is ready (matches the sidecar protocol).
+//
+// Usage:
+//   node nize-web-server.mjs --port=<N>
+
+import { parseArgs } from "node:util";
+import { createServer } from "node:net";
+import { spawn } from "node:child_process";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+const { values: args } = parseArgs({
+  options: {
+    port: { type: "string", default: "0" },
+  },
+});
+
+const requestedPort = parseInt(args.port, 10);
+
+// @zen-impl: PLAN-012-2.1 — find free port for ephemeral binding
+async function findFreePort() {
+  return new Promise((resolve, reject) => {
+    const srv = createServer();
+    srv.listen(0, "127.0.0.1", () => {
+      const { port } = srv.address();
+      srv.close(() => resolve(port));
+    });
+    srv.on("error", reject);
+  });
+}
+
+const port = requestedPort === 0 ? await findFreePort() : requestedPort;
+
+// @zen-impl: PLAN-012-2.1 — start Next.js standalone server
+// In a monorepo the standalone output nests the server under packages/nize-web/.
+const standaloneDir = join(__dirname, "standalone");
+const serverPath = join(standaloneDir, "packages", "nize-web", "server.js");
+
+const child = spawn(process.execPath, [serverPath], {
+  cwd: standaloneDir,
+  env: { ...process.env, PORT: String(port), HOSTNAME: "127.0.0.1" },
+  stdio: ["pipe", "pipe", "inherit"],
+});
+
+// Forward child stdout to stderr so it doesn't interfere with the sidecar protocol.
+child.stdout.pipe(process.stderr);
+
+// @zen-impl: PLAN-012-2.1 — poll until server is ready
+async function waitForServer(targetPort, maxAttempts = 50) {
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const response = await fetch(`http://127.0.0.1:${targetPort}/`);
+      if (response.ok || response.status < 500) return;
+    } catch {
+      // Not ready yet
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  throw new Error(`nize-web server did not start within ${maxAttempts * 200}ms`);
+}
+
+await waitForServer(port);
+
+// @zen-impl: PLAN-012-2.1 — print JSON port to stdout (sidecar protocol)
+process.stdout.write(JSON.stringify({ port }) + "\n");
+
+// @zen-impl: PLAN-012-2.1 — graceful shutdown
+function shutdown() {
+  child.kill("SIGTERM");
+  setTimeout(() => process.exit(0), 5000);
+}
+
+child.on("exit", (code) => process.exit(code ?? 0));
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);

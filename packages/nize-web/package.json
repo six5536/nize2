@@ -1,0 +1,24 @@
+{
+  "name": "@six5536/nize-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Nize Web — Next.js application served as a Tauri sidecar.",
+  "author": "Six5536 Ltd",
+  "license": "ISC",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 3100",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "^16.1.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "typescript": "^5.8.0"
+  }
+}
