@@ -2,6 +2,7 @@ import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAuth } from "./auth";
 import { UpdateChecker } from "./UpdateChecker";
+import { McpClientSettings } from "./settings/McpClientSettings";
 
 interface HelloResponse {
   greeting: string;
@@ -68,6 +69,10 @@ export function MainApp() {
             </p>
           </div>
         )}
+      </section>
+
+      <section style={{ marginTop: "2rem", borderTop: "1px solid #ddd", paddingTop: "1.5rem" }}>
+        <McpClientSettings />
       </section>
     </main>
   );

@@ -10,6 +10,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:pglite-server": "node scripts/build-pglite-server.mjs",
+    "build:mcp-remote": "node scripts/build-mcp-remote.mjs",
     "preview": "vite preview",
     "tauri": "tauri"
   },
@@ -29,6 +30,7 @@
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^4.5.0",
     "esbuild": "^0.25.0",
+    "mcp-remote": "^0.1.38",
     "typescript": "^5.8.0",
     "vite": "^6.3.0"
   }

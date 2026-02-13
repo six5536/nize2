@@ -26,5 +26,40 @@ export type ErrorResponse = components["schemas"]["ErrorResponse"];
 export type UnauthorizedError = components["schemas"]["UnauthorizedError"];
 export type ValidationError = components["schemas"]["ValidationError"];
 
+// MCP token types
+export interface CreateMcpTokenRequest {
+  /** Human-readable name for the token */
+  name: string;
+}
+
+export interface CreateMcpTokenResponse {
+  /** Token ID */
+  id: string;
+  /** Plaintext token (shown only once) */
+  token: string;
+  /** Token name */
+  name: string;
+  /** Creation timestamp */
+  createdAt: string;
+}
+
+export interface McpTokenInfo {
+  /** Token ID */
+  id: string;
+  /** Token name */
+  name: string;
+  /** Creation timestamp */
+  createdAt: string;
+  /** Expiry timestamp (if set) */
+  expiresAt?: string | null;
+  /** Revocation timestamp (if revoked) */
+  revokedAt?: string | null;
+}
+
+export interface McpTokenListResponse {
+  /** List of tokens */
+  tokens: McpTokenInfo[];
+}
+
 // Hello types
 export type HelloWorldResponse = components["schemas"]["HelloWorldResponse"];

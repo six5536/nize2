@@ -22,6 +22,7 @@ tauri = { workspace = true, features = [] }
 tauri-plugin-shell = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+dirs = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

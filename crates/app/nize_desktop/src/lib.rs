@@ -10,10 +10,14 @@ use serde::Deserialize;
 use tauri::Manager;
 use tracing::{error, info};
 
+mod mcp_clients;
+
 /// JSON payload the API sidecar prints to stdout on startup.
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct SidecarReady {
     port: u16,
+    mcp_port: u16,
 }
 
 /// State shared across Tauri commands.
@@ -22,6 +26,8 @@ struct ApiSidecar {
     _process: Child,
     /// Bound port of the API sidecar (for frontend direct access).
     port: u16,
+    /// Bound port of the MCP server.
+    mcp_port: u16,
 }
 
 /// Holds the managed PGlite instance and API sidecar for the app lifetime.
@@ -43,11 +49,16 @@ fn start_api_sidecar(database_url: &str, max_connections: u32) -> Result<ApiSide
         .ok_or("no parent dir")?
         .join("nize_desktop_server");
 
+    // MCP port: honour NIZE_MCP_PORT env var, default 19560.
+    let mcp_port_arg = std::env::var("NIZE_MCP_PORT").unwrap_or_else(|_| "19560".to_string());
+
     info!(path = %sidecar_path.display(), "starting API sidecar");
 
     let mut child = Command::new(&sidecar_path)
         .arg("--port")
         .arg("0")
+        .arg("--mcp-port")
+        .arg(&mcp_port_arg)
         .arg("--database-url")
         .arg(database_url)
         .arg("--max-connections")
@@ -69,7 +80,11 @@ fn start_api_sidecar(database_url: &str, max_connections: u32) -> Result<ApiSide
     let ready: SidecarReady =
         serde_json::from_str(&first_line).map_err(|e| format!("parse sidecar JSON: {e}"))?;
 
-    info!(port = ready.port, "API sidecar ready");
+    info!(
+        port = ready.port,
+        mcp_port = ready.mcp_port,
+        "API sidecar ready"
+    );
 
     let client = ApiClient::new(&format!("http://127.0.0.1:{}", ready.port));
 
@@ -77,6 +92,7 @@ fn start_api_sidecar(database_url: &str, max_connections: u32) -> Result<ApiSide
         client,
         _process: child,
         port: ready.port,
+        mcp_port: ready.mcp_port,
     })
 }
 
@@ -155,6 +171,15 @@ async fn get_api_port(state: tauri::State<'_, Mutex<AppServices>>) -> Result<u16
     let guard = state.lock().map_err(|e| format!("lock: {e}"))?;
     match &guard.sidecar {
         Some(s) => Ok(s.port),
+        None => Err("API sidecar not running".into()),
+    }
+}
+
+#[tauri::command]
+async fn get_mcp_port(state: tauri::State<'_, Mutex<AppServices>>) -> Result<u16, String> {
+    let guard = state.lock().map_err(|e| format!("lock: {e}"))?;
+    match &guard.sidecar {
+        Some(s) => Ok(s.mcp_port),
         None => Err("API sidecar not running".into()),
     }
 }
@@ -312,7 +337,14 @@ fn run_tauri(services: AppServices) {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(Mutex::new(services))
-        .invoke_handler(tauri::generate_handler![hello_world, get_api_port])
+        .invoke_handler(tauri::generate_handler![
+            hello_world,
+            get_api_port,
+            get_mcp_port,
+            mcp_clients::get_mcp_client_statuses,
+            mcp_clients::configure_mcp_client,
+            mcp_clients::remove_mcp_client
+        ])
         .setup(|app| {
             #[cfg(debug_assertions)]
             {

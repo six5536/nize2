@@ -16,8 +16,8 @@ struct Args {
     #[arg(long, default_value_t = 0)]
     port: u16,
 
-    /// MCP server port (0 = ephemeral).
-    #[arg(long, default_value_t = 0)]
+    /// MCP server port (default 19560; override with NIZE_MCP_PORT).
+    #[arg(long, env = "NIZE_MCP_PORT", default_value_t = 19560)]
     mcp_port: u16,
 
     /// PostgreSQL connection URL.

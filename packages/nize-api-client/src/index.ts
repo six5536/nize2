@@ -7,10 +7,10 @@
  * Talks directly to the Nize API sidecar via fetch.
  */
 
-import type { AuthStatusResponse, LoginRequest, LogoutRequest, LogoutResponse, RefreshRequest, RegisterRequest, TokenResponse, HelloWorldResponse } from "@six5536/nize-api-types";
+import type { AuthStatusResponse, LoginRequest, LogoutRequest, LogoutResponse, RefreshRequest, RegisterRequest, TokenResponse, HelloWorldResponse, CreateMcpTokenRequest, CreateMcpTokenResponse, McpTokenListResponse } from "@six5536/nize-api-types";
 
 // Re-export types for convenience
-export type { AuthStatusResponse, LoginRequest, LogoutRequest, LogoutResponse, RefreshRequest, RegisterRequest, TokenResponse, HelloWorldResponse } from "@six5536/nize-api-types";
+export type { AuthStatusResponse, LoginRequest, LogoutRequest, LogoutResponse, RefreshRequest, RegisterRequest, TokenResponse, HelloWorldResponse, CreateMcpTokenRequest, CreateMcpTokenResponse, McpTokenInfo, McpTokenListResponse } from "@six5536/nize-api-types";
 
 // ============================================================================
 // Configuration
@@ -115,6 +115,25 @@ export class NizeApiClient {
   /** Bootstrap health check. */
   async hello(): Promise<HelloWorldResponse> {
     return this.request<HelloWorldResponse>("GET", "/api/hello");
+  }
+
+  // ---------------------------------------------------------------------------
+  // MCP Tokens
+  // ---------------------------------------------------------------------------
+
+  /** Create an MCP API token. Requires authentication. */
+  async createMcpToken(body: CreateMcpTokenRequest): Promise<CreateMcpTokenResponse> {
+    return this.request<CreateMcpTokenResponse>("POST", "/auth/mcp-tokens", { body });
+  }
+
+  /** List MCP API tokens for the authenticated user. */
+  async listMcpTokens(): Promise<McpTokenListResponse> {
+    return this.request<McpTokenListResponse>("GET", "/auth/mcp-tokens");
+  }
+
+  /** Revoke an MCP API token. */
+  async revokeMcpToken(id: string): Promise<void> {
+    await this.request<unknown>("DELETE", `/auth/mcp-tokens/${id}`);
   }
 }
 

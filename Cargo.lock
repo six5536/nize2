@@ -2650,6 +2650,7 @@ dependencies = [
 name = "nize_desktop"
 version = "0.1.0"
 dependencies = [
+ "dirs",
  "nize_api_client",
  "nize_core",
  "nize_mcp",

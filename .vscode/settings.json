@@ -21,5 +21,10 @@
     "wasm-pack": true,
     "npx tsc": true,
     "npx tsup": true
+  },
+  "search.exclude": {
+    "**/target": true
+  },
+  "files.watcherExclude": {
+    "**/target/**": true
   }
-}

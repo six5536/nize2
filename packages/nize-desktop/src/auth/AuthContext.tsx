@@ -5,8 +5,8 @@
  * and auto-restore on app startup.
  */
 
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
-import { NizeApiClient, type TokenResponse, type AuthStatusResponse } from "@six5536/nize-api-client";
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
+import { NizeApiClient, type TokenResponse, type AuthStatusResponse, type CreateMcpTokenResponse, type McpTokenListResponse } from "@six5536/nize-api-client";
 
 // ============================================================================
 // Types
@@ -34,6 +34,9 @@ interface AuthActions {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name?: string) => Promise<void>;
   logout: () => Promise<void>;
+  createMcpToken: (name: string) => Promise<CreateMcpTokenResponse>;
+  listMcpTokens: () => Promise<McpTokenListResponse>;
+  revokeMcpToken: (id: string) => Promise<void>;
   clearError: () => void;
 }
 
@@ -67,17 +70,19 @@ export function AuthProvider({ apiPort, children }: AuthProviderProps) {
     loading: true,
     error: null,
   });
-  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null); // eslint-disable-line @typescript-eslint/no-unused-vars
+  const accessTokenRef = useRef(accessToken);
 
-  // Create API client with token injection
+  // Create API client with token injection via ref (avoids stale closures)
   const client = new NizeApiClient({
     baseUrl: `http://127.0.0.1:${apiPort}`,
-    getToken: () => accessToken,
+    getToken: () => accessTokenRef.current,
   });
 
   // --- Helpers ---
 
   const storeTokens = useCallback((resp: TokenResponse) => {
+    accessTokenRef.current = resp.accessToken;
     setAccessToken(resp.accessToken);
     localStorage.setItem(REFRESH_TOKEN_KEY, resp.refreshToken);
     setState((s) => ({
@@ -93,6 +98,7 @@ export function AuthProvider({ apiPort, children }: AuthProviderProps) {
   }, []);
 
   const clearTokens = useCallback(() => {
+    accessTokenRef.current = null;
     setAccessToken(null);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     setState((s) => ({ ...s, user: null }));
@@ -199,11 +205,38 @@ export function AuthProvider({ apiPort, children }: AuthProviderProps) {
     setState((s) => ({ ...s, error: null }));
   }, []);
 
+  const createMcpToken = useCallback(
+    async (name: string): Promise<CreateMcpTokenResponse> => {
+      return client.createMcpToken({ name });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [apiPort],
+  );
+
+  const listMcpTokens = useCallback(
+    async (): Promise<McpTokenListResponse> => {
+      return client.listMcpTokens();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [apiPort],
+  );
+
+  const revokeMcpToken = useCallback(
+    async (id: string): Promise<void> => {
+      return client.revokeMcpToken(id);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [apiPort],
+  );
+
   const value: AuthContextValue = {
     ...state,
     login,
     register,
     logout,
+    createMcpToken,
+    listMcpTokens,
+    revokeMcpToken,
     clearError,
   };
 
