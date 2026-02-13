@@ -65,7 +65,13 @@ fn run_cleanup(manifest: &PathBuf) -> ExitCode {
     let mut all_ok = true;
     for cmd in &commands {
         eprintln!("nize_terminator: executing: {cmd}");
-        match Command::new("sh").arg("-c").arg(cmd).status() {
+        // @zen-impl: PLAN-006-3.3
+        #[cfg(unix)]
+        let result = Command::new("sh").arg("-c").arg(cmd).status();
+        #[cfg(windows)]
+        let result = Command::new("cmd").arg("/C").arg(cmd).status();
+
+        match result {
             Ok(status) if status.success() => {}
             Ok(status) => {
                 eprintln!(

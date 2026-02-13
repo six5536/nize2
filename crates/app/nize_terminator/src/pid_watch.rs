@@ -3,14 +3,18 @@
 //!
 //! - macOS: `kqueue` with `EVFILT_PROC` + `NOTE_EXIT` (instant notification).
 //! - Linux: `pidfd_open` + `poll` (instant notification, kernel ≥5.3).
-//! - Fallback: `kill(pid, 0)` polling every 1 second.
+//! - Windows: `OpenProcess` + `WaitForSingleObject` (instant notification).
+//! - Fallback (Unix): `kill(pid, 0)` polling every 1 second.
 
 /// Block until the given PID exits.
 ///
 /// Uses the most efficient platform-specific mechanism available.
 pub fn wait_for_pid_exit(pid: u32) {
-    if !is_pid_alive(pid) {
-        return;
+    #[cfg(unix)]
+    {
+        if !is_pid_alive_unix(pid) {
+            return;
+        }
     }
 
     #[cfg(target_os = "macos")]
@@ -27,21 +31,31 @@ pub fn wait_for_pid_exit(pid: u32) {
         }
     }
 
+    // @zen-impl: PLAN-006-3.1
+    #[cfg(target_os = "windows")]
+    {
+        windows_wait(pid);
+        return;
+    }
+
     // Fallback: poll with kill(pid, 0)
+    #[cfg(unix)]
     poll_wait(pid);
 }
 
 /// Check whether a PID is still alive via `kill(pid, 0)`.
-fn is_pid_alive(pid: u32) -> bool {
+#[cfg(unix)]
+fn is_pid_alive_unix(pid: u32) -> bool {
     // SAFETY: kill(pid, 0) sends no signal — only checks existence.
     unsafe { libc::kill(pid as libc::pid_t, 0) == 0 }
 }
 
 /// Fallback: poll `kill(pid, 0)` every second until the process exits.
+#[cfg(unix)]
 fn poll_wait(pid: u32) {
     loop {
         std::thread::sleep(std::time::Duration::from_secs(1));
-        if !is_pid_alive(pid) {
+        if !is_pid_alive_unix(pid) {
             return;
         }
     }
@@ -86,7 +100,7 @@ fn kqueue_wait(pid: u32) -> bool {
         // Either way, the parent is gone.
         if n < 0 {
             // kevent failed — might be ESRCH (process already gone). Verify.
-            return !is_pid_alive(pid);
+            return !is_pid_alive_unix(pid);
         }
 
         true
@@ -118,11 +132,60 @@ fn pidfd_wait(pid: u32) -> bool {
     }
 }
 
+// @zen-impl: PLAN-006-3.1
+/// Windows: use `OpenProcess(SYNCHRONIZE)` + `WaitForSingleObject(INFINITE)`.
+///
+/// Opens the target process with SYNCHRONIZE access (minimal privilege),
+/// then blocks until the process terminates.
+#[cfg(target_os = "windows")]
+fn windows_wait(pid: u32) {
+    use windows_sys::Win32::Foundation::{CloseHandle, WAIT_OBJECT_0};
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, WaitForSingleObject, INFINITE, SYNCHRONIZE,
+    };
+
+    // SAFETY: OpenProcess + WaitForSingleObject are standard Win32 APIs.
+    unsafe {
+        let handle = OpenProcess(SYNCHRONIZE, 0, pid);
+        if handle.is_null() {
+            // Process doesn't exist or we lack permission — already dead.
+            return;
+        }
+
+        // Block until the process exits.
+        let result = WaitForSingleObject(handle, INFINITE);
+        CloseHandle(handle);
+
+        if result != WAIT_OBJECT_0 {
+            // Fallback: poll with GetExitCodeProcess if wait failed.
+            windows_poll_wait(pid);
+        }
+    }
+}
+
+// @zen-impl: PLAN-006-3.1
+/// Windows fallback: poll `OpenProcess` every second (for permission-denied edge cases).
+#[cfg(target_os = "windows")]
+fn windows_poll_wait(pid: u32) {
+    use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
+
+    loop {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        // SAFETY: OpenProcess with minimal access just to check existence.
+        let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
+        if handle.is_null() {
+            return; // Process no longer exists.
+        }
+        unsafe { windows_sys::Win32::Foundation::CloseHandle(handle) };
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     // @zen-test: PLAN-005-PidWatch
+    #[cfg(unix)]
     #[test]
     fn wait_for_already_dead_pid() {
         // Spawn a process and immediately kill it, then verify wait_for_pid_exit returns.
@@ -148,6 +211,7 @@ mod tests {
     }
 
     // @zen-test: PLAN-005-PidWatch
+    #[cfg(unix)]
     #[test]
     fn wait_detects_exit() {
         let child = std::process::Command::new("sleep")
@@ -178,15 +242,60 @@ mod tests {
         reaper.join().expect("reaper thread");
     }
 
+    #[cfg(unix)]
     #[test]
     fn is_pid_alive_returns_false_for_nonexistent() {
         // PID 0 is the kernel — we can't signal it. Use a very high PID.
-        assert!(!is_pid_alive(4_000_000));
+        assert!(!is_pid_alive_unix(4_000_000));
     }
 
+    #[cfg(unix)]
     #[test]
     fn is_pid_alive_returns_true_for_self() {
         let pid = std::process::id();
-        assert!(is_pid_alive(pid));
+        assert!(is_pid_alive_unix(pid));
+    }
+
+    // @zen-test: PLAN-006-3.5
+    #[cfg(windows)]
+    #[test]
+    fn wait_for_already_dead_pid_windows() {
+        let child = std::process::Command::new("cmd")
+            .args(["/C", "timeout /t 60"])
+            .spawn()
+            .expect("spawn timeout");
+
+        let pid = child.id();
+
+        // Kill the child.
+        let mut child = child;
+        let _ = child.kill();
+        let _ = child.wait();
+
+        // Now wait_for_pid_exit should return immediately.
+        wait_for_pid_exit(pid);
+    }
+
+    // @zen-test: PLAN-006-3.5
+    #[cfg(windows)]
+    #[test]
+    fn wait_detects_exit_windows() {
+        let child = std::process::Command::new("cmd")
+            .args(["/C", "timeout /t 60"])
+            .spawn()
+            .expect("spawn timeout");
+
+        let pid = child.id();
+
+        let mut child_for_kill = child;
+        let handle = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(200));
+            let _ = child_for_kill.kill();
+            let _ = child_for_kill.wait();
+        });
+
+        wait_for_pid_exit(pid);
+
+        handle.join().expect("killer thread");
     }
 }

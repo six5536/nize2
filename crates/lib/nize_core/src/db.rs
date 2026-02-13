@@ -159,13 +159,12 @@ impl LocalDbManager {
 
         log::info!("Initializing PostgreSQL data directory...");
         let initdb = self.config.bin_dir.join("initdb");
-        let output = Command::new(&initdb)
-            .arg("-D")
+        let mut cmd = Command::new(&initdb);
+        cmd.arg("-D")
             .arg(&self.config.data_dir)
             .arg("--no-locale")
-            .arg("--encoding=UTF8")
-            .output()
-            .await?;
+            .arg("--encoding=UTF8");
+        let output = cmd.output().await?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -187,23 +186,23 @@ impl LocalDbManager {
         let pg_ctl = self.config.bin_dir.join("pg_ctl");
 
         // Stop any stale server left over from a previous unclean shutdown.
-        let status = Command::new(&pg_ctl)
+        let mut status_cmd = Command::new(&pg_ctl);
+        status_cmd
             .arg("-D")
             .arg(&self.config.data_dir)
-            .arg("status")
-            .output()
-            .await?;
+            .arg("status");
+        let status = status_cmd.output().await?;
 
         if status.status.success() {
             log::info!("Stale PostgreSQL server detected — stopping before restart");
-            let stop = Command::new(&pg_ctl)
+            let mut stop_cmd = Command::new(&pg_ctl);
+            stop_cmd
                 .arg("-D")
                 .arg(&self.config.data_dir)
                 .arg("-m")
                 .arg("fast")
-                .arg("stop")
-                .output()
-                .await?;
+                .arg("stop");
+            let stop = stop_cmd.output().await?;
 
             if !stop.status.success() {
                 let stderr = String::from_utf8_lossy(&stop.stderr);
@@ -222,16 +221,16 @@ impl LocalDbManager {
         );
         let logfile = self.config.data_dir.join("postgresql.log");
 
-        let output = Command::new(&pg_ctl)
+        let mut start_cmd = Command::new(&pg_ctl);
+        start_cmd
             .arg("-D")
             .arg(&self.config.data_dir)
             .arg("-o")
             .arg(&port_opt)
             .arg("-l")
             .arg(&logfile)
-            .arg("start")
-            .output()
-            .await?;
+            .arg("start");
+        let output = start_cmd.output().await?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -269,14 +268,13 @@ impl LocalDbManager {
         log::info!("Stopping PostgreSQL...");
 
         let pg_ctl = self.config.bin_dir.join("pg_ctl");
-        let output = Command::new(&pg_ctl)
-            .arg("-D")
+        let mut cmd = Command::new(&pg_ctl);
+        cmd.arg("-D")
             .arg(&self.config.data_dir)
             .arg("-m")
             .arg("fast")
-            .arg("stop")
-            .output()
-            .await?;
+            .arg("stop");
+        let output = cmd.output().await?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -324,13 +322,13 @@ impl LocalDbManager {
         let deadline = tokio::time::Instant::now() + PG_READY_TIMEOUT;
 
         loop {
-            let output = Command::new(&pg_isready)
-                .arg("-p")
+            let cmd = Command::new(&pg_isready);
+            let mut cmd = cmd;
+            cmd.arg("-p")
                 .arg(self.config.port.to_string())
                 .arg("-h")
-                .arg("localhost")
-                .output()
-                .await?;
+                .arg("localhost");
+            let output = cmd.output().await?;
 
             if output.status.success() {
                 return Ok(());
@@ -342,6 +340,182 @@ impl LocalDbManager {
 
             sleep(PG_READY_POLL).await;
         }
+    }
+
+    /// Returns a reference to the PG configuration.
+    pub fn config(&self) -> &PgConfig {
+        &self.config
+    }
+}
+
+// @zen-component: PLAN-007-PgLiteManager
+/// Manages a PGlite instance running inside a Node.js process via pglite-socket.
+///
+/// Spawns `node pglite-server.mjs` and exposes the standard PG wire protocol on
+/// `localhost:<port>`. The `nize_api_server` connects via `sqlx::PgPool` unchanged.
+pub struct PgLiteManager {
+    /// Path to the PGlite data directory.
+    data_dir: PathBuf,
+    /// Port the PGlite socket server is listening on (0 until started).
+    port: u16,
+    /// Database name (informational — PGlite runs single-db).
+    database_name: String,
+    /// PID of the Node.js child process (set after start).
+    child_pid: Option<u32>,
+    /// Whether the server has been started.
+    started: bool,
+}
+
+impl PgLiteManager {
+    // @zen-impl: PLAN-007-3.1
+    /// Creates a new `PgLiteManager`.
+    pub fn new(data_dir: PathBuf, database_name: &str) -> Self {
+        Self {
+            data_dir,
+            port: 0,
+            database_name: database_name.to_string(),
+            child_pid: None,
+            started: false,
+        }
+    }
+
+    /// Creates a new `PgLiteManager` using the platform-appropriate application data directory.
+    ///
+    /// Uses `nize/pglite-data` (separate from native PG's `nize/pgdata`).
+    pub fn with_default_data_dir() -> Result<Self> {
+        let data_dir = default_pglite_data_dir().ok_or(DbError::NoDataDir)?;
+        Ok(Self::new(data_dir, DEFAULT_DATABASE))
+    }
+
+    // @zen-impl: PLAN-007-3.1
+    /// Starts the PGlite server by spawning `node pglite-server.mjs`.
+    ///
+    /// Reads `{"port": N}` from stdout (sidecar protocol) and waits for the
+    /// PG wire protocol to become ready.
+    pub fn start(
+        &mut self,
+        node_bin: &std::path::Path,
+        server_script: &std::path::Path,
+    ) -> Result<()> {
+        use std::io::{BufRead, BufReader};
+        use std::process::{Command as StdCommand, Stdio};
+
+        let port = find_free_port()?;
+
+        log::info!(
+            "Starting PGlite server on port {} (data: {})...",
+            port,
+            self.data_dir.display()
+        );
+
+        let mut child = StdCommand::new(node_bin)
+            .arg(server_script)
+            .arg(format!("--db={}", self.data_dir.display()))
+            .arg(format!("--port={port}"))
+            .arg(format!("--database={}", self.database_name))
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .map_err(|e| DbError::Command(format!("spawn pglite-server: {e}")))?;
+
+        let pid = child.id();
+
+        // Read the first line of stdout for {"port": N}.
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| DbError::Command("no stdout from pglite-server".to_string()))?;
+        let mut reader = BufReader::new(stdout);
+        let mut first_line = String::new();
+        reader
+            .read_line(&mut first_line)
+            .map_err(|e| DbError::Command(format!("read pglite-server stdout: {e}")))?;
+
+        #[derive(serde::Deserialize)]
+        struct Ready {
+            port: u16,
+        }
+
+        let ready: Ready = serde_json::from_str(&first_line)
+            .map_err(|e| DbError::Command(format!("parse pglite-server JSON: {e}")))?;
+
+        self.port = ready.port;
+        self.child_pid = Some(pid);
+        self.started = true;
+
+        log::info!("PGlite server ready on port {} (pid: {})", self.port, pid);
+
+        Ok(())
+    }
+
+    // @zen-impl: PLAN-007-3.1
+    /// Stops the PGlite server by killing the Node.js process.
+    pub fn stop(&mut self) -> Result<()> {
+        if !self.started {
+            return Ok(());
+        }
+
+        if let Some(pid) = self.child_pid.take() {
+            log::info!("Stopping PGlite server (pid: {pid})...");
+            #[cfg(unix)]
+            {
+                let _ = std::process::Command::new("kill")
+                    .arg(pid.to_string())
+                    .output();
+            }
+            #[cfg(windows)]
+            {
+                let _ = std::process::Command::new("taskkill")
+                    .args(["/PID", &pid.to_string(), "/F"])
+                    .output();
+            }
+        }
+
+        self.started = false;
+        log::info!("PGlite server stopped");
+        Ok(())
+    }
+
+    // @zen-impl: PLAN-007-3.1
+    /// Returns the PostgreSQL connection URL for the PGlite instance.
+    pub fn connection_url(&self) -> String {
+        format!(
+            "postgresql://localhost:{}/{}",
+            self.port, self.database_name
+        )
+    }
+
+    /// Returns the port the server is listening on (0 if not yet assigned).
+    pub fn port(&self) -> u16 {
+        self.port
+    }
+
+    /// Returns whether the server has been started.
+    pub fn is_started(&self) -> bool {
+        self.started
+    }
+
+    /// Returns the PID of the Node.js child process.
+    pub fn child_pid(&self) -> Option<u32> {
+        self.child_pid
+    }
+
+    // @zen-impl: PLAN-007-3.1
+    /// Returns a shell command string that will kill this PGlite instance.
+    ///
+    /// Suitable for writing to a cleanup manifest (e.g. for `nize_terminator`).
+    pub fn kill_command(&self) -> Option<String> {
+        self.child_pid.map(|pid| {
+            #[cfg(unix)]
+            {
+                format!("kill {pid}")
+            }
+            #[cfg(windows)]
+            {
+                format!("taskkill /PID {pid} /F")
+            }
+        })
     }
 }
 
@@ -471,8 +645,20 @@ pub fn default_data_dir() -> Option<PathBuf> {
     dirs::data_dir().map(|d| d.join("nize").join("pgdata"))
 }
 
+/// Returns the default data directory for PGlite (separate from native PG).
+///
+/// Platform paths:
+/// - macOS: `~/Library/Application Support/nize/pglite-data`
+/// - Linux: `~/.local/share/nize/pglite-data`
+/// - Windows: `%APPDATA%\nize\pglite-data`
+pub fn default_pglite_data_dir() -> Option<PathBuf> {
+    dirs::data_dir().map(|d| d.join("nize").join("pglite-data"))
+}
+
 /// Wraps a string in single quotes for shell safety if it contains spaces or
 /// special characters. Single quotes within the value are escaped.
+// @zen-impl: PLAN-006-3.4
+#[cfg(unix)]
 fn shell_escape(s: String) -> String {
     if s.chars()
         .all(|c| c.is_ascii_alphanumeric() || c == '/' || c == '-' || c == '_' || c == '.')

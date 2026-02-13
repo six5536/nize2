@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { UpdateChecker } from "./UpdateChecker";
 
 interface HelloResponse {
   greeting: string;
@@ -31,6 +32,8 @@ function App() {
     <main style={{ fontFamily: "system-ui, sans-serif", padding: "2rem" }}>
       <h1>Nize Desktop</h1>
       <p>Tauri + React bootstrap — ready for development.</p>
+
+      <UpdateChecker />
 
       <section style={{ marginTop: "2rem" }}>
         <button onClick={handleHelloClick} disabled={loading}>

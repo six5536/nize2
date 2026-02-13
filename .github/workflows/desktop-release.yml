@@ -1,0 +1,196 @@
+# @zen-impl: PLAN-007-8.2
+# Desktop Release — builds, signs, and publishes Tauri desktop installers to GitHub Releases.
+name: Desktop Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ── Guard ──────────────────────────────────────────────────────────
+  branch-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure release runs on main
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "::error::Desktop release can only run from main (got ${GITHUB_REF})"
+            exit 1
+          fi
+
+  # ── Version ────────────────────────────────────────────────────────
+  prepare:
+    runs-on: ubuntu-latest
+    needs: branch-guard
+    outputs:
+      version: ${{ steps.pkg.outputs.version }}
+      tag: ${{ steps.pkg.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from tauri.conf.json
+        id: pkg
+        run: |
+          VERSION=$(jq -r '.version' crates/app/nize_desktop/tauri.conf.json)
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "::error::Invalid version format: $VERSION"
+            exit 1
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=desktop-v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if tag already exists
+        run: |
+          TAG="${{ steps.pkg.outputs.tag }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG already exists!"
+            exit 1
+          fi
+
+  # ── Build matrix ───────────────────────────────────────────────────
+  build:
+    name: Build (${{ matrix.platform }})
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            node_platform: macos-arm64
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            node_platform: linux-x86_64
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            node_platform: windows-x86_64
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Rust toolchain ──────────────────────────────────────────────
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.93.0"
+          targets: ${{ matrix.target }}
+
+      # ── Node.js ──────────────────────────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      # ── Platform dependencies ────────────────────────────────────────
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      # ── Cargo cache ──────────────────────────────────────────────────
+      - name: Cache Cargo registry & target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: desktop-release-${{ runner.os }}-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: desktop-release-${{ runner.os }}-${{ matrix.target }}-
+
+      # ── Download bundled Node.js binary ──────────────────────────────
+      - name: Cache Node.js binary
+        uses: actions/cache@v4
+        with:
+          path: .cache/node
+          key: node-${{ matrix.node_platform }}-${{ hashFiles('scripts/node-version.env') }}
+
+      - name: Download Node.js binary
+        shell: bash
+        run: bash scripts/download-node.sh ${{ matrix.node_platform }}
+
+      # ── npm install ──────────────────────────────────────────────────
+      - name: Install npm dependencies
+        run: npm ci
+        working-directory: packages/nize-desktop
+
+      # ── Bundle PGlite server ─────────────────────────────────────────
+      - name: Bundle PGlite server
+        run: npm run build:pglite-server
+        working-directory: packages/nize-desktop
+
+      # ── Build sidecars ───────────────────────────────────────────────
+      - name: Build sidecar binaries
+        run: cargo build -p nize_api_server -p nize_terminator --release --target ${{ matrix.target }}
+
+      - name: Setup sidecar binaries
+        shell: bash
+        run: bash scripts/setup-sidecar-binaries.sh release
+
+      # ── Tauri build + sign ───────────────────────────────────────────
+      # @zen-impl: PLAN-006-5.2
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Updater signing
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # macOS code signing and notarization
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          tagName: ${{ needs.prepare.outputs.tag }}
+          releaseName: "Nize Desktop ${{ needs.prepare.outputs.version }}"
+          releaseBody: "Desktop app release ${{ needs.prepare.outputs.version }}"
+          releaseDraft: true
+          prerelease: false
+          tauriScript: npx tauri
+          includeUpdaterJson: true
+
+  # ── Publish ────────────────────────────────────────────────────────
+  publish:
+    name: Publish Release
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish draft release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = '${{ needs.prepare.outputs.tag }}';
+            const { data: releases } = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            const draft = releases.find(r => r.tag_name === tag && r.draft);
+            if (!draft) {
+              core.setFailed(`No draft release found for tag ${tag}`);
+              return;
+            }
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: draft.id,
+              draft: false,
+            });
+            core.info(`Published release ${draft.name} (${draft.id})`);

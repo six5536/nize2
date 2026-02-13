@@ -5,7 +5,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 
 use nize_api_client::Client as ApiClient;
-use nize_core::db::LocalDbManager;
+use nize_core::db::PgLiteManager;
 use serde::Deserialize;
 use tauri::Manager;
 use tracing::{error, info};
@@ -22,11 +22,11 @@ struct ApiSidecar {
     _process: Child,
 }
 
-/// Holds the managed PG instance and API sidecar for the app lifetime.
+/// Holds the managed PGlite instance and API sidecar for the app lifetime.
 struct AppServices {
     sidecar: Option<ApiSidecar>,
-    /// Held to keep the PG process alive (stopped when dropped via `pg_ctl stop`).
-    _db: Option<LocalDbManager>,
+    /// Held to keep the PGlite process alive (killed when stopped).
+    _pglite: Option<PgLiteManager>,
     /// nize_terminator child process (killed on graceful exit).
     terminator: Option<Child>,
     /// Path to the cleanup manifest file.
@@ -143,7 +143,7 @@ async fn hello_world(
 }
 
 pub fn run() {
-    // Initialize logging so LocalDbManager (log crate) and tracing messages are visible.
+    // Initialize logging so PgLiteManager (log crate) and tracing messages are visible.
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -154,7 +154,7 @@ pub fn run() {
     // @zen-impl: PLAN-005 — spawn terminator before managed processes
     // 1. Create empty manifest file.
     // 2. Spawn nize_terminator watching our PID.
-    // 3. Start DB, append cleanup command to manifest.
+    // 3. Start PGlite, append cleanup command to manifest.
     // 4. Start API sidecar.
     let manifest_path = manifest_path();
     let terminator = match create_manifest_and_spawn_terminator(&manifest_path) {
@@ -168,67 +168,132 @@ pub fn run() {
         }
     };
 
-    // Start managed PostgreSQL and the API sidecar before the Tauri event loop.
-    let services = tauri::async_runtime::block_on(async {
-        match LocalDbManager::with_default_data_dir().await {
-            Ok(mut db) => {
-                if let Err(e) = db.setup().await {
-                    error!("DB setup failed: {e}");
-                    return AppServices {
-                        sidecar: None,
-                        _db: None,
-                        terminator,
-                        manifest_path: Some(manifest_path.clone()),
-                    };
-                }
-                if let Err(e) = db.start().await {
-                    error!("DB start failed: {e}");
-                    return AppServices {
-                        sidecar: None,
-                        _db: None,
-                        terminator,
-                        manifest_path: Some(manifest_path.clone()),
-                    };
-                }
+    // External database override via environment variable.
+    if let Ok(db_url) = std::env::var("DATABASE_URL") {
+        info!(url = %db_url, "Using DATABASE_URL from environment");
 
-                // @zen-impl: PLAN-005 — append PG cleanup command to manifest
-                let stop_cmd = db.pg_ctl_stop_command();
-                if let Err(e) = append_cleanup(&manifest_path, &stop_cmd) {
-                    error!("Failed to write cleanup command to manifest: {e}");
-                }
+        let sidecar = match start_api_sidecar(&db_url) {
+            Ok(s) => Some(s),
+            Err(e) => {
+                error!("Failed to start API sidecar: {e}");
+                None
+            }
+        };
 
-                let db_url = db.connection_url();
-                info!(url = %db_url, "PostgreSQL started");
+        return run_tauri(AppServices {
+            sidecar,
+            _pglite: None,
+            terminator,
+            manifest_path: Some(manifest_path),
+        });
+    }
 
-                let sidecar = match start_api_sidecar(&db_url) {
-                    Ok(s) => Some(s),
-                    Err(e) => {
-                        error!("Failed to start API sidecar: {e}");
-                        None
-                    }
-                };
+    // @zen-impl: PLAN-007-5.1 — start PGlite and the API sidecar before the Tauri event loop.
+    let services = {
+        let exe = std::env::current_exe().expect("current_exe");
+        let exe_dir = exe.parent().expect("exe parent dir");
 
-                AppServices {
-                    sidecar,
-                    _db: Some(db),
-                    terminator,
-                    manifest_path: Some(manifest_path),
+        // Resolve node binary: bundled externalBin or PATH fallback.
+        let node_bin = {
+            let bundled = exe_dir.join("node");
+            if bundled.exists() {
+                bundled
+            } else {
+                PathBuf::from("node")
+            }
+        };
+
+        // @zen-impl: PLAN-007-5.1 — resolve pglite-server.mjs from resources.
+        let server_script = {
+            // Production macOS .app: Contents/MacOS/exe → Contents/Resources/pglite/
+            let resource = exe_dir
+                .parent()
+                .map(|p| p.join("Resources").join("pglite").join("pglite-server.mjs"));
+            match resource {
+                Some(ref p) if p.exists() => p.clone(),
+                _ => {
+                    // Dev fallback: look in the nize_desktop resources directory.
+                    let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                        .join("resources")
+                        .join("pglite")
+                        .join("pglite-server.mjs");
+                    dev_path
                 }
             }
+        };
+
+        if !server_script.exists() {
+            error!(
+                "pglite-server.mjs not found at {}; set DATABASE_URL to use an external database",
+                server_script.display()
+            );
+            return run_tauri(AppServices {
+                sidecar: None,
+                _pglite: None,
+                terminator,
+                manifest_path: Some(manifest_path),
+            });
+        }
+
+        // PGlite mode: spawn node pglite-server.mjs.
+        let mut pglite = match PgLiteManager::with_default_data_dir() {
+            Ok(mgr) => mgr,
             Err(e) => {
-                error!("Failed to create LocalDbManager: {e}");
-                AppServices {
+                error!("Failed to create PgLiteManager: {e}");
+                return run_tauri(AppServices {
                     sidecar: None,
-                    _db: None,
+                    _pglite: None,
                     terminator,
                     manifest_path: Some(manifest_path),
-                }
+                });
+            }
+        };
+
+        if let Err(e) = pglite.start(&node_bin, &server_script) {
+            error!("PGlite start failed: {e}");
+            return run_tauri(AppServices {
+                sidecar: None,
+                _pglite: None,
+                terminator,
+                manifest_path: Some(manifest_path),
+            });
+        }
+
+        // @zen-impl: PLAN-007-5.2 — append PGlite kill command to terminator manifest.
+        if let Some(kill_cmd) = pglite.kill_command() {
+            if let Err(e) = append_cleanup(&manifest_path, &kill_cmd) {
+                error!("Failed to write cleanup command to manifest: {e}");
             }
         }
-    });
 
+        let db_url = pglite.connection_url();
+        info!(url = %db_url, "PGlite started");
+
+        let sidecar = match start_api_sidecar(&db_url) {
+            Ok(s) => Some(s),
+            Err(e) => {
+                error!("Failed to start API sidecar: {e}");
+                None
+            }
+        };
+
+        AppServices {
+            sidecar,
+            _pglite: Some(pglite),
+            terminator,
+            manifest_path: Some(manifest_path),
+        }
+    };
+
+    run_tauri(services);
+}
+
+// @zen-impl: PLAN-007-5.3
+fn run_tauri(services: AppServices) {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .manage(Mutex::new(services))
         .invoke_handler(tauri::generate_handler![hello_world])
         .build(tauri::generate_context!())
@@ -241,13 +306,11 @@ pub fn run() {
                     // Drop the sidecar first so it releases PG connections.
                     guard.sidecar.take();
 
-                    // Stop PostgreSQL synchronously before the process exits.
-                    if let Some(mut db) = guard._db.take() {
-                        tauri::async_runtime::block_on(async move {
-                            if let Err(e) = db.stop().await {
-                                error!("Failed to stop PostgreSQL: {e}");
-                            }
-                        });
+                    // @zen-impl: PLAN-007-5.3 — stop PGlite on exit.
+                    if let Some(mut pglite) = guard._pglite.take() {
+                        if let Err(e) = pglite.stop() {
+                            error!("Failed to stop PGlite: {e}");
+                        }
                     }
 
                     // @zen-impl: PLAN-005 — kill terminator and delete manifest on graceful exit
