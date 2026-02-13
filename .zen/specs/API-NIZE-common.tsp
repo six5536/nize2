@@ -27,3 +27,17 @@ model ErrorResponse {
   error: string;
   message: string;
 }
+
+@error
+model UnauthorizedError {
+  @statusCode statusCode: 401;
+  error: string;
+  message: string;
+}
+
+@error
+model ValidationError {
+  @statusCode statusCode: 400;
+  error: string;
+  message: string;
+}

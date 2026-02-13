@@ -8,13 +8,43 @@ use crate::writer::escape_rust_str;
 
 /// Map an OpenAPI type + nullable to a Rust type string.
 fn rust_type(prop: &PropertyObject, required: bool) -> String {
+    // Handle $ref to another schema
+    if let Some(ref_path) = &prop.ref_path {
+        let ref_name = ref_path.rsplit('/').next().unwrap_or(ref_path);
+        // Strip namespace prefix (e.g. "Auth.AuthUser" → "AuthUser")
+        let struct_name = match ref_name.rsplit_once('.') {
+            Some((_, suffix)) => suffix,
+            None => ref_name,
+        };
+        if !required {
+            return format!("Option<{struct_name}>");
+        }
+        return struct_name.to_string();
+    }
+
+    // Handle allOf (resolve first $ref found)
+    if !prop.all_of.is_empty() {
+        for item in &prop.all_of {
+            if item.ref_path.is_some() {
+                return rust_type(item, required);
+            }
+        }
+    }
+
     let base = match prop.prop_type.as_deref() {
-        Some("string") => "String",
-        Some("boolean") => "bool",
-        Some("integer") => "i64",
-        Some("number") => "f64",
-        Some("array") => "Vec<serde_json::Value>",
-        _ => "serde_json::Value",
+        Some("string") => "String".to_string(),
+        Some("boolean") => "bool".to_string(),
+        Some("integer") => "i64".to_string(),
+        Some("number") => "f64".to_string(),
+        Some("array") => {
+            let item_type = prop
+                .items
+                .as_ref()
+                .map(|items| rust_type(items, true))
+                .unwrap_or_else(|| "serde_json::Value".to_string());
+            format!("Vec<{item_type}>")
+        }
+        _ => "serde_json::Value".to_string(),
     };
 
     if prop.nullable {
@@ -53,6 +83,12 @@ pub fn generate(schemas: &BTreeMap<String, SchemaObject>) -> String {
 }
 
 fn generate_struct(out: &mut String, name: &str, schema: &SchemaObject) {
+    // Strip namespace prefix (e.g. "Auth.AuthStatusResponse" → "AuthStatusResponse")
+    let struct_name = match name.rsplit_once('.') {
+        Some((_, suffix)) => suffix,
+        None => name,
+    };
+
     // Doc comment
     if let Some(desc) = &schema.description {
         for line in desc.lines() {
@@ -61,7 +97,7 @@ fn generate_struct(out: &mut String, name: &str, schema: &SchemaObject) {
     }
 
     writeln!(out, "#[derive(Debug, Clone, Serialize, Deserialize)]").unwrap();
-    writeln!(out, "pub struct {name} {{").unwrap();
+    writeln!(out, "pub struct {struct_name} {{").unwrap();
 
     for (field_name, prop) in &schema.properties {
         let snake = to_snake_case(field_name);

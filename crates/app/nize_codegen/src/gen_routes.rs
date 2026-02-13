@@ -18,7 +18,9 @@ pub fn generate(paths: &BTreeMap<String, PathItem>) -> String {
             let const_name = route_const_name(method, path);
             let desc = method_description(item, method);
             if let Some(desc) = desc {
-                writeln!(out, "/// {method} {path} — {}", escape_rust_str(&desc)).unwrap();
+                // Use first line only for the doc comment to avoid broken Rust syntax.
+                let first_line = desc.lines().next().unwrap_or(&desc);
+                writeln!(out, "/// {method} {path} — {}", escape_rust_str(first_line)).unwrap();
             } else {
                 writeln!(out, "/// {method} {path}").unwrap();
             }

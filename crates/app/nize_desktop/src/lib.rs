@@ -20,6 +20,8 @@ struct SidecarReady {
 struct ApiSidecar {
     client: ApiClient,
     _process: Child,
+    /// Bound port of the API sidecar (for frontend direct access).
+    port: u16,
 }
 
 /// Holds the managed PGlite instance and API sidecar for the app lifetime.
@@ -34,7 +36,7 @@ struct AppServices {
 }
 
 /// Spawns the `nize_api_server` binary and reads the port from its JSON stdout line.
-fn start_api_sidecar(database_url: &str) -> Result<ApiSidecar, String> {
+fn start_api_sidecar(database_url: &str, max_connections: u32) -> Result<ApiSidecar, String> {
     let exe = std::env::current_exe().map_err(|e| format!("current_exe: {e}"))?;
     let sidecar_path = exe.parent().ok_or("no parent dir")?.join("nize_api_server");
 
@@ -45,6 +47,8 @@ fn start_api_sidecar(database_url: &str) -> Result<ApiSidecar, String> {
         .arg("0")
         .arg("--database-url")
         .arg(database_url)
+        .arg("--max-connections")
+        .arg(max_connections.to_string())
         .arg("--sidecar")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -69,6 +73,7 @@ fn start_api_sidecar(database_url: &str) -> Result<ApiSidecar, String> {
     Ok(ApiSidecar {
         client,
         _process: child,
+        port: ready.port,
     })
 }
 
@@ -142,6 +147,15 @@ async fn hello_world(
     Ok(body)
 }
 
+#[tauri::command]
+async fn get_api_port(state: tauri::State<'_, Mutex<AppServices>>) -> Result<u16, String> {
+    let guard = state.lock().map_err(|e| format!("lock: {e}"))?;
+    match &guard.sidecar {
+        Some(s) => Ok(s.port),
+        None => Err("API sidecar not running".into()),
+    }
+}
+
 pub fn run() {
     // Initialize logging so PgLiteManager (log crate) and tracing messages are visible.
     tracing_subscriber::fmt()
@@ -172,7 +186,7 @@ pub fn run() {
     if let Ok(db_url) = std::env::var("DATABASE_URL") {
         info!(url = %db_url, "Using DATABASE_URL from environment");
 
-        let sidecar = match start_api_sidecar(&db_url) {
+        let sidecar = match start_api_sidecar(&db_url, 5) {
             Ok(s) => Some(s),
             Err(e) => {
                 error!("Failed to start API sidecar: {e}");
@@ -269,7 +283,7 @@ pub fn run() {
         let db_url = pglite.connection_url();
         info!(url = %db_url, "PGlite started");
 
-        let sidecar = match start_api_sidecar(&db_url) {
+        let sidecar = match start_api_sidecar(&db_url, 1) {
             Ok(s) => Some(s),
             Err(e) => {
                 error!("Failed to start API sidecar: {e}");
@@ -295,7 +309,16 @@ fn run_tauri(services: AppServices) {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(Mutex::new(services))
-        .invoke_handler(tauri::generate_handler![hello_world])
+        .invoke_handler(tauri::generate_handler![hello_world, get_api_port])
+        .setup(|app| {
+            #[cfg(debug_assertions)]
+            {
+                if let Some(win) = app.get_webview_window("main") {
+                    win.open_devtools();
+                }
+            }
+            Ok(())
+        })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {

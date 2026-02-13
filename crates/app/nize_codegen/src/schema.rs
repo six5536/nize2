@@ -79,4 +79,8 @@ pub struct PropertyObject {
     pub nullable: bool,
     #[serde(rename = "$ref", default)]
     pub ref_path: Option<String>,
+    #[serde(default)]
+    pub items: Option<Box<PropertyObject>>,
+    #[serde(rename = "allOf", default)]
+    pub all_of: Vec<PropertyObject>,
 }

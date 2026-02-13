@@ -9,9 +9,10 @@
   "devDependencies": {
     "@typespec/compiler": "^0.64",
     "@typespec/http": "^0.64",
-    "@typespec/rest": "^0.64",
     "@typespec/openapi": "^0.64",
     "@typespec/openapi3": "^0.64",
-    "js-yaml": "^4.1"
+    "@typespec/rest": "^0.64",
+    "js-yaml": "^4.1",
+    "openapi-typescript": "^7.13.0"
   }
 }

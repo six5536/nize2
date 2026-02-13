@@ -27,6 +27,12 @@ pub enum AppError {
     #[error("Sidecar unavailable: {0}")]
     SidecarUnavailable(String),
 
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
+
+    #[error("Forbidden: {0}")]
+    Forbidden(String),
+
     #[error("Internal server error")]
     Internal(String),
 }
@@ -42,6 +48,8 @@ impl IntoResponse for AppError {
             AppError::SidecarUnavailable(m) => {
                 (StatusCode::SERVICE_UNAVAILABLE, "sidecar_unavailable", m.as_str())
             }
+            AppError::Unauthorized(m) => (StatusCode::UNAUTHORIZED, "unauthorized", m.as_str()),
+            AppError::Forbidden(m) => (StatusCode::FORBIDDEN, "forbidden", m.as_str()),
             AppError::Internal(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "internal_error",

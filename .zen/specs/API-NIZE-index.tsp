@@ -5,6 +5,7 @@
  * for TypeSpec compilation.
  */
 import "./API-NIZE-common.tsp";
+import "./API-NIZE-auth.tsp";
 import "@typespec/http";
 
 using TypeSpec.Http;

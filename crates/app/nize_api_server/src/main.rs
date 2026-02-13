@@ -23,6 +23,13 @@ struct Args {
     )]
     database_url: String,
 
+    /// Maximum number of database connections in the pool.
+    ///
+    /// Set to 1 when the backend is PGlite (single-connection only) so that
+    /// concurrent requests queue at the pool level instead of failing.
+    #[arg(long, default_value_t = 5)]
+    max_connections: u32,
+
     /// Run as a managed sidecar: exit automatically when the parent process dies.
     ///
     /// When set, the server monitors stdin for EOF. The parent keeps the write
@@ -49,14 +56,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!(database_url = %args.database_url, port = args.port, "starting nize_api_server");
 
+    info!(
+        max_connections = args.max_connections,
+        sidecar = args.sidecar,
+        "configuring connection pool"
+    );
+
     let pool = PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(args.max_connections)
+        .acquire_timeout(std::time::Duration::from_secs(30))
         .connect(&args.database_url)
         .await?;
+
+    // Run database migrations.
+    info!("running database migrations");
+    nize_api::migrate(&pool).await?;
 
     let config = nize_api::config::ApiConfig {
         bind_addr: format!("127.0.0.1:{}", args.port),
         pg_connection_url: args.database_url,
+        jwt_secret: nize_api::services::auth::resolve_jwt_secret(),
     };
 
     let state = nize_api::AppState {
