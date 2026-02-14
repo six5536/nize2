@@ -4,419 +4,961 @@
  */
 
 export interface paths {
-  "/api/hello": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/admin/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get all config (admin)
+         * @description Get all configuration items with filtering.
+         *     Returns definitions with all values across scopes.
+         */
+        get: operations["AdminConfigRoutes_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /** @description Bootstrap health check — verifies core lib, DB, and Node sidecar. */
-    get: operations["Hello_helloWorld"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/auth/login": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/admin/config/{scope}/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update config at scope (admin)
+         * @description Update a configuration value at a specific scope.
+         *     For user-override scope, userId must be provided in body.
+         */
+        patch: operations["AdminConfigRoutes_update"];
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Login with credentials
-     * @description Login with email and password.
-     *     Returns access and refresh token pair on success.
-     */
-    post: operations["AuthRoutes_login"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/auth/logout": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/hello": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Bootstrap health check — verifies core lib, DB, and Bun sidecar. */
+        get: operations["Hello_helloWorld"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Logout current session
-     * @description Logout and revoke refresh token.
-     *     Requires valid access token.
-     */
-    post: operations["AuthRoutes_logout"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/auth/refresh": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Login with credentials
+         * @description Login with email and password.
+         *     Returns access and refresh token pair on success.
+         */
+        post: operations["AuthRoutes_login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Refresh access token
-     * @description Refresh an expired access token.
-     *     Rotates the refresh token on each use.
-     */
-    post: operations["AuthRoutes_refresh"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/auth/register": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout current session
+         * @description Logout and revoke refresh token.
+         *     Requires valid access token.
+         */
+        post: operations["AuthRoutes_logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Register new account
-     * @description Register a new user account.
-     *     Returns access and refresh token pair on success.
-     *     First registered user is granted admin role.
-     */
-    post: operations["AuthRoutes_register"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/auth/status": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/auth/mcp-tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List MCP tokens
+         * @description List MCP API tokens for the authenticated user.
+         *     Requires authentication. Does not return plaintext tokens.
+         */
+        get: operations["AuthRoutes_listMcpTokens"];
+        put?: never;
+        /**
+         * Create MCP token
+         * @description Create an MCP API token.
+         *     Requires authentication. Returns plaintext token once.
+         */
+        post: operations["AuthRoutes_createMcpToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Check auth status
-     * @description Check authentication status.
-     *     Returns whether an admin user exists (for first-run flow).
-     */
-    get: operations["AuthRoutes_status"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
+    "/auth/mcp-tokens/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke MCP token
+         * @description Revoke an MCP API token.
+         *     Requires authentication.
+         */
+        delete: operations["AuthRoutes_revokeMcpToken"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh access token
+         * @description Refresh an expired access token.
+         *     Rotates the refresh token on each use.
+         */
+        post: operations["AuthRoutes_refresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register new account
+         * @description Register a new user account.
+         *     Returns access and refresh token pair on success.
+         *     First registered user is granted admin role.
+         */
+        post: operations["AuthRoutes_register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check auth status
+         * @description Check authentication status.
+         *     Returns whether an admin user exists (for first-run flow).
+         */
+        get: operations["AuthRoutes_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/config/user": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get user config
+         * @description Get all user configuration items with effective values.
+         *     Resolves through: user-override → system → definition.defaultValue
+         */
+        get: operations["UserConfigRoutes_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/config/user/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Reset user config to default
+         * @description Reset a user configuration to default.
+         *     Deletes the user-override, falling back to system or definition.defaultValue.
+         */
+        delete: operations["UserConfigRoutes_reset"];
+        options?: never;
+        head?: never;
+        /**
+         * Update user config
+         * @description Update a user configuration value.
+         *     Creates or updates user-override for the authenticated user.
+         */
+        patch: operations["UserConfigRoutes_update"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-  schemas: {
-    /** @description Auth status response (for first-run detection) */
-    "Auth.AuthStatusResponse": {
-      /** @description Whether an admin user has been created */
-      adminExists: boolean;
+    schemas: {
+        /** @description Auth status response (for first-run detection) */
+        "Auth.AuthStatusResponse": {
+            /** @description Whether an admin user has been created */
+            adminExists: boolean;
+        };
+        /** @description User information returned with auth responses */
+        "Auth.AuthUser": {
+            /** @description User ID */
+            id: string;
+            /** @description User email address */
+            email: string;
+            /** @description User display name */
+            name?: string;
+            /** @description User roles (e.g., 'admin') */
+            roles: string[];
+        };
+        /** @description Request to create an MCP API token */
+        "Auth.CreateMcpTokenRequest": {
+            /** @description Human-readable name for the token */
+            name: string;
+        };
+        /** @description Response after creating an MCP API token (contains plaintext token once) */
+        "Auth.CreateMcpTokenResponse": {
+            /** @description Token ID */
+            id: string;
+            /** @description Plaintext token (shown only once) */
+            token: string;
+            /** @description Token name */
+            name: string;
+            /** @description Creation timestamp */
+            createdAt: string;
+        };
+        /** @description Login with email and password */
+        "Auth.LoginRequest": {
+            /**
+             * Format: email
+             * @description User email address
+             */
+            email: string;
+            /** @description User password */
+            password: string;
+        };
+        /** @description Logout request */
+        "Auth.LogoutRequest": {
+            /** @description Refresh token to revoke */
+            refreshToken?: string;
+        };
+        /** @description Successful logout response */
+        "Auth.LogoutResponse": {
+            /**
+             * @description Logout confirmation
+             * @enum {boolean}
+             */
+            success: true;
+        };
+        /** @description An MCP API token record (without sensitive data) */
+        "Auth.McpTokenInfo": {
+            /** @description Token ID */
+            id: string;
+            /** @description Token name */
+            name: string;
+            /** @description Creation timestamp */
+            createdAt: string;
+            /** @description Expiry timestamp (if set) */
+            expiresAt?: string;
+            /** @description Revocation timestamp (if revoked) */
+            revokedAt?: string;
+        };
+        /** @description List of MCP tokens */
+        "Auth.McpTokenListResponse": {
+            /** @description List of tokens */
+            tokens: components["schemas"]["Auth.McpTokenInfo"][];
+        };
+        /** @description Refresh an access token */
+        "Auth.RefreshRequest": {
+            /** @description Refresh token to exchange for new token pair (optional when sent via cookie) */
+            refreshToken?: string;
+        };
+        /** @description Register a new user account */
+        "Auth.RegisterRequest": {
+            /**
+             * Format: email
+             * @description User email address
+             */
+            email: string;
+            /** @description User password (minimum 8 characters) */
+            password: string;
+            /** @description User display name */
+            name?: string;
+        };
+        /** @description Generic success response */
+        "Auth.SuccessResponse": {
+            /**
+             * @description Operation result
+             * @enum {boolean}
+             */
+            success: true;
+        };
+        /** @description Token pair response */
+        "Auth.TokenResponse": {
+            /** @description JWT access token for API authorization */
+            accessToken: string;
+            /** @description Refresh token for obtaining new access tokens */
+            refreshToken: string;
+            /**
+             * Format: int32
+             * @description Access token expiry in seconds
+             */
+            expiresIn: number;
+            /**
+             * @description Token type (always 'Bearer')
+             * @enum {string}
+             */
+            tokenType: "Bearer";
+            /** @description Authenticated user information */
+            user: components["schemas"]["Auth.AuthUser"];
+        };
+        /** @description Admin config item — definition + all values across scopes */
+        "Config.AdminConfigItem": {
+            /** @description Dotted key path */
+            key: string;
+            /** @description Category for grouping */
+            category: string;
+            /** @description Data type */
+            type: string;
+            /** @description Display type for UI */
+            displayType: string;
+            /** @description Possible values for selector */
+            possibleValues?: string[];
+            /** @description Default value */
+            defaultValue: string;
+            /** @description Human-readable label */
+            label?: string;
+            /** @description Help text */
+            description?: string;
+            /** @description All values across scopes */
+            values: components["schemas"]["Config.AdminConfigValueItem"][];
+        };
+        /** @description Admin config list response */
+        "Config.AdminConfigListResponse": {
+            /** @description Array of config items with scope information */
+            items: components["schemas"]["Config.AdminConfigItem"][];
+        };
+        /** @description Admin config value with scope metadata */
+        "Config.AdminConfigValueItem": {
+            /** @description Value record ID */
+            id: string;
+            /** @description Scope of this value */
+            scope: string;
+            /** @description User ID if scope is user-override */
+            userId?: string;
+            /** @description Config value */
+            value: string;
+            /** @description Last update timestamp */
+            updatedAt: string;
+        };
+        /** @description Admin update with optional userId for user-override scope */
+        "Config.AdminUpdateConfigRequest": {
+            /** @description New value */
+            value?: string;
+            /** @description User ID when updating user-override scope */
+            userId?: string;
+        };
+        /** @description Validator definition for config values */
+        "Config.ConfigValidatorModel": {
+            /** @description Validator type: required, min, max, regex */
+            type: string;
+            /** @description Validator value (e.g., minimum value, regex pattern) */
+            value?: string | number;
+            /** @description Error message when validation fails */
+            message?: string;
+        };
+        /** @description Resolved config item — definition metadata + effective value for a user */
+        "Config.ResolvedConfigItem": {
+            /** @description Dotted key path (e.g., 'agent.model.temperature') */
+            key: string;
+            /** @description Category for grouping */
+            category: string;
+            /** @description Data type of the config value */
+            type: string;
+            /** @description Display type for UI rendering */
+            displayType: string;
+            /** @description Possible values for selector display type */
+            possibleValues?: string[];
+            /** @description Validators for the config value */
+            validators?: components["schemas"]["Config.ConfigValidatorModel"][];
+            /** @description Default value when no value record exists */
+            defaultValue: string;
+            /** @description Human-readable label for UI */
+            label?: string;
+            /** @description Help text for UI */
+            description?: string;
+            /** @description Current effective value */
+            value: string;
+            /** @description True if user has an override for this setting */
+            isOverridden: boolean;
+        };
+        /** @description Update a configuration value */
+        "Config.UpdateConfigRequest": {
+            /** @description New value for the configuration item */
+            value?: string;
+        };
+        /** @description User config list response */
+        "Config.UserConfigListResponse": {
+            /** @description Array of resolved config items with effective values */
+            items: components["schemas"]["Config.ResolvedConfigItem"][];
+        };
+        ErrorResponse: {
+            error: string;
+            message: string;
+        };
+        /** @description Health check and bootstrap verification response. */
+        HelloWorldResponse: {
+            /** @description Greeting from nize_core. */
+            greeting: string;
+            /** @description Whether the PostgreSQL database is reachable. */
+            dbConnected: boolean;
+            /** @description Bun version string, or null if unavailable. */
+            bunVersion: string | null;
+            /** @description Whether the Bun sidecar runtime is available. */
+            bunAvailable: boolean;
+        };
+        UnauthorizedError: {
+            error: string;
+            message: string;
+        };
+        ValidationError: {
+            error: string;
+            message: string;
+        };
     };
-    /** @description User information returned with auth responses */
-    "Auth.AuthUser": {
-      /** @description User ID */
-      id: string;
-      /** @description User email address */
-      email: string;
-      /** @description User display name */
-      name?: string;
-      /** @description User roles (e.g., 'admin') */
-      roles: string[];
-    };
-    /** @description Login with email and password */
-    "Auth.LoginRequest": {
-      /**
-       * Format: email
-       * @description User email address
-       */
-      email: string;
-      /** @description User password */
-      password: string;
-    };
-    /** @description Logout request */
-    "Auth.LogoutRequest": {
-      /** @description Refresh token to revoke */
-      refreshToken?: string;
-    };
-    /** @description Successful logout response */
-    "Auth.LogoutResponse": {
-      /**
-       * @description Logout confirmation
-       * @enum {boolean}
-       */
-      success: true;
-    };
-    /** @description Refresh an access token */
-    "Auth.RefreshRequest": {
-      /** @description Refresh token to exchange for new token pair (optional when sent via cookie) */
-      refreshToken?: string;
-    };
-    /** @description Register a new user account */
-    "Auth.RegisterRequest": {
-      /**
-       * Format: email
-       * @description User email address
-       */
-      email: string;
-      /** @description User password (minimum 8 characters) */
-      password: string;
-      /** @description User display name */
-      name?: string;
-    };
-    /** @description Token pair response */
-    "Auth.TokenResponse": {
-      /** @description JWT access token for API authorization */
-      accessToken: string;
-      /** @description Refresh token for obtaining new access tokens */
-      refreshToken: string;
-      /**
-       * Format: int32
-       * @description Access token expiry in seconds
-       */
-      expiresIn: number;
-      /**
-       * @description Token type (always 'Bearer')
-       * @enum {string}
-       */
-      tokenType: "Bearer";
-      /** @description Authenticated user information */
-      user: components["schemas"]["Auth.AuthUser"];
-    };
-    ErrorResponse: {
-      error: string;
-      message: string;
-    };
-    /** @description Health check and bootstrap verification response. */
-    HelloWorldResponse: {
-      /** @description Greeting from nize_core. */
-      greeting: string;
-      /** @description Whether the PostgreSQL database is reachable. */
-      dbConnected: boolean;
-      /** @description Node.js version string, or null if unavailable. */
-      nodeVersion: string | null;
-      /** @description Whether the Node.js sidecar runtime is available. */
-      nodeAvailable: boolean;
-    };
-    UnauthorizedError: {
-      error: string;
-      message: string;
-    };
-    ValidationError: {
-      error: string;
-      message: string;
-    };
-  };
-  responses: never;
-  parameters: never;
-  requestBodies: never;
-  headers: never;
-  pathItems: never;
+    responses: never;
+    parameters: never;
+    requestBodies: never;
+    headers: never;
+    pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
-  Hello_helloWorld: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    AdminConfigRoutes_list: {
+        parameters: {
+            query?: {
+                scope?: string;
+                userId?: string;
+                category?: string;
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Config.AdminConfigListResponse"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+        };
     };
-    requestBody?: never;
-    responses: {
-      /** @description The request has succeeded. */
-      200: {
-        headers: {
-          [name: string]: unknown;
+    AdminConfigRoutes_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scope: string;
+                key: string;
+            };
+            cookie?: never;
         };
-        content: {
-          "application/json": components["schemas"]["HelloWorldResponse"];
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Config.AdminUpdateConfigRequest"];
+            };
         };
-      };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Config.AdminConfigItem"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationError"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+        };
     };
-  };
-  AuthRoutes_login: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    Hello_helloWorld: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HelloWorldResponse"];
+                };
+            };
+        };
     };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["Auth.LoginRequest"];
-      };
+    AuthRoutes_login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Auth.LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Auth.TokenResponse"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationError"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+        };
     };
-    responses: {
-      /** @description The request has succeeded. */
-      200: {
-        headers: {
-          [name: string]: unknown;
+    AuthRoutes_logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-        content: {
-          "application/json": components["schemas"]["Auth.TokenResponse"];
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Auth.LogoutRequest"];
+            };
         };
-      };
-      /** @description The server could not understand the request due to invalid syntax. */
-      400: {
-        headers: {
-          [name: string]: unknown;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Auth.LogoutResponse"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
         };
-        content: {
-          "application/json": components["schemas"]["ValidationError"];
-        };
-      };
-      /** @description Access is unauthorized. */
-      401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["UnauthorizedError"];
-        };
-      };
     };
-  };
-  AuthRoutes_logout: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    AuthRoutes_listMcpTokens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Auth.McpTokenListResponse"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+        };
     };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["Auth.LogoutRequest"];
-      };
+    AuthRoutes_createMcpToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Auth.CreateMcpTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Auth.CreateMcpTokenResponse"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+        };
     };
-    responses: {
-      /** @description The request has succeeded. */
-      200: {
-        headers: {
-          [name: string]: unknown;
+    AuthRoutes_revokeMcpToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
         };
-        content: {
-          "application/json": components["schemas"]["Auth.LogoutResponse"];
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Auth.SuccessResponse"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
         };
-      };
-      /** @description Access is unauthorized. */
-      401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["UnauthorizedError"];
-        };
-      };
     };
-  };
-  AuthRoutes_refresh: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    AuthRoutes_refresh: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Auth.RefreshRequest"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Auth.TokenResponse"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+        };
     };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["Auth.RefreshRequest"];
-      };
+    AuthRoutes_register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Auth.RegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Auth.TokenResponse"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationError"];
+                };
+            };
+        };
     };
-    responses: {
-      /** @description The request has succeeded. */
-      200: {
-        headers: {
-          [name: string]: unknown;
+    AuthRoutes_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-        content: {
-          "application/json": components["schemas"]["Auth.TokenResponse"];
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Auth.AuthStatusResponse"];
+                };
+            };
         };
-      };
-      /** @description Access is unauthorized. */
-      401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["UnauthorizedError"];
-        };
-      };
     };
-  };
-  AuthRoutes_register: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    UserConfigRoutes_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Config.UserConfigListResponse"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+        };
     };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["Auth.RegisterRequest"];
-      };
+    UserConfigRoutes_reset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+        };
     };
-    responses: {
-      /** @description The request has succeeded and a new resource has been created as a result. */
-      201: {
-        headers: {
-          [name: string]: unknown;
+    UserConfigRoutes_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
         };
-        content: {
-          "application/json": components["schemas"]["Auth.TokenResponse"];
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Config.UpdateConfigRequest"];
+            };
         };
-      };
-      /** @description The server could not understand the request due to invalid syntax. */
-      400: {
-        headers: {
-          [name: string]: unknown;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Config.ResolvedConfigItem"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationError"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
         };
-        content: {
-          "application/json": components["schemas"]["ValidationError"];
-        };
-      };
     };
-  };
-  AuthRoutes_status: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description The request has succeeded. */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["Auth.AuthStatusResponse"];
-        };
-      };
-    };
-  };
 }

@@ -5,8 +5,8 @@
 // {"port": N} to stdout once the server is ready (matches the sidecar protocol).
 //
 // Usage:
-//   node nize-web-server.mjs --port=<N>
-//   node nize-web-server.mjs --port=<N> --dev          (hot-reload via next dev)
+//   bun nize-web-server.mjs --port=<N>
+//   bun nize-web-server.mjs --port=<N> --dev          (hot-reload via next dev)
 
 import { parseArgs } from "node:util";
 import { createServer } from "node:net";
@@ -14,7 +14,8 @@ import { spawn, execSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { unlinkSync } from "node:fs";
-import http from "node:http";
+
+const isBun = typeof globalThis.Bun !== "undefined";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -52,18 +53,26 @@ if (requestedPort !== 0) {
     if (pids) {
       for (const pid of pids.split("\n")) {
         process.stderr.write(`nize-web: killing stale process ${pid} on port ${port}\n`);
-        try { process.kill(parseInt(pid, 10), "SIGKILL"); } catch { /* already gone */ }
+        try {
+          process.kill(parseInt(pid, 10), "SIGKILL");
+        } catch {
+          /* already gone */
+        }
       }
       // Brief pause so the OS reclaims the port.
       await new Promise((r) => setTimeout(r, 300));
     }
-  } catch { /* lsof returns non-zero when no matches — that's fine */ }
+  } catch {
+    /* lsof returns non-zero when no matches — that's fine */
+  }
 }
 
 // Remove stale Next.js dev lock file from a previous unclean shutdown.
 try {
   unlinkSync(join(__dirname, "..", ".next", "dev", "lock"));
-} catch { /* doesn't exist — fine */ }
+} catch {
+  /* doesn't exist — fine */
+}
 
 // Prepare runtime env payload served at /__nize-env.js.
 // We serve this from a lightweight proxy instead of writing into the
@@ -80,7 +89,7 @@ if (devMode) {
   // Dev mode: run `next dev` for hot-module-reload.
   // Resolve the nize-web package root (one level up from scripts/).
   const nizeWebRoot = join(__dirname, "..");
-  child = spawn("npx", ["next", "dev", "--port", String(internalPort)], {
+  child = spawn(process.execPath, ["x", "next", "dev", "--port", String(internalPort)], {
     cwd: nizeWebRoot,
     env: {
       ...process.env,
@@ -129,30 +138,134 @@ await waitForServer(internalPort);
 // (when --api-port is provided), keeping cookies first-party.
 const apiPrefixes = ["/auth/", "/config/", "/admin/", "/api/"];
 
-function isApiPath(url) {
-  const path = url.split("?")[0];
-  return apiPort && apiPrefixes.some((p) => path.startsWith(p));
-}
-
 // Lightweight reverse proxy: serves /__nize-env.js from memory,
 // forwards API routes to the API server (when available),
 // proxies all other requests to the Next.js standalone server.
-const proxy = http.createServer((req, res) => {
-  if (req.url === "/__nize-env.js" || req.url === "/nize-web/__nize-env.js") {
-    res.writeHead(200, {
-      "Content-Type": "application/javascript",
-      "Cache-Control": "no-cache",
-    });
-    res.end(envPayload);
-    return;
-  }
+// Two implementations: Bun.serve() for Bun (native WebSocket support),
+// http.createServer + upgrade for Node.js.
 
-  // Forward API paths to the API server
-  if (isApiPath(req.url)) {
+function proxyTarget(url) {
+  const path = url.split("?")[0];
+  if (apiPort && apiPrefixes.some((p) => path.startsWith(p))) {
+    return parseInt(apiPort, 10);
+  }
+  return internalPort;
+}
+
+if (isBun) {
+  // @zen-impl: PLAN-014-1 — Bun.serve() proxy with native WebSocket support
+  // Bun's http.createServer does not reliably proxy WebSocket upgrade
+  // responses, so we use Bun's native server API instead.
+  const proxy = Bun.serve({
+    port,
+    hostname: "127.0.0.1",
+
+    async fetch(req, server) {
+      const url = new URL(req.url);
+
+      // Serve /__nize-env.js from memory
+      if (url.pathname === "/__nize-env.js" || url.pathname === "/nize-web/__nize-env.js") {
+        return new Response(envPayload, {
+          headers: { "Content-Type": "application/javascript", "Cache-Control": "no-cache" },
+        });
+      }
+
+      // WebSocket upgrade — hand off to Bun's native WebSocket handler
+      if (req.headers.get("upgrade")?.toLowerCase() === "websocket") {
+        const target = proxyTarget(url.pathname);
+        const path = url.pathname + url.search;
+        const success = server.upgrade(req, { data: { path, target } });
+        if (success) return undefined;
+        return new Response("WebSocket upgrade failed", { status: 500 });
+      }
+
+      // Reverse proxy: forward to API or Next.js
+      // Strip Accept-Encoding so upstream sends uncompressed data;
+      // Bun's fetch auto-decompresses but keeps Content-Encoding headers,
+      // causing browsers to double-decompress.
+      const target = proxyTarget(url.pathname);
+      const proxyUrl = `http://127.0.0.1:${target}${url.pathname}${url.search}`;
+      const proxyHeaders = new Headers(req.headers);
+      proxyHeaders.delete("accept-encoding");
+      const proxyReq = new Request(proxyUrl, {
+        method: req.method,
+        headers: proxyHeaders,
+        body: req.body,
+        redirect: "manual",
+      });
+      try {
+        const upstream = await fetch(proxyReq);
+        // Bun's fetch auto-decompresses gzip/br but preserves the original
+        // Content-Encoding / Content-Length headers.  Strip them so the
+        // browser doesn't try to decompress already-decompressed data.
+        const respHeaders = new Headers(upstream.headers);
+        respHeaders.delete("content-encoding");
+        respHeaders.delete("content-length");
+        return new Response(upstream.body, {
+          status: upstream.status,
+          statusText: upstream.statusText,
+          headers: respHeaders,
+        });
+      } catch {
+        return new Response("Bad Gateway", { status: 502 });
+      }
+    },
+
+    websocket: {
+      async open(ws) {
+        // Open a WebSocket to the upstream Next.js server
+        const { path, target } = ws.data;
+        const upstreamUrl = `ws://127.0.0.1:${target}${path}`;
+        const upstream = new WebSocket(upstreamUrl);
+        ws.data.upstream = upstream;
+
+        upstream.addEventListener("message", (ev) => {
+          try {
+            ws.send(typeof ev.data === "string" ? ev.data : new Uint8Array(ev.data));
+          } catch {
+            /* client gone */
+          }
+        });
+        upstream.addEventListener("close", () => {
+          try { ws.close(); } catch { /* already closed */ }
+        });
+        upstream.addEventListener("error", () => {
+          try { ws.close(); } catch { /* already closed */ }
+        });
+      },
+      message(ws, message) {
+        const upstream = ws.data.upstream;
+        if (upstream?.readyState === WebSocket.OPEN) {
+          upstream.send(message);
+        }
+      },
+      close(ws) {
+        const upstream = ws.data.upstream;
+        if (upstream) {
+          try { upstream.close(); } catch { /* already closed */ }
+        }
+      },
+    },
+  });
+} else {
+  // Node.js path: http.createServer with upgrade handler
+  const http = await import("node:http");
+
+  const proxy = http.createServer((req, res) => {
+    if (req.url === "/__nize-env.js" || req.url === "/nize-web/__nize-env.js") {
+      res.writeHead(200, {
+        "Content-Type": "application/javascript",
+        "Cache-Control": "no-cache",
+      });
+      res.end(envPayload);
+      return;
+    }
+
+    const target = proxyTarget(req.url);
     const proxyReq = http.request(
       {
         hostname: "127.0.0.1",
-        port: parseInt(apiPort, 10),
+        port: target,
         path: req.url,
         method: req.method,
         headers: req.headers,
@@ -169,59 +282,38 @@ const proxy = http.createServer((req, res) => {
     });
 
     req.pipe(proxyReq, { end: true });
-    return;
-  }
+  });
 
-  const proxyReq = http.request(
-    {
+  // @zen-impl: PLAN-014-1 — proxy WebSocket upgrades for Next.js HMR
+  proxy.on("upgrade", (req, socket, head) => {
+    const target = proxyTarget(req.url);
+    const proxyReq = http.request({
       hostname: "127.0.0.1",
-      port: internalPort,
+      port: target,
       path: req.url,
       method: req.method,
       headers: req.headers,
-    },
-    (proxyRes) => {
-      res.writeHead(proxyRes.statusCode, proxyRes.headers);
-      proxyRes.pipe(res, { end: true });
-    },
-  );
+    });
 
-  proxyReq.on("error", (err) => {
-    res.writeHead(502);
-    res.end("Bad Gateway");
+    proxyReq.on("upgrade", (proxyRes, proxySocket, proxyHead) => {
+      socket.write(
+        `HTTP/${proxyRes.httpVersion} ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n` +
+          Object.entries(proxyRes.headers)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join("\r\n") +
+          "\r\n\r\n",
+      );
+      if (proxyHead.length) socket.write(proxyHead);
+      proxySocket.pipe(socket);
+      socket.pipe(proxySocket);
+    });
+
+    proxyReq.on("error", () => socket.end());
+    proxyReq.end();
   });
 
-  req.pipe(proxyReq, { end: true });
-});
-
-// @zen-impl: PLAN-014-1 — proxy WebSocket upgrades for Next.js HMR
-proxy.on("upgrade", (req, socket, head) => {
-  const proxyReq = http.request({
-    hostname: "127.0.0.1",
-    port: internalPort,
-    path: req.url,
-    method: req.method,
-    headers: req.headers,
-  });
-
-  proxyReq.on("upgrade", (proxyRes, proxySocket, proxyHead) => {
-    socket.write(
-      `HTTP/${proxyRes.httpVersion} ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n` +
-        Object.entries(proxyRes.headers)
-          .map(([k, v]) => `${k}: ${v}`)
-          .join("\r\n") +
-        "\r\n\r\n",
-    );
-    if (proxyHead.length) socket.write(proxyHead);
-    proxySocket.pipe(socket);
-    socket.pipe(proxySocket);
-  });
-
-  proxyReq.on("error", () => socket.end());
-  proxyReq.end();
-});
-
-proxy.listen(port, "127.0.0.1");
+  proxy.listen(port, "127.0.0.1");
+}
 
 // @zen-impl: PLAN-012-2.1 — print JSON port to stdout (sidecar protocol)
 process.stdout.write(JSON.stringify({ port }) + "\n");

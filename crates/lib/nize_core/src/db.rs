@@ -349,9 +349,9 @@ impl LocalDbManager {
 }
 
 // @zen-component: PLAN-007-PgLiteManager
-/// Manages a PGlite instance running inside a Node.js process via pglite-socket.
+/// Manages a PGlite instance running inside a Bun process via pglite-socket.
 ///
-/// Spawns `node pglite-server.mjs` and exposes the standard PG wire protocol on
+/// Spawns `bun pglite-server.mjs` and exposes the standard PG wire protocol on
 /// `localhost:<port>`. The `nize_desktop_server` connects via `sqlx::PgPool` unchanged.
 pub struct PgLiteManager {
     /// Path to the PGlite data directory.
@@ -360,7 +360,7 @@ pub struct PgLiteManager {
     port: u16,
     /// Database name (informational — PGlite runs single-db).
     database_name: String,
-    /// PID of the Node.js child process (set after start).
+    /// PID of the Bun child process (set after start).
     child_pid: Option<u32>,
     /// Whether the server has been started.
     started: bool,
@@ -388,13 +388,13 @@ impl PgLiteManager {
     }
 
     // @zen-impl: PLAN-007-3.1
-    /// Starts the PGlite server by spawning `node pglite-server.mjs`.
+    /// Starts the PGlite server by spawning `bun pglite-server.mjs`.
     ///
     /// Reads `{"port": N}` from stdout (sidecar protocol) and waits for the
     /// PG wire protocol to become ready.
     pub fn start(
         &mut self,
-        node_bin: &std::path::Path,
+        bun_bin: &std::path::Path,
         server_script: &std::path::Path,
     ) -> Result<()> {
         use std::io::{BufRead, BufReader};
@@ -408,7 +408,7 @@ impl PgLiteManager {
             self.data_dir.display()
         );
 
-        let mut child = StdCommand::new(node_bin)
+        let mut child = StdCommand::new(bun_bin)
             .arg(server_script)
             .arg(format!("--db={}", self.data_dir.display()))
             .arg(format!("--port={port}"))
@@ -450,7 +450,7 @@ impl PgLiteManager {
     }
 
     // @zen-impl: PLAN-007-3.1
-    /// Stops the PGlite server by killing the Node.js process.
+    /// Stops the PGlite server by killing the Bun process.
     pub fn stop(&mut self) -> Result<()> {
         if !self.started {
             return Ok(());
@@ -496,7 +496,7 @@ impl PgLiteManager {
         self.started
     }
 
-    /// Returns the PID of the Node.js child process.
+    /// Returns the PID of the Bun child process.
     pub fn child_pid(&self) -> Option<u32> {
         self.child_pid
     }

@@ -55,8 +55,8 @@ async fn hello_endpoint_returns_expected_shape() {
         "missing 'dbConnected' field"
     );
     assert!(
-        json.get("nodeAvailable").is_some(),
-        "missing 'nodeAvailable' field"
+        json.get("bunAvailable").is_some(),
+        "missing 'bunAvailable' field"
     );
 
     // DB should be connected since we started an ephemeral instance.
@@ -69,11 +69,11 @@ async fn hello_endpoint_returns_expected_shape() {
         "unexpected greeting: {greeting}"
     );
 
-    // Node should be available (mise provides it).
-    assert_eq!(json["nodeAvailable"], true, "node should be available");
+    // Bun should be available (mise provides it).
+    assert_eq!(json["bunAvailable"], true, "bun should be available");
     assert!(
-        json["nodeVersion"].is_string(),
-        "nodeVersion should be a string"
+        json["bunVersion"].is_string(),
+        "bunVersion should be a string"
     );
 
     // Clean up

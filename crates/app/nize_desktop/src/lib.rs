@@ -122,9 +122,9 @@ fn start_api_sidecar(database_url: &str, max_connections: u32) -> Result<ApiSide
 }
 
 // @zen-impl: PLAN-012-3.2 — spawn nize-web sidecar
-/// Spawns `node nize-web-server.mjs --port=0` and reads the port from its JSON stdout line.
+/// Spawns `bun nize-web-server.mjs --port=0` and reads the port from its JSON stdout line.
 fn start_nize_web_sidecar(
-    node_bin: &Path,
+    bun_bin: &Path,
     server_script: &Path,
     api_port: Option<u16>,
 ) -> Result<NizeWebSidecar, String> {
@@ -137,7 +137,7 @@ fn start_nize_web_sidecar(
     #[cfg(not(debug_assertions))]
     let nize_web_port_val = "0".to_string();
 
-    let mut cmd = Command::new(node_bin);
+    let mut cmd = Command::new(bun_bin);
     cmd.arg(server_script)
         .arg(format!("--port={nize_web_port_val}"));
 
@@ -356,13 +356,13 @@ pub fn run() {
         let exe = std::env::current_exe().expect("current_exe");
         let exe_dir = exe.parent().expect("exe parent dir");
 
-        // Resolve node binary: bundled externalBin or PATH fallback.
-        let node_bin = {
-            let bundled = exe_dir.join("node");
+        // Resolve bun binary: bundled externalBin or PATH fallback.
+        let bun_bin = {
+            let bundled = exe_dir.join("bun");
             if bundled.exists() {
                 bundled
             } else {
-                PathBuf::from("node")
+                PathBuf::from("bun")
             }
         };
 
@@ -414,7 +414,7 @@ pub fn run() {
             }
         };
 
-        if let Err(e) = pglite.start(&node_bin, &server_script) {
+        if let Err(e) = pglite.start(&bun_bin, &server_script) {
             error!("PGlite start failed: {e}");
             return run_tauri(AppServices {
                 sidecar: None,
@@ -479,7 +479,7 @@ pub fn run() {
 
         let nize_web = if nize_web_script.exists() {
             let api_port = sidecar.as_ref().map(|s| s.port);
-            match start_nize_web_sidecar(&node_bin, &nize_web_script, api_port) {
+            match start_nize_web_sidecar(&bun_bin, &nize_web_script, api_port) {
                 Ok(s) => {
                     // Append kill command to terminator manifest.
                     let kill_cmd = format!("kill {}", s._process.id());

@@ -12,12 +12,12 @@ log() { echo "[generate-api] $*"; }
 
 # --- Step 1: TypeSpec Compile ---
 log "Compiling TypeSpec..."
-npx tsp compile "$ROOT_DIR/.zen/specs/API-NIZE-index.tsp"
+bunx tsp compile "$ROOT_DIR/.zen/specs/API-NIZE-index.tsp"
 log "TypeSpec compilation complete."
 
 # --- Step 2: YAML → JSON ---
 log "Converting OpenAPI YAML to JSON..."
-node "$SCRIPT_DIR/generate-openapi-json.js"
+bun "$SCRIPT_DIR/generate-openapi-json.js"
 log "JSON conversion complete."
 
 # --- Step 3: nize-codegen → Rust ---

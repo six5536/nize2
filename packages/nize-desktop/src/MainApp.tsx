@@ -7,8 +7,8 @@ import { McpClientSettings } from "./settings/McpClientSettings";
 interface HelloResponse {
   greeting: string;
   dbConnected: boolean;
-  nodeAvailable: boolean;
-  nodeVersion: string | null;
+  bunAvailable: boolean;
+  bunVersion: string | null;
 }
 
 /**
@@ -65,7 +65,7 @@ export function MainApp() {
               <strong>Database:</strong> <span style={{ color: response.dbConnected ? "green" : "red" }}>{response.dbConnected ? "✓ Connected" : "✗ Unavailable"}</span>
             </p>
             <p>
-              <strong>Node.js:</strong> <span style={{ color: response.nodeAvailable ? "green" : "red" }}>{response.nodeAvailable ? `✓ ${response.nodeVersion}` : "✗ Unavailable"}</span>
+              <strong>Bun:</strong> <span style={{ color: response.bunAvailable ? "green" : "red" }}>{response.bunAvailable ? `✓ ${response.bunVersion}` : "✗ Unavailable"}</span>
             </p>
           </div>
         )}

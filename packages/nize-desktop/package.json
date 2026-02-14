@@ -9,10 +9,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "build:pglite-server": "node scripts/build-pglite-server.mjs",
-    "build:mcp-remote": "node scripts/build-mcp-remote.mjs",
-    "build:nize-web": "node scripts/build-nize-web.mjs",
-    "bridge-mcp": "node scripts/webview-bridge-mcp.mjs",
+    "build:pglite-server": "bun scripts/build-pglite-server.mjs",
+    "build:mcp-remote": "bun scripts/build-mcp-remote.mjs",
+    "build:nize-web": "bun scripts/build-nize-web.mjs",
+    "bridge-mcp": "bun scripts/webview-bridge-mcp.mjs",
     "preview": "vite preview",
     "tauri": "tauri"
   },

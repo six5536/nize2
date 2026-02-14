@@ -193,7 +193,7 @@ pub fn get_nize_config_state(client: McpClient) -> McpConfigState {
 }
 
 /// Validate Claude Desktop stdio-bridge entry:
-/// - `command` must be `"node"` (resolved via env.PATH)
+/// - `command` must be `"bun"` (resolved via env.PATH)
 /// - `args[0]` must be the bundled mcp-remote.mjs path
 /// - `args[1]` must be an http://127.0.0.1:*/mcp URL
 /// - `env.AUTH_TOKEN` must be present
@@ -202,8 +202,8 @@ fn validate_claude_desktop_entry(entry: &serde_json::Value) -> bool {
     let Some(command) = entry.get("command").and_then(|v| v.as_str()) else {
         return false;
     };
-    // Must be bare "node" command, resolved via PATH env
-    if command != "node" {
+    // Must be bare "bun" command, resolved via PATH env
+    if command != "bun" {
         return false;
     }
 
@@ -299,16 +299,16 @@ pub fn get_all_statuses() -> Vec<McpClientStatus> {
 // Path resolution helpers
 // ---------------------------------------------------------------------------
 
-// @zen-impl: PLAN-011-2.4
-/// Resolves the sidecar node binary path.
-pub fn sidecar_node_path() -> Result<PathBuf, String> {
+// @zen-impl: PLAN-016-2.5
+/// Resolves the sidecar bun binary path.
+pub fn sidecar_bun_path() -> Result<PathBuf, String> {
     let exe = std::env::current_exe().map_err(|e| format!("current_exe: {e}"))?;
     let exe_dir = exe.parent().ok_or("no parent dir")?;
-    let node = exe_dir.join("node");
-    if node.exists() {
-        Ok(node)
+    let bun = exe_dir.join("bun");
+    if bun.exists() {
+        Ok(bun)
     } else {
-        Err("sidecar node binary not found".into())
+        Err("sidecar bun binary not found".into())
     }
 }
 
@@ -374,19 +374,19 @@ fn write_config_atomic(path: &PathBuf, value: &serde_json::Value) -> Result<(), 
     Ok(())
 }
 
-// @zen-impl: PLAN-011-2.3
+// @zen-impl: PLAN-016-2.5
 /// Configure Claude Desktop: writes mcp-remote stdio bridge config.
 pub fn configure_claude_desktop(mcp_port: u16, token: &str) -> Result<(), String> {
-    let node_path = sidecar_node_path()?;
+    let bun_path = sidecar_bun_path()?;
     let mcp_remote_path = bundled_mcp_remote_path()?;
     let path = config_path(McpClient::ClaudeDesktop).ok_or("no config path")?;
 
-    // Build PATH: node binary dir + standard system paths.
-    let node_dir = node_path
+    // Build PATH: bun binary dir + standard system paths.
+    let bun_dir = bun_path
         .parent()
-        .ok_or("node binary has no parent dir")?
+        .ok_or("bun binary has no parent dir")?
         .to_string_lossy();
-    let env_path = format!("{node_dir}:/usr/local/bin:/usr/bin:/bin");
+    let env_path = format!("{bun_dir}:/usr/local/bin:/usr/bin:/bin");
 
     let mut config = read_config(&path);
 
@@ -402,7 +402,7 @@ pub fn configure_claude_desktop(mcp_port: u16, token: &str) -> Result<(), String
         .insert(
             "nize".to_string(),
             serde_json::json!({
-                "command": "node",
+                "command": "bun",
                 "args": [
                     mcp_remote_path.to_string_lossy(),
                     format!("http://127.0.0.1:{mcp_port}/mcp"),

@@ -47,18 +47,18 @@ for BIN in $SIDECARS; do
   echo "setup-sidecar-binaries: $SRC → $DEST"
 done
 
-# @zen-impl: PLAN-007-2.3
-# Copy bundled Node.js binary if it exists (downloaded by scripts/download-node.sh).
-# In dev mode, create a symlink to the system Node.js binary.
-if [ -f "$BINARIES_DIR/node-${TRIPLE}" ] || [ -f "$BINARIES_DIR/node-${TRIPLE}.exe" ]; then
-  echo "setup-sidecar-binaries: node-${TRIPLE} already in place"
+# @zen-impl: PLAN-016-2.3
+# Copy bundled Bun binary if it exists (downloaded by scripts/download-bun.sh).
+# In dev mode, create a symlink to the system Bun binary.
+if [ -f "$BINARIES_DIR/bun-${TRIPLE}" ] || [ -f "$BINARIES_DIR/bun-${TRIPLE}.exe" ]; then
+  echo "setup-sidecar-binaries: bun-${TRIPLE} already in place"
 else
-  # Dev mode: symlink system node so Tauri externalBin validation passes.
-  NODE_PATH="$(which node 2>/dev/null || true)"
-  if [ -n "$NODE_PATH" ]; then
-    ln -sf "$NODE_PATH" "$BINARIES_DIR/node-${TRIPLE}"
-    echo "setup-sidecar-binaries: symlinked node-${TRIPLE} → $NODE_PATH (dev mode)"
+  # Dev mode: symlink system bun so Tauri externalBin validation passes.
+  BUN_PATH="$(which bun 2>/dev/null || true)"
+  if [ -n "$BUN_PATH" ]; then
+    ln -sf "$BUN_PATH" "$BINARIES_DIR/bun-${TRIPLE}"
+    echo "setup-sidecar-binaries: symlinked bun-${TRIPLE} → $BUN_PATH (dev mode)"
   else
-    echo "WARNING: node not found on PATH and no bundled binary available" >&2
+    echo "WARNING: bun not found on PATH and no bundled binary available" >&2
   fi
 fi

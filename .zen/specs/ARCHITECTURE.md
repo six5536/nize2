@@ -11,7 +11,7 @@ Nize MCP is an AI-powered desktop application that exposes a single MCP (Model C
 - MCP Server Layer (Streamable HTTP via rmcp)
 - Core Domain Logic (nize_core)
 - Embedded Web Application (Next.js sidecar)
-- Embedded Database (PGlite via Node.js sidecar)
+- Embedded Database (PGlite via Bun sidecar)
 - Process Lifecycle Management (nize_terminator)
 - Code Generation Pipeline (TypeSpec to OpenAPI to Rust/TypeScript)
 
@@ -23,13 +23,13 @@ Nize MCP is an AI-powered desktop application that exposes a single MCP (Model C
 - `rmcp 0.15` — MCP SDK with Streamable HTTP server transport
 - `SQLx 0.8` — Async PostgreSQL driver with compile-time query checking
 - `PostgreSQL 16` — Primary database (via PGlite for local, standard PG for cloud)
-- `PGlite` — Embedded PostgreSQL running in Node.js for local desktop use
+- `PGlite` — Embedded PostgreSQL running in Bun for local desktop use
 - `React 19` — Desktop shell UI framework
 - `Vite` — Frontend build tool and dev server for desktop shell
 - `Next.js 16` — Embedded web application (chat interface, future features)
 - `TypeSpec 0.64` — API contract definition (generates OpenAPI YAML)
 - `TypeScript 5` — Frontend and tooling language
-- `Node.js 24` — Runtime for PGlite sidecar and nize-web sidecar
+- `Bun 1.3` — Runtime for PGlite sidecar and nize-web sidecar
 - `Progenitor 0.12` — Rust HTTP client codegen from OpenAPI
 - `wasm-bindgen` — WASM bindings for nize_core in browser/CLI contexts
 - `JWT` — Stateless authentication (access + refresh tokens)
@@ -52,7 +52,7 @@ flowchart TB
 
     subgraph Sidecars[Managed Processes]
         Server[nize_desktop_server]
-        PGlite[PGlite Sidecar<br/>Node.js]
+        PGlite[PGlite Sidecar<br/>Bun]
         Terminator[nize_terminator]
     end
 
@@ -185,7 +185,7 @@ RESPONSIBILITIES
 - Database schema and migrations (SQLx)
 - Configuration system (definitions, values, cache, resolution, validation)
 - PGlite process management (start, stop, connection URL)
-- Node.js sidecar availability detection
+- Bun sidecar availability detection
 
 CONSTRAINTS
 
@@ -256,7 +256,7 @@ CONSTRAINTS
 
 ### WASM Module (nize_wasm)
 
-WebAssembly build of nize_core for use in browser and Node.js CLI contexts.
+WebAssembly build of nize_core for use in browser and CLI contexts.
 
 RESPONSIBILITIES
 
@@ -277,18 +277,18 @@ The Tauri desktop app starts PGlite, the API sidecar (nize_desktop_server), the 
 sequenceDiagram
     participant Tauri as nize_desktop
     participant Term as nize_terminator
-    participant PGL as PGlite (Node.js)
+    participant PGL as PGlite (Bun)
     participant Srv as nize_desktop_server
     participant Web as nize-web (Next.js)
 
     Tauri->>Term: spawn(--parent-pid, --manifest)
-    Tauri->>PGL: spawn node pglite-server.mjs
+    Tauri->>PGL: spawn bun pglite-server.mjs
     PGL-->>Tauri: {"port": N} (stdout)
     Tauri->>Tauri: append kill PGL to manifest
     Tauri->>Srv: spawn(--database-url, --port, --mcp-port, --sidecar)
     Srv->>Srv: run migrations
     Srv-->>Tauri: {"port": P, "mcpPort": M} (stdout)
-    Tauri->>Web: spawn node nize-web-server.mjs(--port, --api-port)
+    Tauri->>Web: spawn bun nize-web-server.mjs(--port, --api-port)
     Web-->>Tauri: {"port": W} (stdout)
     Tauri->>Tauri: append kill Web to manifest
     Tauri->>Tauri: open Tauri window
@@ -366,10 +366,10 @@ Desktop app bootstrapped with PGlite, API sidecar, MCP server, nize-web sidecar,
 - `cargo build` — Build default workspace members (nize_cli, nize_core, nize_mcp)
 - `cargo test` — Run Rust test suites
 - `cargo clippy` — Run Rust linter
-- `npm run generate:api` — Generate API code from TypeSpec contracts
-- `npm install` — Install JS dependencies for all workspaces
-- `cd packages/nize-desktop && npm run build:pglite-server` — Build PGlite sidecar bundle
-- `cd packages/nize-desktop && npm run build:nize-web` — Build nize-web for production
+- `bun run generate:api` — Generate API code from TypeSpec contracts
+- `bun install` — Install JS dependencies for all workspaces
+- `cd packages/nize-desktop && bun run build:pglite-server` — Build PGlite sidecar bundle
+- `cd packages/nize-desktop && bun run build:nize-web` — Build nize-web for production
 
 ## Change Log
 

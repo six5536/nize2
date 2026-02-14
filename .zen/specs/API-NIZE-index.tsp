@@ -25,11 +25,11 @@ model HelloWorldResponse {
   /** Whether the PostgreSQL database is reachable. */
   dbConnected: boolean;
 
-  /** Node.js version string, or null if unavailable. */
-  nodeVersion: string | null;
+  /** Bun version string, or null if unavailable. */
+  bunVersion: string | null;
 
-  /** Whether the Node.js sidecar runtime is available. */
-  nodeAvailable: boolean;
+  /** Whether the Bun sidecar runtime is available. */
+  bunAvailable: boolean;
 }
 
 @route("/api")
@@ -37,7 +37,7 @@ namespace Api {
   @route("/hello")
   @tag("Hello")
   namespace Hello {
-    /** Bootstrap health check — verifies core lib, DB, and Node sidecar. */
+    /** Bootstrap health check — verifies core lib, DB, and Bun sidecar. */
     @get
     op helloWorld(): HelloWorldResponse;
   }
