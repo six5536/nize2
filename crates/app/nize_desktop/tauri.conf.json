@@ -6,7 +6,7 @@
   "build": {
     "frontendDist": "../../../packages/nize-desktop/dist",
     "devUrl": "http://localhost:1420",
-    "beforeDevCommand": "cargo build -p nize_desktop_server -p nize_terminator && bash scripts/setup-sidecar-binaries.sh && npm run --prefix packages/nize-desktop build:pglite-server && npm run --prefix packages/nize-desktop build:mcp-remote && npm run --prefix packages/nize-desktop build:nize-web && npm run --prefix packages/nize-desktop dev",
+    "beforeDevCommand": "cargo build -p nize_desktop_server -p nize_terminator && bash scripts/setup-sidecar-binaries.sh && npm run --prefix packages/nize-desktop build:pglite-server && npm run --prefix packages/nize-desktop build:mcp-remote && npm run --prefix packages/nize-desktop dev",
     "beforeBuildCommand": "cargo build -p nize_desktop_server -p nize_terminator --release && bash scripts/setup-sidecar-binaries.sh release && npm run --prefix packages/nize-desktop build:pglite-server && npm run --prefix packages/nize-desktop build:mcp-remote && npm run --prefix packages/nize-desktop build:nize-web && npm run --prefix packages/nize-desktop build"
   },
   "app": {

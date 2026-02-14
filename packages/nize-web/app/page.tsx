@@ -3,6 +3,7 @@
 
 "use client";
 
+import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { AuthGate } from "@/lib/auth-gate";
 
@@ -24,9 +25,9 @@ function HomePage() {
       <h1>Hello from nize-web</h1>
       {user && <p style={{ color: "#666" }}>Signed in as {user.email}</p>}
       <nav style={{ display: "flex", gap: "1rem" }}>
-        <a href="/settings" style={{ color: "#2563eb", textDecoration: "none" }}>
+        <Link href="/settings" style={{ color: "#2563eb", textDecoration: "none" }}>
           Settings
-        </a>
+        </Link>
         <button
           onClick={() => logout()}
           style={{

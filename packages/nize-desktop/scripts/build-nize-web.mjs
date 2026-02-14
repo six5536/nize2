@@ -18,9 +18,13 @@ if (existsSync(outDir)) {
 }
 mkdirSync(outDir, { recursive: true });
 
-// Build Next.js
+// Build Next.js (with basePath for desktop sidecar embedding)
 console.log("Building nize-web…");
-execSync("npm run build", { cwd: nizeWebDir, stdio: "inherit" });
+execSync("npm run build", {
+  cwd: nizeWebDir,
+  stdio: "inherit",
+  env: { ...process.env, NIZE_WEB_BASE_PATH: "/nize-web" },
+});
 
 // Copy standalone output
 const standaloneDir = join(nizeWebDir, ".next", "standalone");

@@ -6,6 +6,7 @@
 //
 // Usage:
 //   node nize-web-server.mjs --port=<N>
+//   node nize-web-server.mjs --port=<N> --dev          (hot-reload via next dev)
 
 import { parseArgs } from "node:util";
 import { createServer } from "node:net";
@@ -20,11 +21,13 @@ const { values: args } = parseArgs({
   options: {
     port: { type: "string", default: "0" },
     "api-port": { type: "string", default: "" },
+    dev: { type: "boolean", default: false },
   },
 });
 
 const requestedPort = parseInt(args.port, 10);
 const apiPort = args["api-port"];
+const devMode = args.dev;
 
 // @zen-impl: PLAN-012-2.1 — find free port for ephemeral binding
 async function findFreePort() {
@@ -40,11 +43,6 @@ async function findFreePort() {
 
 const port = requestedPort === 0 ? await findFreePort() : requestedPort;
 
-// @zen-impl: PLAN-012-2.1 — start Next.js standalone server
-// In a monorepo the standalone output nests the server under packages/nize-web/.
-const standaloneDir = join(__dirname, "standalone");
-const serverPath = join(standaloneDir, "packages", "nize-web", "server.js");
-
 // Prepare runtime env payload served at /__nize-env.js.
 // We serve this from a lightweight proxy instead of writing into the
 // resources tree, which would trigger Tauri's file watcher in dev mode.
@@ -54,15 +52,37 @@ const envPayload = `window.__NIZE_ENV__=${JSON.stringify({ apiPort: apiPort || "
 // that injects /__nize-env.js without touching the filesystem.
 const internalPort = await findFreePort();
 
-const child = spawn(process.execPath, [serverPath], {
-  cwd: standaloneDir,
-  env: {
-    ...process.env,
-    PORT: String(internalPort),
-    HOSTNAME: "127.0.0.1",
-  },
-  stdio: ["pipe", "pipe", "inherit"],
-});
+// @zen-impl: PLAN-014-1 — spawn next dev (HMR) or standalone server
+let child;
+if (devMode) {
+  // Dev mode: run `next dev` for hot-module-reload.
+  // Resolve the nize-web package root (one level up from scripts/).
+  const nizeWebRoot = join(__dirname, "..");
+  child = spawn("npx", ["next", "dev", "--port", String(internalPort)], {
+    cwd: nizeWebRoot,
+    env: {
+      ...process.env,
+      HOSTNAME: "127.0.0.1",
+      NIZE_WEB_BASE_PATH: "/nize-web",
+    },
+    stdio: ["pipe", "pipe", "inherit"],
+  });
+} else {
+  // @zen-impl: PLAN-012-2.1 — start Next.js standalone server
+  // In a monorepo the standalone output nests the server under packages/nize-web/.
+  const standaloneDir = join(__dirname, "standalone");
+  const serverPath = join(standaloneDir, "packages", "nize-web", "server.js");
+  child = spawn(process.execPath, [serverPath], {
+    cwd: standaloneDir,
+    env: {
+      ...process.env,
+      PORT: String(internalPort),
+      HOSTNAME: "127.0.0.1",
+      NIZE_WEB_BASE_PATH: "/nize-web",
+    },
+    stdio: ["pipe", "pipe", "inherit"],
+  });
+}
 
 // Forward child stdout to stderr so it doesn't interfere with the sidecar protocol.
 child.stdout.pipe(process.stderr);
@@ -96,7 +116,7 @@ function isApiPath(url) {
 // forwards API routes to the API server (when available),
 // proxies all other requests to the Next.js standalone server.
 const proxy = http.createServer((req, res) => {
-  if (req.url === "/__nize-env.js") {
+  if (req.url === "/__nize-env.js" || req.url === "/nize-web/__nize-env.js") {
     res.writeHead(200, {
       "Content-Type": "application/javascript",
       "Cache-Control": "no-cache",
@@ -150,6 +170,33 @@ const proxy = http.createServer((req, res) => {
   });
 
   req.pipe(proxyReq, { end: true });
+});
+
+// @zen-impl: PLAN-014-1 — proxy WebSocket upgrades for Next.js HMR
+proxy.on("upgrade", (req, socket, head) => {
+  const proxyReq = http.request({
+    hostname: "127.0.0.1",
+    port: internalPort,
+    path: req.url,
+    method: req.method,
+    headers: req.headers,
+  });
+
+  proxyReq.on("upgrade", (proxyRes, proxySocket, proxyHead) => {
+    socket.write(
+      `HTTP/${proxyRes.httpVersion} ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n` +
+        Object.entries(proxyRes.headers)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join("\r\n") +
+        "\r\n\r\n",
+    );
+    if (proxyHead.length) socket.write(proxyHead);
+    proxySocket.pipe(socket);
+    socket.pipe(proxySocket);
+  });
+
+  proxyReq.on("error", () => socket.end());
+  proxyReq.end();
 });
 
 proxy.listen(port, "127.0.0.1");

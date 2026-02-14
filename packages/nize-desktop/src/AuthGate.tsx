@@ -40,7 +40,7 @@ export function AuthGate() {
         id: "web",
         label: "Web",
         content: nizeWebPort ? (
-          <iframe src={`http://localhost:${nizeWebPort}`} style={{ width: "100%", height: "100%", border: "none" }} title="nize-web" />
+          <iframe src={import.meta.env.DEV ? "/nize-web/" : `http://localhost:${nizeWebPort}/nize-web/`} style={{ width: "100%", height: "100%", border: "none" }} title="nize-web" />
         ) : (
           <main style={{ fontFamily: "system-ui, sans-serif", padding: "2rem" }}>
             <p>Loading nize-web…</p>

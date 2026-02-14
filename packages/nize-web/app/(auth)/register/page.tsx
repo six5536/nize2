@@ -3,6 +3,7 @@
 // @zen-component: CFG-RegisterPage
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 
@@ -103,9 +104,9 @@ export default function RegisterPage() {
 
         <div style={styles.footer}>
           <span>Already have an account? </span>
-          <a href="/login" style={styles.link}>
+          <Link href="/login" style={styles.link}>
             Sign in
-          </a>
+          </Link>
         </div>
       </div>
     </div>

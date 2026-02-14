@@ -70,9 +70,17 @@ fn start_api_sidecar(database_url: &str, max_connections: u32) -> Result<ApiSide
 
     info!(path = %sidecar_path.display(), "starting API sidecar");
 
+    // In debug builds use a fixed API port so the Vite dev proxy can forward
+    // requests to a known address, giving the desktop shell and nize-web iframe
+    // a single same-origin view of the API.
+    #[cfg(debug_assertions)]
+    let api_port_val = std::env::var("NIZE_API_PORT").unwrap_or_else(|_| "3001".to_string());
+    #[cfg(not(debug_assertions))]
+    let api_port_val = "0".to_string();
+
     let mut child = Command::new(&sidecar_path)
         .arg("--port")
-        .arg("0")
+        .arg(&api_port_val)
         .arg("--mcp-port")
         .arg(&mcp_port_arg)
         .arg("--database-url")
@@ -121,8 +129,20 @@ fn start_nize_web_sidecar(
 ) -> Result<NizeWebSidecar, String> {
     info!(script = %server_script.display(), "starting nize-web sidecar");
 
+    // In debug builds use a fixed port so the Vite dev proxy can forward to
+    // a known address (same-origin for the desktop shell + nize-web iframe).
+    #[cfg(debug_assertions)]
+    let nize_web_port_val = std::env::var("NIZE_WEB_PORT").unwrap_or_else(|_| "3100".to_string());
+    #[cfg(not(debug_assertions))]
+    let nize_web_port_val = "0".to_string();
+
     let mut cmd = Command::new(node_bin);
-    cmd.arg(server_script).arg("--port=0");
+    cmd.arg(server_script)
+        .arg(format!("--port={nize_web_port_val}"));
+
+    // @zen-impl: PLAN-014-2 — run next dev for hot-reload in debug builds
+    #[cfg(debug_assertions)]
+    cmd.arg("--dev");
 
     // @zen-impl: CFG-NizeWebApi — pass API port so nize-web can reach the backend
     if let Some(p) = api_port {
@@ -392,6 +412,7 @@ pub fn run() {
         };
 
         // @zen-impl: PLAN-012-3.4 — start nize-web sidecar after API sidecar
+        // @zen-impl: PLAN-014-1 — in dev, use the source script directly (no stale copy)
         let nize_web_script = {
             let resource = exe_dir.parent().map(|p| {
                 p.join("Resources")
@@ -400,10 +421,27 @@ pub fn run() {
             });
             match resource {
                 Some(ref p) if p.exists() => p.clone(),
-                _ => PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .join("resources")
-                    .join("nize-web")
-                    .join("nize-web-server.mjs"),
+                _ => {
+                    #[cfg(debug_assertions)]
+                    {
+                        // Dev: use source script so edits are picked up without rebuilding.
+                        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                            .join("..")
+                            .join("..")
+                            .join("..")
+                            .join("packages")
+                            .join("nize-web")
+                            .join("scripts")
+                            .join("nize-web-server.mjs")
+                    }
+                    #[cfg(not(debug_assertions))]
+                    {
+                        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                            .join("resources")
+                            .join("nize-web")
+                            .join("nize-web-server.mjs")
+                    }
+                }
             }
         };
 

@@ -17,7 +17,13 @@ function App() {
         if (!cancelled) setApiPort(port);
       } catch (e) {
         console.error("[app] get_api_port failed:", e);
-        if (!cancelled) setError(String(e));
+        // Dev fallback: use known fixed port when Tauri IPC is unavailable (e.g. after HMR reload)
+        if (import.meta.env.DEV) {
+          console.warn("[app] falling back to dev port 3001");
+          if (!cancelled) setApiPort(3001);
+        } else {
+          if (!cancelled) setError(String(e));
+        }
       }
     }
 
