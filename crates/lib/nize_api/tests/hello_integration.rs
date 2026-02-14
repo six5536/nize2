@@ -26,6 +26,9 @@ async fn hello_endpoint_returns_expected_shape() {
             pg_connection_url: db.connection_url(),
             jwt_secret: "test-secret".into(),
         },
+        config_cache: std::sync::Arc::new(tokio::sync::RwLock::new(
+            nize_core::config::cache::ConfigCache::new(),
+        )),
     };
 
     let app = nize_api::router(state);

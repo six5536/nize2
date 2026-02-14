@@ -1,4 +1,4 @@
-//! Nize desktop sidecar server binary.
+//! Nize API sidecar server binary.
 //!
 //! Started by the Tauri desktop app as a child process.
 //! Prints `{"port": N}` to stdout so the parent can discover the bound port.
@@ -8,16 +8,16 @@ use sqlx::postgres::PgPoolOptions;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-/// CLI arguments for the desktop sidecar.
+/// CLI arguments for the API sidecar.
 #[derive(Parser, Debug)]
-#[command(name = "nize_desktop_server", about = "Nize desktop sidecar server")]
+#[command(name = "nize_api_server", about = "Nize API sidecar server")]
 struct Args {
     /// Port to listen on (0 = ephemeral).
     #[arg(long, default_value_t = 0)]
     port: u16,
 
-    /// MCP server port (default 19560; override with NIZE_MCP_PORT).
-    #[arg(long, env = "NIZE_MCP_PORT", default_value_t = 19560)]
+    /// MCP server port (0 = ephemeral).
+    #[arg(long, default_value_t = 0)]
     mcp_port: u16,
 
     /// PostgreSQL connection URL.
@@ -59,7 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let args = Args::parse();
 
-    info!(database_url = %args.database_url, port = args.port, "starting nize_desktop_server");
+    info!(database_url = %args.database_url, port = args.port, "starting nize_api_server");
 
     info!(
         max_connections = args.max_connections,

@@ -6,6 +6,7 @@
  */
 import "./API-NIZE-common.tsp";
 import "./API-NIZE-auth.tsp";
+import "./API-NIZE-config.tsp";
 import "@typespec/http";
 
 using TypeSpec.Http;

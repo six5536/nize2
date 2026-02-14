@@ -114,12 +114,22 @@ fn start_api_sidecar(database_url: &str, max_connections: u32) -> Result<ApiSide
 
 // @zen-impl: PLAN-012-3.2 — spawn nize-web sidecar
 /// Spawns `node nize-web-server.mjs --port=0` and reads the port from its JSON stdout line.
-fn start_nize_web_sidecar(node_bin: &Path, server_script: &Path) -> Result<NizeWebSidecar, String> {
+fn start_nize_web_sidecar(
+    node_bin: &Path,
+    server_script: &Path,
+    api_port: Option<u16>,
+) -> Result<NizeWebSidecar, String> {
     info!(script = %server_script.display(), "starting nize-web sidecar");
 
-    let mut child = Command::new(node_bin)
-        .arg(server_script)
-        .arg("--port=0")
+    let mut cmd = Command::new(node_bin);
+    cmd.arg(server_script).arg("--port=0");
+
+    // @zen-impl: CFG-NizeWebApi — pass API port so nize-web can reach the backend
+    if let Some(p) = api_port {
+        cmd.arg(format!("--api-port={p}"));
+    }
+
+    let mut child = cmd
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
@@ -398,7 +408,8 @@ pub fn run() {
         };
 
         let nize_web = if nize_web_script.exists() {
-            match start_nize_web_sidecar(&node_bin, &nize_web_script) {
+            let api_port = sidecar.as_ref().map(|s| s.port);
+            match start_nize_web_sidecar(&node_bin, &nize_web_script, api_port) {
                 Ok(s) => {
                     // Append kill command to terminator manifest.
                     let kill_cmd = format!("kill {}", s._process.id());

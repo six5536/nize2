@@ -3,6 +3,7 @@
 //! Core domain logic for Nize.
 
 pub mod auth;
+pub mod config;
 pub mod db;
 pub mod hello;
 pub mod migrate;

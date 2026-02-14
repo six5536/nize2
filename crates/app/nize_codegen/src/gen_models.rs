@@ -68,6 +68,21 @@ fn to_snake_case(s: &str) -> String {
     out
 }
 
+/// Escape Rust keywords by prefixing with `r#`.
+fn escape_rust_keyword(name: &str) -> String {
+    const RUST_KEYWORDS: &[&str] = &[
+        "as", "async", "await", "break", "const", "continue", "crate", "dyn", "else", "enum",
+        "extern", "false", "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod",
+        "move", "mut", "pub", "ref", "return", "self", "Self", "static", "struct", "super",
+        "trait", "true", "type", "unsafe", "use", "where", "while", "yield",
+    ];
+    if RUST_KEYWORDS.contains(&name) {
+        format!("r#{name}")
+    } else {
+        name.to_string()
+    }
+}
+
 /// Generate the contents of `models.rs`.
 pub fn generate(schemas: &BTreeMap<String, SchemaObject>) -> String {
     let mut out = String::new();
@@ -109,12 +124,13 @@ fn generate_struct(out: &mut String, name: &str, schema: &SchemaObject) {
             writeln!(out, "    /// {}", escape_rust_str(desc)).unwrap();
         }
 
-        // Rename attribute if snake_case differs from original
-        if snake != *field_name {
+        // Rename attribute if snake_case differs from original, or if it's a keyword
+        let rust_field = escape_rust_keyword(&snake);
+        if snake != *field_name || rust_field != snake {
             writeln!(out, "    #[serde(rename = \"{field_name}\")]").unwrap();
         }
 
-        writeln!(out, "    pub {snake}: {ty},").unwrap();
+        writeln!(out, "    pub {rust_field}: {ty},").unwrap();
     }
 
     writeln!(out, "}}").unwrap();

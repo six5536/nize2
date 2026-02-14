@@ -49,8 +49,8 @@ model RegisterRequest {
 
 /** Refresh an access token */
 model RefreshRequest {
-  @doc("Refresh token to exchange for new token pair")
-  refreshToken: string;
+  @doc("Refresh token to exchange for new token pair (optional when sent via cookie)")
+  refreshToken?: string;
 }
 
 /** Logout request */
