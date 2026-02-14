@@ -10,9 +10,10 @@
 
 import { parseArgs } from "node:util";
 import { createServer } from "node:net";
-import { spawn } from "node:child_process";
+import { spawn, execSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { unlinkSync } from "node:fs";
 import http from "node:http";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -42,6 +43,27 @@ async function findFreePort() {
 }
 
 const port = requestedPort === 0 ? await findFreePort() : requestedPort;
+
+// Kill any stale process left on the requested port from a previous run
+// (e.g. after an unclean shutdown of cargo tauri dev).
+if (requestedPort !== 0) {
+  try {
+    const pids = execSync(`lsof -ti tcp:${port}`, { encoding: "utf8" }).trim();
+    if (pids) {
+      for (const pid of pids.split("\n")) {
+        process.stderr.write(`nize-web: killing stale process ${pid} on port ${port}\n`);
+        try { process.kill(parseInt(pid, 10), "SIGKILL"); } catch { /* already gone */ }
+      }
+      // Brief pause so the OS reclaims the port.
+      await new Promise((r) => setTimeout(r, 300));
+    }
+  } catch { /* lsof returns non-zero when no matches — that's fine */ }
+}
+
+// Remove stale Next.js dev lock file from a previous unclean shutdown.
+try {
+  unlinkSync(join(__dirname, "..", ".next", "dev", "lock"));
+} catch { /* doesn't exist — fine */ }
 
 // Prepare runtime env payload served at /__nize-env.js.
 // We serve this from a lightweight proxy instead of writing into the
@@ -213,3 +235,9 @@ function shutdown() {
 child.on("exit", (code) => process.exit(code ?? 0));
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
+
+// Detect parent death: when the parent process exits (even via SIGKILL), our
+// stdin pipe is closed.  Trigger the same graceful shutdown so `next dev` is
+// killed and the .next/dev/lock file is released.
+process.stdin.resume();
+process.stdin.on("end", shutdown);

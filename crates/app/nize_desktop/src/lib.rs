@@ -3,6 +3,7 @@ use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
+use std::time::Duration;
 
 use nize_api_client::Client as ApiClient;
 use nize_core::db::PgLiteManager;
@@ -172,6 +173,37 @@ fn start_nize_web_sidecar(
         _process: child,
         port: ready.port,
     })
+}
+
+/// Sends SIGTERM to a child process, waits up to 5 s for it to exit, then
+/// falls back to SIGKILL.  On non-Unix platforms, uses `Child::kill` directly.
+fn kill_child_gracefully(child: &mut Child) {
+    let pid = child.id();
+
+    #[cfg(unix)]
+    {
+        // Send SIGTERM so the process can run its shutdown handler.
+        let _ = Command::new("kill")
+            .arg("-TERM")
+            .arg(pid.to_string())
+            .output();
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = child.kill();
+    }
+
+    // Wait up to 5 seconds for graceful exit.
+    for _ in 0..50 {
+        if let Ok(Some(_)) = child.try_wait() {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+
+    // Still alive — force kill.
+    let _ = child.kill();
+    let _ = child.wait();
 }
 
 // @zen-impl: PLAN-005 — manifest path helper
@@ -454,6 +486,17 @@ pub fn run() {
                     if let Err(e) = append_cleanup(&manifest_path, &kill_cmd) {
                         error!("Failed to write nize-web cleanup to manifest: {e}");
                     }
+                    // Remove the Next.js dev lock file on unclean shutdown.
+                    let lock_path = nize_web_script
+                        .parent()
+                        .and_then(|scripts| scripts.parent())
+                        .map(|pkg| pkg.join(".next").join("dev").join("lock"));
+                    if let Some(lp) = lock_path {
+                        let rm_cmd = format!("rm -f {}", lp.display());
+                        if let Err(e) = append_cleanup(&manifest_path, &rm_cmd) {
+                            error!("Failed to write lock cleanup to manifest: {e}");
+                        }
+                    }
                     Some(s)
                 }
                 Err(e) => {
@@ -510,11 +553,15 @@ fn run_tauri(services: AppServices) {
                 info!("Tauri exit — shutting down services");
                 let state = app.state::<Mutex<AppServices>>();
                 if let Ok(mut guard) = state.lock() {
-                    // Drop the sidecar first so it releases PG connections.
-                    guard.sidecar.take();
+                    // Kill the API sidecar first so it releases PG connections.
+                    if let Some(mut sidecar) = guard.sidecar.take() {
+                        kill_child_gracefully(&mut sidecar._process);
+                    }
 
                     // @zen-impl: PLAN-012-3.7 — kill nize-web sidecar on exit
-                    guard.nize_web.take();
+                    if let Some(mut nize_web) = guard.nize_web.take() {
+                        kill_child_gracefully(&mut nize_web._process);
+                    }
 
                     // @zen-impl: PLAN-007-5.3 — stop PGlite on exit.
                     if let Some(mut pglite) = guard._pglite.take() {
