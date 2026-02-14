@@ -2,7 +2,7 @@
 
 | Field              | Value                                              |
 |--------------------|----------------------------------------------------|
-| **Status**         | not-started                                        |
+| **Status**         | done                                               |
 | **Workflow**       | lateral                                            |
 | **Reference**      | PLAN-014 (nize-web dev hot reload)                 |
 | **Traceability**   | —                                                  |
@@ -93,42 +93,42 @@ With same-origin proxy (PLAN-014), a single bridge client in the parent can acce
 
 ### Phase 1 — Bridge Client
 
-- [ ] **1.1** Create `packages/nize-desktop/src/webview-bridge.ts`:
+- [x] **1.1** Create `packages/nize-desktop/src/webview-bridge.ts`:
   - WebSocket client connecting to `ws://127.0.0.1:19570` (configurable)
   - Command dispatcher: `snapshot`, `evaluate`, `click`, `fill`, `navigate`, `console`
   - DOM snapshot walker: produces `{ role, name, value, ref }` tree
   - Console interceptor: monkey-patch `console.log/warn/error`, buffer last 100 entries
   - Auto-reconnect on disconnect
-- [ ] **1.2** Add snapshot logic:
+- [x] **1.2** Add snapshot logic:
   - Walk `document.body` recursively
   - For each element: compute ARIA role (or infer from tag), accessible name, value
   - Assign sequential `ref` ids to interactive elements
   - Traverse into same-origin iframes via `contentDocument`
-- [ ] **1.3** Add event reporting:
+- [x] **1.3** Add event reporting:
   - `navigate` events (pushState, popState, iframe load)
   - `console` entries with level, message, timestamp
 
 ### Phase 2 — MCP Server
 
-- [ ] **2.1** Create `packages/nize-desktop/scripts/webview-bridge-mcp.mjs`:
+- [x] **2.1** Create `packages/nize-desktop/scripts/webview-bridge-mcp.mjs`:
   - WebSocket server on port 19570
   - MCP server (streamable HTTP) on port 19571
   - Map MCP tool calls → WebSocket commands → responses
   - Handle connection lifecycle (wait for client, reconnect)
-- [ ] **2.2** Define MCP tool schemas:
+- [x] **2.2** Define MCP tool schemas:
   - `webview_snapshot`: no params → returns YAML string
   - `webview_evaluate`: `{ expression: string }` → returns JSON result
   - `webview_click`: `{ selector?: string, ref?: string, text?: string }` → void
   - `webview_fill`: `{ selector: string, value: string }` → void
   - `webview_navigate`: `{ url: string, target?: "parent" | "iframe" }` → void
   - `webview_console`: `{ limit?: number }` → returns array of entries
-- [ ] **2.3** Add to MCP config for VS Code / Claude Desktop so agents can discover it
+- [x] **2.3** Add to MCP config for VS Code / Claude Desktop so agents can discover it
 
 ### Phase 3 — Injection
 
-- [ ] **3.1** Option A: Add `<script src="/webview-bridge.js">` via Vite plugin in dev
-- [ ] **3.2** Option B: Inject via `WebviewWindow::eval()` in Rust setup hook
-- [ ] **3.3** Choose one, verify bridge connects on `cargo tauri dev` startup
+- [x] **3.1** Option A: Add `<script src="/webview-bridge.js">` via Vite plugin in dev
+- [ ] ~~**3.2** Option B: Inject via `WebviewWindow::eval()` in Rust setup hook~~ (skipped — chose Option A)
+- [x] **3.3** Choose one, verify bridge connects on `cargo tauri dev` startup
 
 ### Phase 4 — Testing
 

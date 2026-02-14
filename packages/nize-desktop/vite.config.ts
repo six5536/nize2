@@ -9,6 +9,19 @@ const host = process.env.TAURI_DEV_HOST;
 const NIZE_WEB_PORT = 3100;
 const NIZE_API_PORT = 3001;
 
+// @zen-impl: PLAN-015-3.1 — Vite plugin to inject bridge client in dev builds
+// Injects the webview-bridge.ts script into the page so the bridge MCP
+// server can inspect and interact with the live DOM.
+function webviewBridgePlugin(): Plugin {
+  return {
+    name: "webview-bridge",
+    apply: "serve", // dev only
+    transformIndexHtml(html) {
+      return html.replace("</body>", `  <script type="module" src="/src/webview-bridge.ts"></script>\n  </body>`);
+    },
+  };
+}
+
 // Vite plugin: serve /__nize-env.js so nize-web pages (loaded via proxy)
 // can discover the API port and use relative URLs.
 function nizeEnvPlugin(): Plugin {
@@ -31,7 +44,7 @@ function nizeEnvPlugin(): Plugin {
 }
 
 export default defineConfig(async () => ({
-  plugins: [react(), nizeEnvPlugin()],
+  plugins: [react(), nizeEnvPlugin(), webviewBridgePlugin()],
 
   // Vite options tailored for Tauri development
   clearScreen: false,

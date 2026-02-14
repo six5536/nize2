@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "nize-webview-bridge": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["packages/nize-desktop/scripts/webview-bridge-mcp.mjs"]
+    }
+  }
+}
