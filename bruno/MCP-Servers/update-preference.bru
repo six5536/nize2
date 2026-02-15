@@ -1,0 +1,22 @@
+meta {
+  name: Update Preference
+  type: http
+  seq: 5
+}
+
+patch {
+  url: {{baseUrl}}/mcp/servers/{{serverId}}/preference
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "enabled": true
+  }
+}

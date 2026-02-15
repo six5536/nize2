@@ -201,7 +201,9 @@ interface AuthRoutes {
   @post
   @route("/refresh")
   @summary("Refresh access token")
-  refresh(@body body: RefreshRequest): TokenResponse | NizeApi.UnauthorizedError;
+  refresh(
+    @body body: RefreshRequest,
+  ): TokenResponse | NizeApi.UnauthorizedError;
 
   /**
    * Logout and revoke refresh token.
@@ -211,6 +213,26 @@ interface AuthRoutes {
   @route("/logout")
   @summary("Logout current session")
   logout(@body body: LogoutRequest): LogoutResponse | NizeApi.UnauthorizedError;
+
+  /**
+   * Logout from all sessions.
+   * Revokes all refresh tokens for the user.
+   */
+  @post
+  @route("/logout/all")
+  @summary("Logout all sessions")
+  logoutAll(): LogoutResponse | NizeApi.UnauthorizedError;
+
+  /**
+   * Handle OAuth callback from MCP server authorization.
+   */
+  @get
+  @route("/oauth/mcp/callback")
+  @summary("OAuth callback")
+  oauthCallback(
+    @query code: string,
+    @query state: string,
+  ): void | NizeApi.ValidationError;
 
   /**
    * Check authentication status.

@@ -1,0 +1,14 @@
+meta {
+  name: Admin Revoke Grant
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}/admin/permissions/grants/{{grantId}}
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}

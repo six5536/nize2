@@ -1,0 +1,11 @@
+meta {
+  name: OAuth Callback
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/auth/oauth/mcp/callback?code=demo-code&state=demo-state
+  body: none
+  auth: none
+}

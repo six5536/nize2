@@ -1,0 +1,15 @@
+meta {
+  name: List MCP Tokens
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/auth/mcp-tokens
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}

@@ -1,0 +1,14 @@
+meta {
+  name: Delete Conversation
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{baseUrl}}/conversations/{{conversationId}}
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}

@@ -1,0 +1,15 @@
+meta {
+  name: OAuth Status
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/mcp/servers/{{serverId}}/oauth/status
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}

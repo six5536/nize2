@@ -1,0 +1,15 @@
+meta {
+  name: Chat Trace
+  type: http
+  seq: 13
+}
+
+get {
+  url: {{baseUrl}}/dev/chat_trace
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}

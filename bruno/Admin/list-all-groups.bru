@@ -1,0 +1,15 @@
+meta {
+  name: List All Groups
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/admin/permissions/groups
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}

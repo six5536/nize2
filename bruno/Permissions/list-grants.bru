@@ -1,0 +1,15 @@
+meta {
+  name: List Grants
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/permissions/{{resourceType}}/{{resourceId}}/grants
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}

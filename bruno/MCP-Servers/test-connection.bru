@@ -1,0 +1,23 @@
+meta {
+  name: Test Connection
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/mcp/test-connection
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "url": "https://mcp.example.com",
+    "transport": "sse"
+  }
+}

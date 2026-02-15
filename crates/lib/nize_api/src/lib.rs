@@ -22,7 +22,10 @@ use tower_http::cors::{AllowHeaders, AllowOrigin, CorsLayer};
 use crate::config::ApiConfig;
 use crate::generated::routes;
 use crate::handlers::config as config_handlers;
-use crate::handlers::{auth, hello, mcp_tokens};
+use crate::handlers::{
+    admin_permissions, auth, chat, conversations, hello, ingest, mcp_config, mcp_tokens, oauth,
+    permissions, trace,
+};
 
 use nize_core::config::cache::ConfigCache;
 
@@ -72,7 +75,15 @@ pub fn router(state: AppState) -> Router {
         .route(routes::POST_AUTH_REGISTER, post(auth::register_handler))
         .route(routes::POST_AUTH_REFRESH, post(auth::refresh_handler))
         .route(routes::POST_AUTH_LOGOUT, post(auth::logout_handler))
-        .route(routes::GET_AUTH_STATUS, get(auth::auth_status_handler));
+        .route(routes::GET_AUTH_STATUS, get(auth::auth_status_handler))
+        .route(
+            routes::GET_AUTH_OAUTH_MCP_CALLBACK,
+            get(oauth::oauth_callback_handler),
+        )
+        .route(
+            routes::GET_PERMISSIONS_SHARED_TOKEN,
+            get(permissions::access_shared_handler),
+        );
 
     // Protected routes (require auth)
     let protected = Router::new()
@@ -89,6 +100,10 @@ pub fn router(state: AppState) -> Router {
             delete(mcp_tokens::revoke_mcp_token_handler),
         )
         .route(
+            routes::POST_AUTH_LOGOUT_ALL,
+            post(auth::logout_all_handler),
+        )
+        .route(
             routes::GET_CONFIG_USER,
             get(config_handlers::user_config_list_handler),
         )
@@ -99,6 +114,104 @@ pub fn router(state: AppState) -> Router {
         .route(
             routes::DELETE_CONFIG_USER_KEY,
             delete(config_handlers::user_config_reset_handler),
+        )
+        // Chat
+        .route(routes::POST_CHAT, post(chat::chat_handler))
+        // Conversations
+        .route(
+            routes::GET_CONVERSATIONS,
+            get(conversations::list_conversations_handler),
+        )
+        .route(
+            routes::POST_CONVERSATIONS,
+            post(conversations::create_conversation_handler),
+        )
+        .route(
+            routes::GET_CONVERSATIONS_ID,
+            get(conversations::get_conversation_handler),
+        )
+        .route(
+            routes::PATCH_CONVERSATIONS_ID,
+            patch(conversations::update_conversation_handler),
+        )
+        .route(
+            routes::DELETE_CONVERSATIONS_ID,
+            delete(conversations::delete_conversation_handler),
+        )
+        // Ingest
+        .route(routes::GET_INGEST, get(ingest::list_documents_handler))
+        .route(routes::POST_INGEST, post(ingest::upload_handler))
+        .route(routes::GET_INGEST_ID, get(ingest::get_document_handler))
+        .route(
+            routes::DELETE_INGEST_ID,
+            delete(ingest::delete_document_handler),
+        )
+        // Permissions — grants
+        .route(
+            routes::POST_PERMISSIONS_RESOURCETYPE_RESOURCEID_GRANTS,
+            post(permissions::create_grant_handler),
+        )
+        .route(
+            routes::GET_PERMISSIONS_RESOURCETYPE_RESOURCEID_GRANTS,
+            get(permissions::list_grants_handler),
+        )
+        .route(
+            routes::DELETE_PERMISSIONS_GRANTS_GRANTID,
+            delete(permissions::revoke_grant_handler),
+        )
+        // Permissions — links
+        .route(
+            routes::POST_PERMISSIONS_RESOURCETYPE_RESOURCEID_LINKS,
+            post(permissions::create_link_handler),
+        )
+        .route(
+            routes::GET_PERMISSIONS_RESOURCETYPE_RESOURCEID_LINKS,
+            get(permissions::list_links_handler),
+        )
+        .route(
+            routes::DELETE_PERMISSIONS_LINKS_LINKID,
+            delete(permissions::revoke_link_handler),
+        )
+        // MCP servers (user)
+        .route(
+            routes::GET_MCP_SERVERS,
+            get(mcp_config::list_servers_handler),
+        )
+        .route(
+            routes::POST_MCP_SERVERS,
+            post(mcp_config::add_server_handler),
+        )
+        .route(
+            routes::PATCH_MCP_SERVERS_SERVERID,
+            patch(mcp_config::update_server_handler),
+        )
+        .route(
+            routes::DELETE_MCP_SERVERS_SERVERID,
+            delete(mcp_config::delete_server_handler),
+        )
+        .route(
+            routes::PATCH_MCP_SERVERS_SERVERID_PREFERENCE,
+            patch(mcp_config::update_preference_handler),
+        )
+        .route(
+            routes::GET_MCP_SERVERS_SERVERID_TOOLS,
+            get(mcp_config::list_server_tools_handler),
+        )
+        .route(
+            routes::GET_MCP_SERVERS_SERVERID_OAUTH_STATUS,
+            get(mcp_config::oauth_status_handler),
+        )
+        .route(
+            routes::POST_MCP_SERVERS_SERVERID_OAUTH_INITIATE,
+            post(mcp_config::oauth_initiate_handler),
+        )
+        .route(
+            routes::POST_MCP_SERVERS_SERVERID_OAUTH_REVOKE,
+            post(mcp_config::oauth_revoke_handler),
+        )
+        .route(
+            routes::POST_MCP_TEST_CONNECTION,
+            post(mcp_config::test_connection_handler),
         )
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
@@ -114,6 +227,53 @@ pub fn router(state: AppState) -> Router {
         .route(
             routes::PATCH_ADMIN_CONFIG_SCOPE_KEY,
             patch(config_handlers::admin_config_update_handler),
+        )
+        // Admin permissions
+        .route(
+            routes::GET_ADMIN_PERMISSIONS_GRANTS,
+            get(admin_permissions::list_all_grants_handler),
+        )
+        .route(
+            routes::DELETE_ADMIN_PERMISSIONS_GRANTS_GRANTID,
+            delete(admin_permissions::admin_revoke_grant_handler),
+        )
+        .route(
+            routes::GET_ADMIN_PERMISSIONS_GROUPS,
+            get(admin_permissions::list_all_groups_handler),
+        )
+        .route(
+            routes::GET_ADMIN_PERMISSIONS_LINKS,
+            get(admin_permissions::list_all_links_handler),
+        )
+        .route(
+            routes::DELETE_ADMIN_PERMISSIONS_LINKS_LINKID,
+            delete(admin_permissions::admin_revoke_link_handler),
+        )
+        .route(
+            routes::PATCH_ADMIN_PERMISSIONS_USERS_USERID_ADMIN,
+            patch(admin_permissions::set_admin_role_handler),
+        )
+        // Admin MCP servers
+        .route(
+            routes::GET_MCP_ADMIN_SERVERS,
+            get(mcp_config::admin_list_servers_handler),
+        )
+        .route(
+            routes::POST_MCP_ADMIN_SERVERS,
+            post(mcp_config::admin_create_server_handler),
+        )
+        .route(
+            routes::PATCH_MCP_ADMIN_SERVERS_SERVERID,
+            patch(mcp_config::admin_update_server_handler),
+        )
+        .route(
+            routes::DELETE_MCP_ADMIN_SERVERS_SERVERID,
+            delete(mcp_config::admin_delete_server_handler),
+        )
+        // Dev trace
+        .route(
+            routes::GET_DEV_CHAT_TRACE,
+            get(trace::chat_trace_handler),
         )
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),

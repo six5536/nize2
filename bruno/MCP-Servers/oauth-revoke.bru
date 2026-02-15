@@ -1,0 +1,15 @@
+meta {
+  name: OAuth Revoke
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/mcp/servers/{{serverId}}/oauth/revoke
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}

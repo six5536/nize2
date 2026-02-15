@@ -1,0 +1,23 @@
+meta {
+  name: Create Link
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/permissions/{{resourceType}}/{{resourceId}}/links
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "level": "read",
+    "expiresAt": "2026-12-31T23:59:59Z"
+  }
+}

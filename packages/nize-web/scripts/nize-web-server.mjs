@@ -227,10 +227,18 @@ if (isBun) {
           }
         });
         upstream.addEventListener("close", () => {
-          try { ws.close(); } catch { /* already closed */ }
+          try {
+            ws.close();
+          } catch {
+            /* already closed */
+          }
         });
         upstream.addEventListener("error", () => {
-          try { ws.close(); } catch { /* already closed */ }
+          try {
+            ws.close();
+          } catch {
+            /* already closed */
+          }
         });
       },
       message(ws, message) {
@@ -242,7 +250,11 @@ if (isBun) {
       close(ws) {
         const upstream = ws.data.upstream;
         if (upstream) {
-          try { upstream.close(); } catch { /* already closed */ }
+          try {
+            upstream.close();
+          } catch {
+            /* already closed */
+          }
         }
       },
     },

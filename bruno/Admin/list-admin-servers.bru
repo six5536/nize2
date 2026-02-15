@@ -1,0 +1,15 @@
+meta {
+  name: List Admin Servers
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{baseUrl}}/mcp/admin/servers
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}

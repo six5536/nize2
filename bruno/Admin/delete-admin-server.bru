@@ -1,0 +1,14 @@
+meta {
+  name: Delete Admin Server
+  type: http
+  seq: 12
+}
+
+delete {
+  url: {{baseUrl}}/mcp/admin/servers/{{serverId}}
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}

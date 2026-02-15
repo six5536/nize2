@@ -1,0 +1,25 @@
+meta {
+  name: Create Admin Server
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/mcp/admin/servers
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Admin MCP Server",
+    "url": "https://admin-mcp.example.com",
+    "transport": "sse",
+    "visibility": "public"
+  }
+}

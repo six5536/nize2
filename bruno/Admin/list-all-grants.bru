@@ -1,0 +1,15 @@
+meta {
+  name: List All Grants
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/admin/permissions/grants
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}

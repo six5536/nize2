@@ -1,0 +1,15 @@
+meta {
+  name: List Server Tools
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/mcp/servers/{{serverId}}/tools
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}

@@ -1,0 +1,15 @@
+meta {
+  name: List Servers
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/mcp/servers
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}

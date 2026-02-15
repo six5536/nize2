@@ -1,0 +1,14 @@
+meta {
+  name: Revoke MCP Token
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}/auth/mcp-tokens/{{mcpTokenId}}
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}

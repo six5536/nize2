@@ -1,0 +1,15 @@
+meta {
+  name: List All Links
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/admin/permissions/links
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}

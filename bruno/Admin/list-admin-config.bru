@@ -1,0 +1,15 @@
+meta {
+  name: List Admin Config
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/admin/config
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}

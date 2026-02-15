@@ -7,6 +7,12 @@
 import "./API-NIZE-common.tsp";
 import "./API-NIZE-auth.tsp";
 import "./API-NIZE-config.tsp";
+import "./API-NIZE-chat.tsp";
+import "./API-NIZE-conversations.tsp";
+import "./API-NIZE-ingest.tsp";
+import "./API-NIZE-permissions.tsp";
+import "./API-NIZE-mcp-config.tsp";
+import "./API-NIZE-trace.tsp";
 import "@typespec/http";
 
 using TypeSpec.Http;

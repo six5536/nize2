@@ -1,0 +1,22 @@
+meta {
+  name: Create Conversation
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/conversations
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "title": "New Conversation"
+  }
+}

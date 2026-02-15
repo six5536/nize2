@@ -1,0 +1,14 @@
+meta {
+  name: Admin Revoke Link
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{baseUrl}}/admin/permissions/links/{{linkId}}
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}

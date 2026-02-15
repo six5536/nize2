@@ -1,0 +1,15 @@
+meta {
+  name: List User Config
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/config/user
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}

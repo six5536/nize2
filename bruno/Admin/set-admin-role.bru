@@ -1,0 +1,22 @@
+meta {
+  name: Set Admin Role
+  type: http
+  seq: 8
+}
+
+patch {
+  url: {{baseUrl}}/admin/permissions/users/{{userId}}/admin
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "isAdmin": true
+  }
+}

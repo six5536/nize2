@@ -1,0 +1,15 @@
+meta {
+  name: List Links
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/permissions/{{resourceType}}/{{resourceId}}/links
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}

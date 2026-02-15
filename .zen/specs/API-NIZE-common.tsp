@@ -41,3 +41,41 @@ model ValidationError {
   error: string;
   message: string;
 }
+
+@error
+model NotFoundError {
+  @statusCode statusCode: 404;
+  error: string;
+  message: string;
+}
+
+@error
+model ForbiddenError {
+  @statusCode statusCode: 403;
+  error: string;
+  message: string;
+}
+
+// ============================================================================
+// Common Types
+// ============================================================================
+
+/** ISO 8601 datetime string */
+scalar DateTime extends string;
+
+/** UUID string */
+scalar UUID extends string;
+
+/** Pagination parameters */
+model PaginationParams {
+  @query limit?: int32 = 20;
+  @query offset?: int32 = 0;
+}
+
+/** Paginated response wrapper */
+model PaginatedResponse<T> {
+  items: T[];
+  total: int32;
+  limit: int32;
+  offset: int32;
+}

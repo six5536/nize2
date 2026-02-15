@@ -1,0 +1,14 @@
+meta {
+  name: Delete Server
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}/mcp/servers/{{serverId}}
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}

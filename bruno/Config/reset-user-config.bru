@@ -1,0 +1,14 @@
+meta {
+  name: Reset User Config
+  type: http
+  seq: 3
+}
+
+delete {
+  url: {{baseUrl}}/config/user/{{configKey}}
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
