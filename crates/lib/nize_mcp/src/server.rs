@@ -10,7 +10,11 @@ use rmcp::{
 };
 use sqlx::PgPool;
 
+use crate::tools::discovery::{
+    BrowseToolDomainRequest, DiscoverToolsRequest, ExecuteToolRequest, GetToolSchemaRequest,
+};
 use crate::tools::hello::HelloRequest;
+use crate::tools::types::ExecutionResult;
 
 /// Nize MCP server handler.
 ///
@@ -33,6 +37,12 @@ impl NizeMcpServer {
         }
     }
 
+    /// Return tool definitions registered in this server.
+    #[cfg(test)]
+    pub(crate) fn list_tools() -> Vec<rmcp::model::Tool> {
+        Self::tool_router().list_all()
+    }
+
     /// Say hello from Nize MCP server.
     #[tool(description = "Say hello from Nize MCP server")]
     fn hello(
@@ -45,6 +55,82 @@ impl NizeMcpServer {
             nize_core::version()
         );
         Ok(CallToolResult::success(vec![Content::text(greeting)]))
+    }
+
+    // @zen-impl: MCP-1.1_AC-1 (partial: stub — returns hardcoded dummy data)
+    /// Search for tools by describing what you want to do.
+    #[tool(description = "Search for tools by describing what you want to do")]
+    fn discover_tools(
+        &self,
+        Parameters(DiscoverToolsRequest { query, domain }): Parameters<DiscoverToolsRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let result =
+            crate::tools::dummy::discover_tools(&query, domain.as_deref());
+        let json = serde_json::to_string_pretty(&result).map_err(|e| {
+            ErrorData::new(rmcp::model::ErrorCode::INTERNAL_ERROR, e.to_string(), None)
+        })?;
+        Ok(CallToolResult::success(vec![Content::text(json)]))
+    }
+
+    // @zen-impl: MCP-1.2_AC-1 (partial: stub — returns hardcoded dummy manifest)
+    /// Get detailed parameters for a specific tool.
+    #[tool(description = "Get detailed parameters for a specific tool")]
+    fn get_tool_schema(
+        &self,
+        Parameters(GetToolSchemaRequest { tool_id }): Parameters<GetToolSchemaRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let manifest = crate::tools::dummy::get_tool_manifest(&tool_id);
+        let json = serde_json::to_string_pretty(&manifest).map_err(|e| {
+            ErrorData::new(rmcp::model::ErrorCode::INTERNAL_ERROR, e.to_string(), None)
+        })?;
+        Ok(CallToolResult::success(vec![Content::text(json)]))
+    }
+
+    // @zen-impl: MCP-1.3_AC-1 (partial: stub — returns hardcoded success result)
+    /// Run a discovered tool with parameters.
+    #[tool(description = "Run a discovered tool with parameters")]
+    fn execute_tool(
+        &self,
+        Parameters(ExecuteToolRequest {
+            tool_id: _,
+            tool_name,
+            params,
+        }): Parameters<ExecuteToolRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let result = ExecutionResult {
+            success: true,
+            tool_name,
+            result: params,
+        };
+        let json = serde_json::to_string_pretty(&result).map_err(|e| {
+            ErrorData::new(rmcp::model::ErrorCode::INTERNAL_ERROR, e.to_string(), None)
+        })?;
+        Ok(CallToolResult::success(vec![Content::text(json)]))
+    }
+
+    // @zen-impl: MCP-1.4_AC-1 (partial: stub — returns hardcoded domains)
+    /// List available tool categories.
+    #[tool(description = "List available tool categories")]
+    fn list_tool_domains(&self) -> Result<CallToolResult, ErrorData> {
+        let domains = crate::tools::dummy::list_tool_domains();
+        let json = serde_json::to_string_pretty(&domains).map_err(|e| {
+            ErrorData::new(rmcp::model::ErrorCode::INTERNAL_ERROR, e.to_string(), None)
+        })?;
+        Ok(CallToolResult::success(vec![Content::text(json)]))
+    }
+
+    // @zen-impl: MCP-1.5_AC-1 (partial: stub — returns hardcoded tools by domain)
+    /// List all tools in a category.
+    #[tool(description = "List all tools in a category")]
+    fn browse_tool_domain(
+        &self,
+        Parameters(BrowseToolDomainRequest { domain_id }): Parameters<BrowseToolDomainRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let result = crate::tools::dummy::browse_tool_domain(&domain_id);
+        let json = serde_json::to_string_pretty(&result).map_err(|e| {
+            ErrorData::new(rmcp::model::ErrorCode::INTERNAL_ERROR, e.to_string(), None)
+        })?;
+        Ok(CallToolResult::success(vec![Content::text(json)]))
     }
 }
 
