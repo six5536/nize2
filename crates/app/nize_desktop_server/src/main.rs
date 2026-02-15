@@ -81,6 +81,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         bind_addr: format!("127.0.0.1:{}", args.port),
         pg_connection_url: args.database_url,
         jwt_secret: nize_api::services::auth::resolve_jwt_secret(),
+        mcp_encryption_key: std::env::var("MCP_ENCRYPTION_KEY")
+            .unwrap_or_else(|_| "nize-mcp-default-dev-key-change-in-production".into()),
     };
 
     // Clone pool for MCP server before moving into API state.

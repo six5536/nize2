@@ -7,6 +7,7 @@ pub mod bun_sidecar;
 pub mod config;
 pub mod db;
 pub mod hello;
+pub mod mcp;
 pub mod migrate;
 pub mod models;
 

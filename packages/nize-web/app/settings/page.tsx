@@ -230,8 +230,8 @@ export default function SettingsPage() {
       <div style={s.container}>
         {/* Header */}
         <div style={s.headerSection}>
-          <button onClick={() => router.push("/")} style={s.backButton}>
-            ← Back
+          <button onClick={() => router.push("/chat")} style={s.backButton}>
+            ← Back to Chat
           </button>
           <h1 style={s.title}>Settings</h1>
           <p style={s.subtitle}>Manage your application configuration</p>

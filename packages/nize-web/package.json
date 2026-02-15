@@ -12,9 +12,13 @@
     "start": "next start"
   },
   "dependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
+    "autoprefixer": "^10.4.24",
+    "date-fns": "^4.1.0",
     "next": "^16.1.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "tailwindcss": "^4.1.18"
   },
   "devDependencies": {
     "@types/react": "^19.1.0",

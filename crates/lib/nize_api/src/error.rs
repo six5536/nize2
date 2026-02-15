@@ -86,3 +86,23 @@ impl From<nize_core::auth::AuthError> for AppError {
         }
     }
 }
+
+impl From<nize_core::mcp::McpError> for AppError {
+    fn from(e: nize_core::mcp::McpError) -> Self {
+        match e {
+            nize_core::mcp::McpError::NotFound(msg) => AppError::NotFound(msg),
+            nize_core::mcp::McpError::Forbidden(msg) => AppError::Forbidden(msg),
+            nize_core::mcp::McpError::Validation(msg) => AppError::Validation(msg),
+            nize_core::mcp::McpError::ServerLimitExceeded(n) => {
+                AppError::Validation(format!("Maximum of {n} user servers allowed"))
+            }
+            nize_core::mcp::McpError::DuplicateServer(name) => {
+                AppError::Validation(format!("Server with name '{name}' already exists"))
+            }
+            nize_core::mcp::McpError::InvalidTransport(msg) => AppError::Validation(msg),
+            nize_core::mcp::McpError::ConnectionFailed(msg) => AppError::Validation(msg),
+            nize_core::mcp::McpError::EncryptionError(msg) => AppError::Internal(msg),
+            nize_core::mcp::McpError::DbError(e) => AppError::from(e),
+        }
+    }
+}

@@ -11,6 +11,8 @@ pub struct ApiConfig {
     pub pg_connection_url: String,
     /// JWT signing secret.
     pub jwt_secret: String,
+    /// Encryption key for MCP server secrets (API keys, OAuth secrets).
+    pub mcp_encryption_key: String,
 }
 
 impl ApiConfig {
@@ -28,6 +30,8 @@ impl ApiConfig {
             pg_connection_url: std::env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "postgres://localhost:5432/nize".into()),
             jwt_secret: resolve_jwt_secret(),
+            mcp_encryption_key: std::env::var("MCP_ENCRYPTION_KEY")
+                .unwrap_or_else(|_| "nize-mcp-default-dev-key-change-in-production".into()),
         }
     }
 }

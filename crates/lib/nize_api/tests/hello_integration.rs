@@ -25,6 +25,7 @@ async fn hello_endpoint_returns_expected_shape() {
             bind_addr: "127.0.0.1:0".into(),
             pg_connection_url: db.connection_url(),
             jwt_secret: "test-secret".into(),
+            mcp_encryption_key: "test-encryption-key".into(),
         },
         config_cache: std::sync::Arc::new(tokio::sync::RwLock::new(
             nize_core::config::cache::ConfigCache::new(),

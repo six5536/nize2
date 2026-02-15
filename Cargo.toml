@@ -85,7 +85,10 @@ futures = "0.3"
 prettyplease = "0.2"
 syn = "2.0"
 url = "2.5"
+aes-gcm = "0.10"
+base64 = "0.22"
 rmcp = { version = "0.15", features = ["transport-streamable-http-server"] }
+uuid = { version = "1", features = ["v4", "serde"] }
 schemars = { version = "1", features = ["derive"] }
 tokio-util = "0.7"
 

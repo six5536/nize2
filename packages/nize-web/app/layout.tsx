@@ -2,6 +2,7 @@
 // @zen-impl: CFG-NizeWebAuthContext
 
 import { AuthProvider } from "@/lib/auth-context";
+import "./globals.css";
 
 export const metadata = {
   title: "nize-web",
@@ -9,13 +10,17 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className="h-full">
       <head>
         {/* Runtime env injected by nize-web-server.mjs before server start */}
         <script src="/__nize-env.js" />
       </head>
-      <body>
-        <AuthProvider>{children}</AuthProvider>
+      <body className="h-full">
+        <AuthProvider>
+          <div className="flex flex-col h-full">
+            <div className="flex-1 min-w-0 overflow-auto">{children}</div>
+          </div>
+        </AuthProvider>
       </body>
     </html>
   );
