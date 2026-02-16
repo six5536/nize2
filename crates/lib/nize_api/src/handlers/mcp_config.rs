@@ -10,6 +10,7 @@ use crate::AppState;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
 use crate::services::mcp_config;
+use nize_core::models::mcp::ServerConfig;
 
 // ---------------------------------------------------------------------------
 // Request / response DTOs
@@ -55,17 +56,10 @@ pub struct UpdatePreferenceRequest {
 #[derive(Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TestConnectionRequest {
-    pub url: Option<String>,
-    #[serde(default = "default_transport")]
-    pub transport: String,
-    pub auth_type: Option<String>,
+    /// Transport configuration (discriminated union via `transport` field).
+    pub config: ServerConfig,
+    /// API key for testing (stored separately from config).
     pub api_key: Option<String>,
-    pub api_key_header: Option<String>,
-    pub headers: Option<serde_json::Value>,
-}
-
-fn default_transport() -> String {
-    "http".to_string()
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -76,16 +70,10 @@ pub struct CreateAdminServerRequest {
     pub domain: Option<String>,
     #[serde(default = "default_visible")]
     pub visibility: String,
-    #[serde(default = "default_transport")]
-    pub transport: String,
-    pub url: Option<String>,
-    pub command: Option<String>,
-    pub args: Option<Vec<String>>,
-    pub env: Option<serde_json::Value>,
-    pub auth_type: Option<String>,
+    /// Transport configuration (discriminated union via `transport` field).
+    pub config: ServerConfig,
+    /// API key (stored separately in secrets).
     pub api_key: Option<String>,
-    pub api_key_header: Option<String>,
-    pub headers: Option<serde_json::Value>,
 }
 
 fn default_visible() -> String {
@@ -100,11 +88,9 @@ pub struct UpdateAdminServerRequest {
     pub domain: Option<String>,
     pub visibility: Option<String>,
     pub enabled: Option<bool>,
-    pub url: Option<String>,
-    pub auth_type: Option<String>,
+    /// Updated transport configuration.
+    pub config: Option<ServerConfig>,
     pub api_key: Option<String>,
-    pub api_key_header: Option<String>,
-    pub headers: Option<serde_json::Value>,
 }
 
 // ---------------------------------------------------------------------------
@@ -140,7 +126,10 @@ pub async fn add_server_handler(
         &state.config.mcp_encryption_key,
     )
     .await?;
-    Ok((StatusCode::CREATED, Json(serde_json::to_value(server).unwrap())))
+    Ok((
+        StatusCode::CREATED,
+        Json(serde_json::to_value(server).unwrap()),
+    ))
 }
 
 /// `PATCH /mcp/servers/{serverId}` — update user MCP server.
@@ -217,7 +206,9 @@ pub async fn oauth_initiate_handler(
     Path(_server_id): Path<String>,
 ) -> AppResult<Json<serde_json::Value>> {
     // OAuth flow implementation deferred
-    Err(AppError::Validation("OAuth flow not yet implemented".into()))
+    Err(AppError::Validation(
+        "OAuth flow not yet implemented".into(),
+    ))
 }
 
 /// `POST /mcp/servers/{serverId}/oauth/revoke` — revoke OAuth token (stub).
@@ -233,15 +224,7 @@ pub async fn oauth_revoke_handler(Path(_server_id): Path<String>) -> StatusCode 
 pub async fn test_connection_handler(
     Json(body): Json<TestConnectionRequest>,
 ) -> AppResult<Json<serde_json::Value>> {
-    let result = mcp_config::test_connection(
-        body.url.as_deref(),
-        &body.transport,
-        body.auth_type.as_deref(),
-        body.api_key.as_deref(),
-        body.api_key_header.as_deref(),
-        body.headers.as_ref(),
-    )
-    .await;
+    let result = mcp_config::test_connection(&body.config, body.api_key.as_deref()).await;
     Ok(Json(serde_json::to_value(result).unwrap()))
 }
 
@@ -270,19 +253,37 @@ pub async fn admin_create_server_handler(
         body.description.as_deref().unwrap_or(""),
         body.domain.as_deref().unwrap_or("general"),
         &body.visibility,
-        &body.transport,
-        body.url.as_deref(),
-        body.command.as_deref(),
-        body.args.as_deref(),
-        body.env.as_ref(),
-        body.auth_type.as_deref(),
+        &body.config,
         body.api_key.as_deref(),
-        body.api_key_header.as_deref(),
-        body.headers.as_ref(),
         &state.config.mcp_encryption_key,
     )
     .await?;
-    Ok((StatusCode::CREATED, Json(serde_json::to_value(server).unwrap())))
+
+    // Discover and store tools from the server
+    let test_result = mcp_config::test_connection(&body.config, body.api_key.as_deref()).await;
+    if !test_result.tools.is_empty() {
+        if let Err(e) =
+            mcp_config::store_tools_from_test(&state.pool, &server.id, &test_result.tools).await
+        {
+            tracing::warn!("Failed to store tools for server {}: {e}", server.id);
+        }
+
+        // Generate embeddings for the newly stored tools
+        if let Err(e) = nize_core::embedding::indexer::embed_server_tools(
+            &state.pool,
+            &state.config_cache,
+            &server.id,
+        )
+        .await
+        {
+            tracing::warn!("Failed to embed tools for server {}: {e}", server.id);
+        }
+    }
+
+    Ok((
+        StatusCode::CREATED,
+        Json(serde_json::to_value(server).unwrap()),
+    ))
 }
 
 /// `PATCH /mcp/admin/servers/{serverId}` — update admin MCP server.
@@ -301,14 +302,35 @@ pub async fn admin_update_server_handler(
         body.domain.as_deref(),
         body.visibility.as_deref(),
         body.enabled,
-        body.url.as_deref(),
-        body.auth_type.as_deref(),
+        body.config.as_ref(),
         body.api_key.as_deref(),
-        body.api_key_header.as_deref(),
-        body.headers.as_ref(),
         &state.config.mcp_encryption_key,
     )
     .await?;
+
+    // Re-discover and store tools when config changes
+    if let Some(config) = &body.config {
+        let test_result = mcp_config::test_connection(config, body.api_key.as_deref()).await;
+        if !test_result.tools.is_empty() {
+            if let Err(e) =
+                mcp_config::store_tools_from_test(&state.pool, &server.id, &test_result.tools).await
+            {
+                tracing::warn!("Failed to store tools for server {}: {e}", server.id);
+            }
+
+            // Generate embeddings for the newly stored tools
+            if let Err(e) = nize_core::embedding::indexer::embed_server_tools(
+                &state.pool,
+                &state.config_cache,
+                &server.id,
+            )
+            .await
+            {
+                tracing::warn!("Failed to embed tools for server {}: {e}", server.id);
+            }
+        }
+    }
+
     Ok(Json(serde_json::to_value(server).unwrap()))
 }
 
@@ -318,7 +340,6 @@ pub async fn admin_delete_server_handler(
     axum::Extension(user): axum::Extension<AuthenticatedUser>,
     Path(server_id): Path<String>,
 ) -> AppResult<Json<serde_json::Value>> {
-    let result =
-        mcp_config::delete_built_in_server(&state.pool, &user.0.sub, &server_id).await?;
+    let result = mcp_config::delete_built_in_server(&state.pool, &user.0.sub, &server_id).await?;
     Ok(Json(serde_json::to_value(result).unwrap()))
 }

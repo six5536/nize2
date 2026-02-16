@@ -162,6 +162,8 @@ pub struct AdminServerView {
     pub user_preference_count: i64,
     pub enabled: bool,
     pub available: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config: Option<serde_json::Value>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -177,17 +179,58 @@ pub struct McpToolSummary {
 // Config types (stored in JSONB)
 // =============================================================================
 
+/// Stdio-based MCP server configuration.
+/// Admin-only: spawns local subprocess.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StdioServerConfig {
+    pub command: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub args: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub env: Option<std::collections::HashMap<String, String>>,
+}
+
 /// HTTP-based MCP server configuration.
+/// Supports no auth, API key, or OAuth authentication.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HttpServerConfig {
-    pub transport: String,
     pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub headers: Option<serde_json::Value>,
     pub auth_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_key_header: Option<String>,
+}
+
+/// Discriminated union for MCP server transport configuration.
+/// Uses `transport` as the tag field, following idiomatic MCP conventions.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "transport")]
+pub enum ServerConfig {
+    #[serde(rename = "stdio")]
+    Stdio(StdioServerConfig),
+    #[serde(rename = "http")]
+    Http(HttpServerConfig),
+}
+
+impl ServerConfig {
+    /// Get the endpoint string (URL for HTTP, command for stdio).
+    pub fn endpoint(&self) -> &str {
+        match self {
+            Self::Http(c) => &c.url,
+            Self::Stdio(c) => &c.command,
+        }
+    }
+
+    /// Get the transport type.
+    pub fn transport_type(&self) -> TransportType {
+        match self {
+            Self::Http(_) => TransportType::Http,
+            Self::Stdio(_) => TransportType::Stdio,
+        }
+    }
 }
 
 /// OAuth client configuration.

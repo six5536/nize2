@@ -6,11 +6,12 @@
 use sqlx::PgPool;
 use tracing::{error, info};
 
-use nize_core::mcp::queries;
 use nize_core::mcp::McpError;
+use nize_core::mcp::queries;
 use nize_core::models::mcp::{
     AdminServerView, AuthType, DeleteResult, HttpServerConfig, McpServerRow, McpToolSummary,
-    ServerStatus, TestConnectionResult, TransportType, UserServerView, VisibilityTier,
+    ServerConfig, ServerStatus, StdioServerConfig, TestConnectionResult, TransportType,
+    UserServerView, VisibilityTier,
 };
 
 /// Maximum number of user-owned servers.
@@ -109,10 +110,7 @@ async fn to_user_view(
 }
 
 /// Convert a McpServerRow to AdminServerView.
-async fn to_admin_view(
-    pool: &PgPool,
-    server: &McpServerRow,
-) -> Result<AdminServerView, McpError> {
+async fn to_admin_view(pool: &PgPool, server: &McpServerRow) -> Result<AdminServerView, McpError> {
     let tool_count = queries::get_tool_count(pool, &server.id.to_string()).await?;
     let user_preference_count =
         queries::get_user_preference_count(pool, &server.id.to_string()).await?;
@@ -142,6 +140,7 @@ async fn to_admin_view(
         user_preference_count,
         enabled: server.enabled,
         available: server.available,
+        config: server.config.clone(),
         created_at: server.created_at.to_rfc3339(),
         updated_at: server.updated_at.to_rfc3339(),
     })
@@ -201,28 +200,27 @@ pub async fn create_user_server(
     }
 
     // Build config
-    let config = HttpServerConfig {
-        transport: "http".to_string(),
+    let config = ServerConfig::Http(HttpServerConfig {
         url: url.to_string(),
         headers: headers.cloned(),
         auth_type: auth_type_str.to_string(),
         api_key_header: api_key_header.map(|s| s.to_string()),
-    };
+    });
 
     // Determine availability (OAuth servers need auth first)
     let available = auth_type_str != "oauth";
 
     // Insert server
-    let server = queries::insert_user_server(pool, user_id, name, description, domain, &config, available).await?;
+    let server =
+        queries::insert_user_server(pool, user_id, name, description, domain, &config, available)
+            .await?;
     let server_id = server.id.to_string();
 
     // Store encrypted API key if provided
     if let Some(key) = api_key {
         if auth_type_str == "api-key" {
-            let encrypted =
-                nize_core::mcp::secrets::encrypt(key, encryption_key)?;
-            queries::store_api_key(pool, &server_id, &encrypted, DEFAULT_ENCRYPTION_KEY_ID)
-                .await?;
+            let encrypted = nize_core::mcp::secrets::encrypt(key, encryption_key)?;
+            queries::store_api_key(pool, &server_id, &encrypted, DEFAULT_ENCRYPTION_KEY_ID).await?;
         }
     }
 
@@ -232,9 +230,15 @@ pub async fn create_user_server(
         "transport": "http",
         "domain": domain,
     });
-    if let Err(e) =
-        queries::insert_audit_log(pool, user_id, Some(&server_id), name, "created", Some(&details))
-            .await
+    if let Err(e) = queries::insert_audit_log(
+        pool,
+        user_id,
+        Some(&server_id),
+        name,
+        "created",
+        Some(&details),
+    )
+    .await
     {
         error!("Failed to write audit log: {e}");
     }
@@ -283,27 +287,32 @@ pub async fn update_user_server(
 
     // Build config update if URL or auth fields changed
     let config_json = if url.is_some() || auth_type_str.is_some() || headers.is_some() {
-        let current_config: HttpServerConfig = existing
+        let current_http: HttpServerConfig = existing
             .config
             .as_ref()
-            .and_then(|c| serde_json::from_value(c.clone()).ok())
+            .and_then(|c| {
+                serde_json::from_value::<ServerConfig>(c.clone())
+                    .ok()
+                    .and_then(|sc| match sc {
+                        ServerConfig::Http(h) => Some(h),
+                        _ => None,
+                    })
+            })
             .unwrap_or(HttpServerConfig {
-                transport: "http".to_string(),
                 url: existing.endpoint.clone(),
                 headers: None,
                 auth_type: "none".to_string(),
                 api_key_header: None,
             });
 
-        let new_config = HttpServerConfig {
-            transport: "http".to_string(),
-            url: url.unwrap_or(&current_config.url).to_string(),
-            headers: headers.cloned().or(current_config.headers),
-            auth_type: auth_type_str.unwrap_or(&current_config.auth_type).to_string(),
+        let new_config = ServerConfig::Http(HttpServerConfig {
+            url: url.unwrap_or(&current_http.url).to_string(),
+            headers: headers.cloned().or(current_http.headers),
+            auth_type: auth_type_str.unwrap_or(&current_http.auth_type).to_string(),
             api_key_header: api_key_header
                 .map(|s| s.to_string())
-                .or(current_config.api_key_header),
-        };
+                .or(current_http.api_key_header),
+        });
         Some(serde_json::to_value(&new_config).unwrap())
     } else {
         None
@@ -441,63 +450,31 @@ pub async fn create_built_in_server(
     description: &str,
     domain: &str,
     visibility: &str,
-    transport: &str,
-    url: Option<&str>,
-    command: Option<&str>,
-    args: Option<&[String]>,
-    env: Option<&serde_json::Value>,
-    auth_type_str: Option<&str>,
+    config: &ServerConfig,
     api_key: Option<&str>,
-    api_key_header: Option<&str>,
-    headers: Option<&serde_json::Value>,
     encryption_key: &str,
 ) -> Result<AdminServerView, McpError> {
     let vis = match visibility {
         "hidden" => VisibilityTier::Hidden,
         "visible" => VisibilityTier::Visible,
-        _ => return Err(McpError::Validation(format!("Invalid visibility: {visibility}"))),
+        _ => {
+            return Err(McpError::Validation(format!(
+                "Invalid visibility: {visibility}"
+            )));
+        }
     };
 
-    let tp = match transport {
-        "stdio" => TransportType::Stdio,
-        "http" => TransportType::Http,
-        _ => return Err(McpError::Validation(format!("Invalid transport: {transport}"))),
-    };
-
-    let endpoint = match &tp {
-        TransportType::Http => url.unwrap_or_default().to_string(),
-        TransportType::Stdio => command.unwrap_or_default().to_string(),
-    };
+    let tp = config.transport_type();
+    let endpoint = config.endpoint().to_string();
 
     // Validate HTTP config if applicable
-    if tp == TransportType::Http {
-        if let Some(u) = url {
-            validate_http_config(u, auth_type_str.unwrap_or("none"))?;
-        }
+    if let ServerConfig::Http(http) = config {
+        validate_http_config(&http.url, &http.auth_type)?;
     }
 
-    // Build config JSON
-    let config_json = match &tp {
-        TransportType::Http => {
-            let config = HttpServerConfig {
-                transport: "http".to_string(),
-                url: url.unwrap_or_default().to_string(),
-                headers: headers.cloned(),
-                auth_type: auth_type_str.unwrap_or("none").to_string(),
-                api_key_header: api_key_header.map(|s| s.to_string()),
-            };
-            Some(serde_json::to_value(&config).unwrap())
-        }
-        TransportType::Stdio => {
-            let config = serde_json::json!({
-                "transport": "stdio",
-                "command": command.unwrap_or_default(),
-                "args": args.unwrap_or_default(),
-                "env": env,
-            });
-            Some(config)
-        }
-    };
+    // Serialize config to JSON (includes transport tag)
+    let config_json = serde_json::to_value(config)
+        .map_err(|e| McpError::Validation(format!("Failed to serialize config: {e}")))?;
 
     let server = queries::insert_built_in_server(
         pool,
@@ -507,7 +484,7 @@ pub async fn create_built_in_server(
         &endpoint,
         &vis,
         &tp,
-        config_json.as_ref(),
+        Some(&config_json),
         None, // OAuth config
         true, // available
     )
@@ -521,14 +498,24 @@ pub async fn create_built_in_server(
     }
 
     // Audit
+    let transport_str = match &tp {
+        TransportType::Http => "http",
+        TransportType::Stdio => "stdio",
+    };
     let details = serde_json::json!({
         "visibility": visibility,
-        "transport": transport,
+        "transport": transport_str,
         "domain": domain,
     });
-    if let Err(e) =
-        queries::insert_audit_log(pool, admin_id, Some(&server_id), name, "created", Some(&details))
-            .await
+    if let Err(e) = queries::insert_audit_log(
+        pool,
+        admin_id,
+        Some(&server_id),
+        name,
+        "created",
+        Some(&details),
+    )
+    .await
     {
         error!("Failed to write audit log: {e}");
     }
@@ -547,11 +534,8 @@ pub async fn update_built_in_server(
     domain: Option<&str>,
     visibility: Option<&str>,
     enabled: Option<bool>,
-    url: Option<&str>,
-    auth_type_str: Option<&str>,
+    config: Option<&ServerConfig>,
     api_key: Option<&str>,
-    api_key_header: Option<&str>,
-    headers: Option<&serde_json::Value>,
     encryption_key: &str,
 ) -> Result<AdminServerView, McpError> {
     // Verify server exists and is not user-owned
@@ -573,38 +557,14 @@ pub async fn update_built_in_server(
         })
         .transpose()?;
 
-    // Validate URL if provided
-    if let Some(u) = url {
-        validate_http_config(u, auth_type_str.unwrap_or("none"))?;
+    // Validate HTTP config if provided
+    if let Some(ServerConfig::Http(http)) = config {
+        validate_http_config(&http.url, &http.auth_type)?;
     }
 
-    // Build config update
-    let config_json = if url.is_some() || auth_type_str.is_some() || headers.is_some() {
-        let current_config: HttpServerConfig = existing
-            .config
-            .as_ref()
-            .and_then(|c| serde_json::from_value(c.clone()).ok())
-            .unwrap_or(HttpServerConfig {
-                transport: "http".to_string(),
-                url: existing.endpoint.clone(),
-                headers: None,
-                auth_type: "none".to_string(),
-                api_key_header: None,
-            });
-
-        let new_config = HttpServerConfig {
-            transport: "http".to_string(),
-            url: url.unwrap_or(&current_config.url).to_string(),
-            headers: headers.cloned().or(current_config.headers),
-            auth_type: auth_type_str.unwrap_or(&current_config.auth_type).to_string(),
-            api_key_header: api_key_header
-                .map(|s| s.to_string())
-                .or(current_config.api_key_header),
-        };
-        Some(serde_json::to_value(&new_config).unwrap())
-    } else {
-        None
-    };
+    // Build config JSON from provided config or leave unchanged
+    let config_json = config.map(|c| serde_json::to_value(c).unwrap());
+    let endpoint = config.map(|c| c.endpoint());
 
     let server = queries::update_server(
         pool,
@@ -612,7 +572,7 @@ pub async fn update_built_in_server(
         name,
         description,
         domain,
-        url,
+        endpoint,
         config_json.as_ref(),
         enabled,
         vis.as_ref(),
@@ -660,8 +620,7 @@ pub async fn delete_built_in_server(
         ));
     }
 
-    let affected_users =
-        queries::get_user_preference_count(pool, server_id).await?;
+    let affected_users = queries::get_user_preference_count(pool, server_id).await?;
     let name = existing.name.clone();
 
     queries::delete_server(pool, server_id).await?;
@@ -696,33 +655,28 @@ pub async fn delete_built_in_server(
 /// Test connection to an MCP server.
 ///
 /// For HTTP transport: sends an MCP `initialize` JSON-RPC request.
+/// For Stdio transport: spawns the process and performs a JSON-RPC handshake.
 /// Returns server info and tool count on success.
-pub async fn test_connection(
-    url: Option<&str>,
-    transport: &str,
-    auth_type_str: Option<&str>,
+pub async fn test_connection(config: &ServerConfig, api_key: Option<&str>) -> TestConnectionResult {
+    match config {
+        ServerConfig::Http(http) => test_connection_http(http, api_key).await,
+        ServerConfig::Stdio(stdio) => test_connection_stdio(stdio).await,
+    }
+}
+
+/// Test an HTTP MCP server connection.
+async fn test_connection_http(
+    config: &HttpServerConfig,
     api_key: Option<&str>,
-    api_key_header: Option<&str>,
-    headers: Option<&serde_json::Value>,
 ) -> TestConnectionResult {
-    if transport != "http" {
+    let server_url = &config.url;
+    if server_url.is_empty() {
         return TestConnectionResult {
             success: false,
-            error: Some("Only HTTP transport is supported for connection testing".into()),
+            error: Some("URL is required for HTTP transport".into()),
             ..Default::default()
         };
     }
-
-    let server_url = match url {
-        Some(u) if !u.is_empty() => u,
-        _ => {
-            return TestConnectionResult {
-                success: false,
-                error: Some("URL is required for HTTP transport".into()),
-                ..Default::default()
-            };
-        }
-    };
 
     // Build HTTP client request
     let client = match reqwest::Client::builder()
@@ -757,15 +711,15 @@ pub async fn test_connection(
     let mut req_builder = client.post(server_url).json(&init_request);
 
     // Add auth header if needed
-    if auth_type_str == Some("api-key") {
+    if config.auth_type == "api-key" {
         if let Some(key) = api_key {
-            let header_name = api_key_header.unwrap_or("X-API-Key");
+            let header_name = config.api_key_header.as_deref().unwrap_or("X-API-Key");
             req_builder = req_builder.header(header_name, key);
         }
     }
 
     // Add custom headers
-    if let Some(hdrs) = headers {
+    if let Some(hdrs) = &config.headers {
         if let Some(map) = hdrs.as_object() {
             for (k, v) in map {
                 if let Some(val) = v.as_str() {
@@ -814,13 +768,14 @@ pub async fn test_connection(
 
                     let mut tools_req = client.post(server_url).json(&tools_request);
 
-                    if auth_type_str == Some("api-key") {
+                    if config.auth_type == "api-key" {
                         if let Some(key) = api_key {
-                            let header_name = api_key_header.unwrap_or("X-API-Key");
+                            let header_name =
+                                config.api_key_header.as_deref().unwrap_or("X-API-Key");
                             tools_req = tools_req.header(header_name, key);
                         }
                     }
-                    if let Some(hdrs) = headers {
+                    if let Some(hdrs) = &config.headers {
                         if let Some(map) = hdrs.as_object() {
                             for (k, v) in map {
                                 if let Some(val) = v.as_str() {
@@ -875,6 +830,161 @@ pub async fn test_connection(
                 ..Default::default()
             }
         }
+    }
+}
+
+/// Test a stdio MCP server connection by spawning the process and
+/// performing an MCP JSON-RPC handshake over stdin/stdout.
+async fn test_connection_stdio(config: &StdioServerConfig) -> TestConnectionResult {
+    use std::process::Stdio;
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    use tokio::process::Command;
+
+    if config.command.is_empty() {
+        return TestConnectionResult {
+            success: false,
+            error: Some("Command is required for stdio transport".into()),
+            ..Default::default()
+        };
+    }
+
+    let args = config.args.as_deref().unwrap_or_default();
+
+    let mut cmd = Command::new(&config.command);
+    cmd.args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    // Set environment variables if provided
+    if let Some(env) = &config.env {
+        for (k, v) in env {
+            cmd.env(k, v);
+        }
+    }
+
+    let mut child = match cmd.spawn() {
+        Ok(c) => c,
+        Err(e) => {
+            return TestConnectionResult {
+                success: false,
+                error: Some(format!("Failed to spawn process '{}': {e}", config.command)),
+                ..Default::default()
+            };
+        }
+    };
+
+    let stdin = child.stdin.take().unwrap();
+    let stdout = child.stdout.take().unwrap();
+
+    // MCP initialize request (JSON-RPC 2.0)
+    let init_request = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {},
+            "clientInfo": {
+                "name": "nize-mcp",
+                "version": nize_core::version()
+            }
+        }
+    });
+
+    let result = tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        let mut writer = stdin;
+        let mut reader = BufReader::new(stdout);
+
+        // Send initialize
+        let msg = serde_json::to_string(&init_request).unwrap();
+        writer.write_all(msg.as_bytes()).await?;
+        writer.write_all(b"\n").await?;
+        writer.flush().await?;
+
+        // Read initialize response
+        let mut line = String::new();
+        reader.read_line(&mut line).await?;
+        let init_resp: serde_json::Value = serde_json::from_str(line.trim())
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
+        // Send initialized notification
+        let initialized = serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized",
+            "params": {}
+        });
+        let msg = serde_json::to_string(&initialized).unwrap();
+        writer.write_all(msg.as_bytes()).await?;
+        writer.write_all(b"\n").await?;
+        writer.flush().await?;
+
+        // Send tools/list
+        let tools_request = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/list",
+            "params": {}
+        });
+        let msg = serde_json::to_string(&tools_request).unwrap();
+        writer.write_all(msg.as_bytes()).await?;
+        writer.write_all(b"\n").await?;
+        writer.flush().await?;
+
+        // Read tools/list response
+        let mut tools_line = String::new();
+        reader.read_line(&mut tools_line).await?;
+        let tools_resp: serde_json::Value = serde_json::from_str(tools_line.trim())
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
+        Ok::<_, std::io::Error>((init_resp, tools_resp))
+    })
+    .await;
+
+    // Kill the child process
+    let _ = child.kill().await;
+
+    match result {
+        Ok(Ok((init_resp, tools_resp))) => {
+            let result_val = init_resp.get("result");
+            let server_info = result_val.and_then(|r| r.get("serverInfo"));
+            let server_name = server_info
+                .and_then(|s| s.get("name"))
+                .and_then(|n| n.as_str())
+                .map(|s| s.to_string());
+            let server_version = server_info
+                .and_then(|s| s.get("version"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let protocol_version = result_val
+                .and_then(|r| r.get("protocolVersion"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+
+            let tools = parse_tools_response(&tools_resp);
+            let tool_count = tools.len() as i64;
+
+            TestConnectionResult {
+                success: true,
+                server_name,
+                server_version,
+                protocol_version,
+                tool_count: Some(tool_count),
+                error: None,
+                error_details: None,
+                tools,
+            }
+        }
+        Ok(Err(e)) => TestConnectionResult {
+            success: false,
+            error: Some(format!("Stdio communication error: {e}")),
+            ..Default::default()
+        },
+        Err(_) => TestConnectionResult {
+            success: false,
+            error: Some("Connection timed out (15s)".into()),
+            ..Default::default()
+        },
     }
 }
 

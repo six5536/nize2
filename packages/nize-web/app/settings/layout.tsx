@@ -22,6 +22,8 @@ const desktopNavItem: NavItem = { href: "/settings/desktop", label: "Desktop" };
 
 const adminNavItems: NavItem[] = [
   { href: "/settings/admin/tools", label: "MCP Servers" },
+  { href: "/settings/admin/embeddings", label: "Embeddings" },
+  { href: "/settings/admin/embeddings/search", label: "Embedding Search" },
 ];
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
@@ -64,15 +66,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
         </div>
         <nav className="flex-1 overflow-y-auto px-2 py-4 space-y-1">
           {navItems.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                isActive(item)
-                  ? "bg-blue-50 text-blue-700"
-                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-              }`}
-            >
+            <a key={item.href} href={item.href} className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive(item) ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"}`}>
               {item.label}
             </a>
           ))}
@@ -82,20 +76,10 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
             <>
               <div className="pt-4 pb-2">
                 <div className="border-t border-gray-200" />
-                <p className="mt-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                  Administration
-                </p>
+                <p className="mt-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Administration</p>
               </div>
               {adminNavItems.map((item) => (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    isActive(item)
-                      ? "bg-blue-50 text-blue-700"
-                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                  }`}
-                >
+                <a key={item.href} href={item.href} className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive(item) ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"}`}>
                   {item.label}
                 </a>
               ))}
@@ -111,9 +95,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 
       {/* Main Content — scrolls independently */}
       <main className="flex-1 overflow-y-auto h-full">
-        <div className="max-w-4xl mx-auto px-6 py-8">
-          {children}
-        </div>
+        <div className="max-w-4xl mx-auto px-6 py-8">{children}</div>
       </main>
     </div>
   );

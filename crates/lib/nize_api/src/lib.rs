@@ -23,8 +23,8 @@ use crate::config::ApiConfig;
 use crate::generated::routes;
 use crate::handlers::config as config_handlers;
 use crate::handlers::{
-    admin_permissions, auth, chat, conversations, hello, ingest, mcp_config, mcp_tokens, oauth,
-    permissions, trace,
+    admin_permissions, auth, chat, conversations, embeddings, hello, ingest, mcp_config,
+    mcp_tokens, oauth, permissions, trace,
 };
 
 use nize_core::config::cache::ConfigCache;
@@ -99,10 +99,7 @@ pub fn router(state: AppState) -> Router {
             routes::DELETE_AUTH_MCP_TOKENS_ID,
             delete(mcp_tokens::revoke_mcp_token_handler),
         )
-        .route(
-            routes::POST_AUTH_LOGOUT_ALL,
-            post(auth::logout_all_handler),
-        )
+        .route(routes::POST_AUTH_LOGOUT_ALL, post(auth::logout_all_handler))
         .route(
             routes::GET_CONFIG_USER,
             get(config_handlers::user_config_list_handler),
@@ -270,11 +267,18 @@ pub fn router(state: AppState) -> Router {
             routes::DELETE_MCP_ADMIN_SERVERS_SERVERID,
             delete(mcp_config::admin_delete_server_handler),
         )
-        // Dev trace
+        // Admin embeddings
         .route(
-            routes::GET_DEV_CHAT_TRACE,
-            get(trace::chat_trace_handler),
+            "/admin/embeddings/models",
+            get(embeddings::list_models_handler),
         )
+        .route("/admin/embeddings/search", post(embeddings::search_handler))
+        .route(
+            "/admin/embeddings/reindex",
+            post(embeddings::reindex_handler),
+        )
+        // Dev trace
+        .route(routes::GET_DEV_CHAT_TRACE, get(trace::chat_trace_handler))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             middleware::auth::require_admin,
@@ -282,10 +286,7 @@ pub fn router(state: AppState) -> Router {
 
     // All routes are nested under /api so they don't collide with
     // the Next.js frontend routes when served on the same origin.
-    let api = Router::new()
-        .merge(public)
-        .merge(protected)
-        .merge(admin);
+    let api = Router::new().merge(public).merge(protected).merge(admin);
 
     Router::new()
         .nest("/api", api)

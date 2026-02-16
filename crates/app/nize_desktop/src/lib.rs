@@ -13,6 +13,54 @@ use tracing::{error, info};
 
 mod mcp_clients;
 
+/// In dev builds, rebuild sidecar binaries (`nize_desktop_server`,
+/// `nize_terminator`) so they pick up any Rust source changes since the last
+/// `cargo tauri dev` rebuild.  Tauri's file-watcher only rebuilds the main
+/// `nize_desktop` binary; this function extends that cycle to the sidecars
+/// before they are spawned.  Shared dependencies are already compiled, so
+/// this is typically a fast link-only step.
+#[cfg(debug_assertions)]
+fn rebuild_sidecars() {
+    // CARGO_MANIFEST_DIR is baked in at compile time → crates/app/nize_desktop
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let workspace_root = manifest_dir
+        .parent() // crates/app
+        .and_then(|p| p.parent()) // crates
+        .and_then(|p| p.parent()); // workspace root
+
+    let Some(root) = workspace_root else {
+        error!("could not determine workspace root for sidecar rebuild");
+        return;
+    };
+
+    info!("rebuilding sidecar binaries…");
+
+    let status = Command::new("cargo")
+        .args([
+            "build",
+            "-p",
+            "nize_desktop_server",
+            "-p",
+            "nize_terminator",
+        ])
+        .current_dir(root)
+        .stderr(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .status();
+
+    match status {
+        Ok(s) if s.success() => {
+            info!("sidecar binaries rebuilt successfully");
+        }
+        Ok(s) => {
+            error!("sidecar build failed with exit code: {:?}", s.code());
+        }
+        Err(e) => {
+            error!("failed to run cargo build for sidecars: {e}");
+        }
+    }
+}
+
 /// JSON payload the API sidecar prints to stdout on startup.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -319,6 +367,11 @@ pub fn run() {
                 .unwrap_or_else(|_| "info,nize_core=debug".parse().unwrap()),
         )
         .init();
+
+    // In dev mode, rebuild sidecar binaries before spawning them so they
+    // reflect the latest Rust source changes picked up by Tauri's watcher.
+    #[cfg(debug_assertions)]
+    rebuild_sidecars();
 
     // @zen-impl: PLAN-005 — spawn terminator before managed processes
     // 1. Create empty manifest file.

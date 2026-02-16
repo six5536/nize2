@@ -37,7 +37,7 @@ interface ServerTool {
 // Components
 // =============================================================================
 
-function ServerListItem({ server, onToggle, onExpand, onDelete, isExpanded, tools }: { server: UserServerView; onToggle: (enabled: boolean) => void; onExpand: () => void; onDelete?: () => void; isExpanded: boolean; tools: ServerTool[] }) {
+function ServerListItem({ server, onToggle, onExpand, onDelete, onEdit, isExpanded, tools }: { server: UserServerView; onToggle: (enabled: boolean) => void; onExpand: () => void; onDelete?: () => void; onEdit?: () => void; isExpanded: boolean; tools: ServerTool[] }) {
   const statusColors: Record<ServerStatus, string> = {
     enabled: "bg-green-100 text-green-800",
     disabled: "bg-gray-100 text-gray-800",
@@ -76,6 +76,14 @@ function ServerListItem({ server, onToggle, onExpand, onDelete, isExpanded, tool
               <input type="checkbox" className="sr-only peer" checked={server.status === "enabled"} onChange={(e) => onToggle(e.target.checked)} />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
             </label>
+          )}
+
+          {server.isOwned && (
+            <button onClick={onEdit} className="p-1 text-gray-500 hover:text-gray-700" aria-label="Edit server">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
           )}
 
           {server.isOwned && (
@@ -225,6 +233,121 @@ function AddServerForm({ onSubmit, onTest, onCancel }: { onSubmit: (config: { na
   );
 }
 
+function EditUserServerForm({ server, onSubmit, onTest, onCancel }: { server: UserServerView; onSubmit: (serverId: string, updates: { name?: string; description?: string; domain?: string; url?: string; authType?: string; apiKey?: string }) => Promise<void>; onTest: (config: { url: string; transport: string; authType: string; apiKey?: string }) => Promise<{ success: boolean; toolCount?: number; error?: string }>; onCancel: () => void }) {
+  const [name, setName] = useState(server.name);
+  const [description, setDescription] = useState(server.description);
+  const [domain, setDomain] = useState(server.domain);
+  const [url, setUrl] = useState("");
+  const [authType, setAuthType] = useState<"none" | "api-key" | "oauth">("none");
+  const [apiKey, setApiKey] = useState("");
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; toolCount?: number; error?: string } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const result = await onTest({
+        transport: "http",
+        url,
+        authType,
+        apiKey: authType === "api-key" ? apiKey : undefined,
+      });
+      setTestResult(result);
+    } catch {
+      setTestResult({ success: false, error: "Test failed" });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      const updates: { name?: string; description?: string; domain?: string; url?: string; authType?: string; apiKey?: string } = {
+        name,
+        description: description || undefined,
+        domain,
+      };
+      if (url) updates.url = url;
+      if (authType) updates.authType = authType;
+      if (authType === "api-key" && apiKey) updates.apiKey = apiKey;
+      await onSubmit(server.id, updates);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update server");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const isValid = name.length > 0 && domain.length > 0;
+
+  return (
+    <form onSubmit={handleSubmit} className="border rounded-lg p-6 bg-white shadow-sm space-y-4">
+      <h3 className="text-lg font-medium text-gray-900">Edit Server: {server.name}</h3>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Name</label>
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" required />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Description</label>
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={500} rows={2} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
+        <p className="mt-1 text-xs text-gray-500">{description.length}/500 characters</p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Domain</label>
+        <input type="text" value={domain} onChange={(e) => setDomain(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" required />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Server URL</label>
+        <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" placeholder="Enter new URL (leave blank to keep existing)" />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Authentication</label>
+        <select value={authType} onChange={(e) => setAuthType(e.target.value as "none" | "api-key" | "oauth")} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+          <option value="none">None</option>
+          <option value="api-key">API Key</option>
+          <option value="oauth">OAuth</option>
+        </select>
+      </div>
+
+      {authType === "api-key" && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700">API Key</label>
+          <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" placeholder="Enter new API key (leave blank to keep existing)" />
+        </div>
+      )}
+
+      {testResult && <div className={`p-3 rounded-md ${testResult.success ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>{testResult.success ? <p>&#10003; Connected successfully! Found {testResult.toolCount} tools.</p> : <p>&#10007; {testResult.error}</p>}</div>}
+
+      {error && <div className="p-3 rounded-md bg-red-50 text-red-800">{error}</div>}
+
+      <div className="flex gap-3 justify-end">
+        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+          Cancel
+        </button>
+        {url && (
+          <button type="button" onClick={handleTest} disabled={testing} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50">
+            {testing ? "Testing..." : "Test Connection"}
+          </button>
+        )}
+        <button type="submit" disabled={!isValid || submitting} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50">
+          {submitting ? "Saving..." : "Save Changes"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 // =============================================================================
 // Main Page
 // =============================================================================
@@ -237,6 +360,7 @@ export default function UserToolsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingServerId, setEditingServerId] = useState<string | null>(null);
   const [expandedServerId, setExpandedServerId] = useState<string | null>(null);
   const [serverTools, setServerTools] = useState<Record<string, ServerTool[]>>({});
 
@@ -334,6 +458,25 @@ export default function UserToolsPage() {
     return res.json();
   };
 
+  const handleEdit = (serverId: string) => {
+    setEditingServerId(serverId);
+    setShowAddForm(false);
+  };
+
+  const handleUpdate = async (serverId: string, updates: { name?: string; description?: string; domain?: string; url?: string; authType?: string; apiKey?: string }) => {
+    const res = await authFetch(`/mcp/servers/${serverId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.message || "Failed to update server");
+    }
+    setEditingServerId(null);
+    await loadServers();
+  };
+
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -349,7 +492,13 @@ export default function UserToolsPage() {
       {error && <div className="mb-4 p-3 bg-red-50 text-red-800 rounded-md">{error}</div>}
 
       <div className="mb-6 flex justify-end">
-        <button onClick={() => setShowAddForm(!showAddForm)} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
+        <button
+          onClick={() => {
+            setShowAddForm(!showAddForm);
+            setEditingServerId(null);
+          }}
+          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+        >
           {showAddForm ? "Cancel" : "Add Server"}
         </button>
       </div>
@@ -360,6 +509,17 @@ export default function UserToolsPage() {
         </div>
       )}
 
+      {editingServerId &&
+        (() => {
+          const editingServer = servers.find((s) => s.id === editingServerId);
+          if (!editingServer) return null;
+          return (
+            <div className="mb-6">
+              <EditUserServerForm server={editingServer} onSubmit={handleUpdate} onTest={handleTest} onCancel={() => setEditingServerId(null)} />
+            </div>
+          );
+        })()}
+
       <div className="space-y-4">
         {servers.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-lg border">
@@ -367,7 +527,7 @@ export default function UserToolsPage() {
             <p className="text-sm text-gray-400 mt-1">Add a server to get started.</p>
           </div>
         ) : (
-          servers.map((server) => <ServerListItem key={server.id} server={server} onToggle={(enabled) => handleToggle(server.id, enabled)} onExpand={() => handleExpand(server.id)} onDelete={server.isOwned ? () => handleDelete(server.id) : undefined} isExpanded={expandedServerId === server.id} tools={serverTools[server.id] || []} />)
+          servers.map((server) => <ServerListItem key={server.id} server={server} onToggle={(enabled) => handleToggle(server.id, enabled)} onExpand={() => handleExpand(server.id)} onDelete={server.isOwned ? () => handleDelete(server.id) : undefined} onEdit={server.isOwned ? () => handleEdit(server.id) : undefined} isExpanded={expandedServerId === server.id} tools={serverTools[server.id] || []} />)
         )}
       </div>
     </div>

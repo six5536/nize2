@@ -6,7 +6,7 @@ use sqlx::PgPool;
 
 use super::McpError;
 use crate::models::mcp::{
-    AuthType, HttpServerConfig, McpServerRow, McpServerToolRow, McpToolSummary, TransportType,
+    AuthType, McpServerRow, McpServerToolRow, McpToolSummary, ServerConfig, TransportType,
     UserMcpPreferenceRow, VisibilityTier,
 };
 
@@ -114,7 +114,7 @@ pub async fn insert_user_server(
     name: &str,
     description: &str,
     domain: &str,
-    config: &HttpServerConfig,
+    config: &ServerConfig,
     available: bool,
 ) -> Result<McpServerRow, McpError> {
     let config_json = serde_json::to_value(config)
@@ -123,7 +123,7 @@ pub async fn insert_user_server(
     let row = sqlx::query_as::<_, McpServerRow>(
         r#"
         INSERT INTO mcp_servers (name, description, domain, endpoint, visibility, transport, config, owner_id, enabled, available)
-        VALUES ($1, $2, $3, $4, 'user', 'http', $5, $6::uuid, true, $7)
+        VALUES ($1, $2, $3, $4, 'user', $5, $6, $7::uuid, true, $8)
         RETURNING id, name, description, domain, endpoint,
                   visibility, transport, config, oauth_config,
                   default_response_size_limit, owner_id,
@@ -133,7 +133,8 @@ pub async fn insert_user_server(
     .bind(name)
     .bind(description)
     .bind(domain)
-    .bind(&config.url)
+    .bind(config.endpoint())
+    .bind(config.transport_type())
     .bind(&config_json)
     .bind(user_id)
     .bind(available)

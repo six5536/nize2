@@ -5,6 +5,7 @@ pub mod auth;
 pub mod chat;
 pub mod config;
 pub mod conversations;
+pub mod embeddings;
 pub mod hello;
 pub mod ingest;
 pub mod mcp_config;
