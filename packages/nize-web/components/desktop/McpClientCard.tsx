@@ -1,4 +1,7 @@
 // @zen-component: PLAN-011-McpClientCard
+// @zen-impl: PLAN-021 — ported from packages/nize-desktop/src/settings/McpClientCard.tsx
+
+"use client";
 
 import { useState } from "react";
 import { McpTokenSection } from "./McpTokenSection";

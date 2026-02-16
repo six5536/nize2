@@ -1,9 +1,12 @@
 // @zen-component: PLAN-011-McpClientSettings
 // @zen-impl: PLAN-011-3.1
+// @zen-impl: PLAN-021 — ported from packages/nize-desktop/src/settings/McpClientSettings.tsx
+
+"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { useAuth } from "../auth";
+import { useAuthFetch } from "@/lib/auth-context";
 import { McpClientCard } from "./McpClientCard";
 import { McpTokenSection } from "./McpTokenSection";
 
@@ -20,13 +23,42 @@ interface McpClientStatus {
 /**
  * MCP Client configuration panel.
  * Shows detected AI clients and allows one-click configuration.
+ * Uses Tauri IPC for client management and REST API for token management.
  */
 export function McpClientSettings() {
-  const { createMcpToken, listMcpTokens, revokeMcpToken } = useAuth();
+  const authFetch = useAuthFetch();
   const [statuses, setStatuses] = useState<McpClientStatus[]>([]);
   const [mcpPort, setMcpPort] = useState<number | null>(null);
   const [mcpUrl, setMcpUrl] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // MCP token management via REST API (cookie-based auth)
+  const createMcpToken = useCallback(
+    async (name: string): Promise<{ id: string; token: string }> => {
+      const res = await authFetch("/auth/mcp-tokens", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) throw new Error(`Failed to create MCP token: ${res.statusText}`);
+      return res.json();
+    },
+    [authFetch],
+  );
+
+  const listMcpTokens = useCallback(async (): Promise<{ tokens: Array<{ id: string; name: string; revokedAt?: string | null }> }> => {
+    const res = await authFetch("/auth/mcp-tokens");
+    if (!res.ok) throw new Error(`Failed to list MCP tokens: ${res.statusText}`);
+    return res.json();
+  }, [authFetch]);
+
+  const revokeMcpToken = useCallback(
+    async (id: string): Promise<void> => {
+      const res = await authFetch(`/auth/mcp-tokens/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`Failed to revoke MCP token: ${res.statusText}`);
+    },
+    [authFetch],
+  );
 
   const refresh = useCallback(async () => {
     try {

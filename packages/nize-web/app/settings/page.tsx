@@ -7,7 +7,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth, useAuthFetch } from "@/lib/auth-context";
 
 interface ConfigValidator {
@@ -33,7 +32,6 @@ interface ResolvedConfigItem {
 export default function SettingsPage() {
   const { isLoading: authLoading, isAuthenticated } = useAuth();
   const authFetch = useAuthFetch();
-  const router = useRouter();
   const [configs, setConfigs] = useState<ResolvedConfigItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -60,12 +58,9 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!isAuthenticated) {
-      router.replace("/login");
-      return;
-    }
+    if (!isAuthenticated) return;
     loadConfigs();
-  }, [authLoading, isAuthenticated, router, loadConfigs]);
+  }, [authLoading, isAuthenticated, loadConfigs]);
 
   const handleUpdate = async (key: string, value: string | number) => {
     setSaving(key);
@@ -226,105 +221,68 @@ export default function SettingsPage() {
   const groupedConfigs = getGroupedConfigs();
 
   return (
-    <div style={s.page}>
-      <div style={s.container}>
-        {/* Header */}
-        <div style={s.headerSection}>
-          <button onClick={() => router.push("/chat")} style={s.backButton}>
-            ← Back to Chat
-          </button>
-          <h1 style={s.title}>Settings</h1>
-          <p style={s.subtitle}>Manage your application configuration</p>
+    <div>
+      <p style={s.subtitle}>Manage your application configuration</p>
+
+      {/* Messages */}
+      {error && (
+        <div style={s.errorBanner} role="alert">
+          <p>{error}</p>
         </div>
+      )}
+      {success && (
+        <div style={s.successBanner} role="alert">
+          <p>{success}</p>
+        </div>
+      )}
 
-        {/* Messages */}
-        {error && (
-          <div style={s.errorBanner} role="alert">
-            <p>{error}</p>
-          </div>
-        )}
-        {success && (
-          <div style={s.successBanner} role="alert">
-            <p>{success}</p>
-          </div>
-        )}
-
-        {/* Configuration Groups */}
-        <div>
-          {Array.from(groupedConfigs.entries()).map(([category, items]) => (
-            <div key={category} style={s.card}>
-              <h2 style={s.cardTitle}>{formatCategoryName(category)}</h2>
-              <div>
-                {items.map((config, idx) => (
-                  <div
-                    key={config.key}
-                    style={{
-                      ...s.configItem,
-                      ...(idx < items.length - 1 ? s.configItemBorder : {}),
-                    }}
-                  >
-                    <div style={s.configHeader}>
-                      <div style={{ flex: 1 }}>
-                        <label style={s.configLabel}>
-                          {getDisplayLabel(config)}
-                          {config.isOverridden && <span style={s.customizedBadge}>(customized)</span>}
-                        </label>
-                        {config.description && <p style={s.configDescription}>{config.description}</p>}
-                      </div>
-                      {config.isOverridden && (
-                        <button onClick={() => handleReset(config.key)} disabled={resetting === config.key || saving === config.key} style={s.resetButton} title="Reset to default">
-                          {resetting === config.key ? "Resetting..." : "↺ Reset"}
-                        </button>
-                      )}
+      {/* Configuration Groups */}
+      <div>
+        {Array.from(groupedConfigs.entries()).map(([category, items]) => (
+          <div key={category} style={s.card}>
+            <h2 style={s.cardTitle}>{formatCategoryName(category)}</h2>
+            <div>
+              {items.map((config, idx) => (
+                <div
+                  key={config.key}
+                  style={{
+                    ...s.configItem,
+                    ...(idx < items.length - 1 ? s.configItemBorder : {}),
+                  }}
+                >
+                  <div style={s.configHeader}>
+                    <div style={{ flex: 1 }}>
+                      <label style={s.configLabel}>
+                        {getDisplayLabel(config)}
+                        {config.isOverridden && <span style={s.customizedBadge}>(customized)</span>}
+                      </label>
+                      {config.description && <p style={s.configDescription}>{config.description}</p>}
                     </div>
-                    {renderInput(config)}
-                    {config.validators && config.validators.length > 0 && <p style={s.validatorHint}>{config.validators.map((v) => v.message || `${v.type}: ${v.value}`).join(", ")}</p>}
+                    {config.isOverridden && (
+                      <button onClick={() => handleReset(config.key)} disabled={resetting === config.key || saving === config.key} style={s.resetButton} title="Reset to default">
+                        {resetting === config.key ? "Resetting..." : "↺ Reset"}
+                      </button>
+                    )}
                   </div>
-                ))}
-              </div>
+                  {renderInput(config)}
+                  {config.validators && config.validators.length > 0 && <p style={s.validatorHint}>{config.validators.map((v) => v.message || `${v.type}: ${v.value}`).join(", ")}</p>}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
 const s: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    backgroundColor: "#f5f5f5",
-    fontFamily: "system-ui, sans-serif",
-  },
-  container: {
-    maxWidth: "800px",
-    margin: "0 auto",
-    padding: "2rem 1rem",
-  },
   loadingContainer: {
     display: "flex",
-    minHeight: "100vh",
+    padding: "3rem 0",
     alignItems: "center",
     justifyContent: "center",
     fontFamily: "system-ui, sans-serif",
-  },
-  headerSection: {
-    marginBottom: "2rem",
-  },
-  backButton: {
-    background: "none",
-    border: "none",
-    color: "#2563eb",
-    cursor: "pointer",
-    fontSize: "0.875rem",
-    padding: 0,
-    marginBottom: "0.5rem",
-  },
-  title: {
-    fontSize: "1.75rem",
-    fontWeight: 700,
-    color: "#111",
-    margin: 0,
   },
   subtitle: {
     fontSize: "0.875rem",

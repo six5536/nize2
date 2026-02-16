@@ -1,4 +1,5 @@
 //! Integration test — start ephemeral PG, build router, call /api/hello, assert response.
+//! The router nests all routes under /api, so /hello is served at /api/hello.
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};

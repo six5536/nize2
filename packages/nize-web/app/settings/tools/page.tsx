@@ -9,7 +9,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth, useAuthFetch } from "@/lib/auth-context";
 
 // =============================================================================
@@ -233,7 +232,6 @@ function AddServerForm({ onSubmit, onTest, onCancel }: { onSubmit: (config: { na
 export default function UserToolsPage() {
   const { isLoading: authLoading, isAuthenticated } = useAuth();
   const authFetch = useAuthFetch();
-  const router = useRouter();
 
   const [servers, setServers] = useState<UserServerView[]>([]);
   const [loading, setLoading] = useState(true);
@@ -261,12 +259,9 @@ export default function UserToolsPage() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!isAuthenticated) {
-      router.replace("/login");
-      return;
-    }
+    if (!isAuthenticated) return;
     loadServers();
-  }, [authLoading, isAuthenticated, router, loadServers]);
+  }, [authLoading, isAuthenticated, loadServers]);
 
   const handleToggle = async (serverId: string, enabled: boolean) => {
     try {
@@ -341,44 +336,39 @@ export default function UserToolsPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">MCP Tools</h1>
-          <p className="text-gray-600 mt-1">Manage your MCP server connections and tool preferences</p>
+    <div>
+      <p className="text-gray-600 mb-6">Manage your MCP server connections and tool preferences</p>
+
+      {error && <div className="mb-4 p-3 bg-red-50 text-red-800 rounded-md">{error}</div>}
+
+      <div className="mb-6 flex justify-end">
+        <button onClick={() => setShowAddForm(!showAddForm)} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
+          {showAddForm ? "Cancel" : "Add Server"}
+        </button>
+      </div>
+
+      {showAddForm && (
+        <div className="mb-6">
+          <AddServerForm onSubmit={handleAdd} onTest={handleTest} onCancel={() => setShowAddForm(false)} />
         </div>
+      )}
 
-        {error && <div className="mb-4 p-3 bg-red-50 text-red-800 rounded-md">{error}</div>}
-
-        <div className="mb-6 flex justify-end">
-          <button onClick={() => setShowAddForm(!showAddForm)} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
-            {showAddForm ? "Cancel" : "Add Server"}
-          </button>
-        </div>
-
-        {showAddForm && (
-          <div className="mb-6">
-            <AddServerForm onSubmit={handleAdd} onTest={handleTest} onCancel={() => setShowAddForm(false)} />
+      <div className="space-y-4">
+        {servers.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-lg border">
+            <p className="text-gray-500">No MCP servers configured.</p>
+            <p className="text-sm text-gray-400 mt-1">Add a server to get started.</p>
           </div>
+        ) : (
+          servers.map((server) => <ServerListItem key={server.id} server={server} onToggle={(enabled) => handleToggle(server.id, enabled)} onExpand={() => handleExpand(server.id)} onDelete={server.isOwned ? () => handleDelete(server.id) : undefined} isExpanded={expandedServerId === server.id} tools={serverTools[server.id] || []} />)
         )}
-
-        <div className="space-y-4">
-          {servers.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-lg border">
-              <p className="text-gray-500">No MCP servers configured.</p>
-              <p className="text-sm text-gray-400 mt-1">Add a server to get started.</p>
-            </div>
-          ) : (
-            servers.map((server) => <ServerListItem key={server.id} server={server} onToggle={(enabled) => handleToggle(server.id, enabled)} onExpand={() => handleExpand(server.id)} onDelete={server.isOwned ? () => handleDelete(server.id) : undefined} isExpanded={expandedServerId === server.id} tools={serverTools[server.id] || []} />)
-          )}
-        </div>
       </div>
     </div>
   );

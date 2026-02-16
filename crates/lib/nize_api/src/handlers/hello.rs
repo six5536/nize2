@@ -8,7 +8,7 @@ use crate::AppState;
 use crate::error::AppResult;
 use crate::generated::models::HelloWorldResponse;
 
-/// `GET /api/hello` — verifies core lib, DB connection, and Bun sidecar.
+/// `GET /hello` — verifies core lib, DB connection, and Bun sidecar.
 pub async fn hello_world(State(state): State<AppState>) -> AppResult<Json<HelloWorldResponse>> {
     let greeting = nize_core::hello::hello_world();
 

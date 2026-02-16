@@ -1,7 +1,9 @@
 // @zen-impl: PLAN-012-1.2 — root layout for nize-web
 // @zen-impl: CFG-NizeWebAuthContext
+// @zen-impl: PLAN-021 — webview bridge injection for Tauri dev builds
 
 import { AuthProvider } from "@/lib/auth-context";
+import { WebviewBridgeLoader } from "@/components/WebviewBridgeLoader";
 import "./globals.css";
 
 export const metadata = {
@@ -17,6 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="h-full">
         <AuthProvider>
+          <WebviewBridgeLoader />
           <div className="flex flex-col h-full">
             <div className="flex-1 min-w-0 overflow-auto">{children}</div>
           </div>

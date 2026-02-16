@@ -1,7 +1,7 @@
 // @zen-component: PLAN-020-AdminToolsUI
 
 /**
- * Admin MCP server management page at /admin/tools
+ * Admin MCP server management page at /settings/admin/tools
  *
  * Allows admins to view, create, edit, toggle, and delete
  * built-in MCP server configurations system-wide.
@@ -386,19 +386,18 @@ export default function AdminToolsPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">MCP Server Administration</h1>
-          <p className="text-gray-600 mt-1">Manage system-wide MCP server configurations</p>
-        </div>
+    <div>
+      <div className="mb-6">
+        <h2 className="text-xl font-bold text-gray-900">MCP Server Administration</h2>
+        <p className="text-gray-600 mt-1">Manage system-wide MCP server configurations</p>
+      </div>
 
         {error && <div className="mb-4 p-3 bg-red-50 text-red-800 rounded-md">{error}</div>}
 
@@ -429,7 +428,6 @@ export default function AdminToolsPage() {
         ) : (
           <AdminServerList servers={servers} groupBy={groupBy} onDelete={handleDelete} onToggleEnabled={handleToggleEnabled} />
         )}
-      </div>
     </div>
   );
 }

@@ -70,7 +70,7 @@ pub fn router(state: AppState) -> Router {
 
     // Public routes (no auth required)
     let public = Router::new()
-        .route(routes::GET_API_HELLO, get(hello::hello_world))
+        .route(routes::GET_HELLO, get(hello::hello_world))
         .route(routes::POST_AUTH_LOGIN, post(auth::login_handler))
         .route(routes::POST_AUTH_REGISTER, post(auth::register_handler))
         .route(routes::POST_AUTH_REFRESH, post(auth::refresh_handler))
@@ -280,10 +280,15 @@ pub fn router(state: AppState) -> Router {
             middleware::auth::require_admin,
         ));
 
-    Router::new()
+    // All routes are nested under /api so they don't collide with
+    // the Next.js frontend routes when served on the same origin.
+    let api = Router::new()
         .merge(public)
         .merge(protected)
-        .merge(admin)
+        .merge(admin);
+
+    Router::new()
+        .nest("/api", api)
         .layer(cors)
         .with_state(state)
 }

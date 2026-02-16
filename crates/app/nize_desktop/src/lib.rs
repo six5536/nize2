@@ -22,7 +22,9 @@ struct SidecarReady {
 }
 
 // @zen-impl: PLAN-012-3.1 — nize-web sidecar ready payload
+// @zen-impl: PLAN-021 — nize-web sidecar only used in production (not dev)
 /// JSON payload the nize-web sidecar prints to stdout on startup.
+#[cfg(not(debug_assertions))]
 #[derive(Deserialize)]
 struct NizeWebReady {
     port: u16,
@@ -39,7 +41,9 @@ struct ApiSidecar {
 }
 
 // @zen-impl: PLAN-012-3.1 — nize-web sidecar state
+// @zen-impl: PLAN-021 — nize-web sidecar only used in production (not dev)
 /// Holds the nize-web child process and its bound port.
+#[cfg(not(debug_assertions))]
 struct NizeWebSidecar {
     _process: Child,
     port: u16,
@@ -48,7 +52,9 @@ struct NizeWebSidecar {
 /// Holds the managed PGlite instance and API sidecar for the app lifetime.
 struct AppServices {
     sidecar: Option<ApiSidecar>,
-    /// nize-web sidecar (Next.js hello world app).
+    /// nize-web sidecar (Next.js standalone server — production only).
+    /// In dev, Tauri loads Next.js directly via `devUrl`.
+    #[cfg(not(debug_assertions))]
     nize_web: Option<NizeWebSidecar>,
     /// Held to keep the PGlite process alive (killed when stopped).
     _pglite: Option<PgLiteManager>,
@@ -71,9 +77,8 @@ fn start_api_sidecar(database_url: &str, max_connections: u32) -> Result<ApiSide
 
     info!(path = %sidecar_path.display(), "starting API sidecar");
 
-    // In debug builds use a fixed API port so the Vite dev proxy can forward
-    // requests to a known address, giving the desktop shell and nize-web iframe
-    // a single same-origin view of the API.
+    // In debug builds use a fixed API port so the Next.js dev proxy can
+    // forward requests to a known address.
     #[cfg(debug_assertions)]
     let api_port_val = std::env::var("NIZE_API_PORT").unwrap_or_else(|_| "3001".to_string());
     #[cfg(not(debug_assertions))]
@@ -122,7 +127,9 @@ fn start_api_sidecar(database_url: &str, max_connections: u32) -> Result<ApiSide
 }
 
 // @zen-impl: PLAN-012-3.2 — spawn nize-web sidecar
+// @zen-impl: PLAN-021 — nize-web sidecar only used in production (not dev)
 /// Spawns `bun nize-web-server.mjs --port=0` and reads the port from its JSON stdout line.
+#[cfg(not(debug_assertions))]
 fn start_nize_web_sidecar(
     bun_bin: &Path,
     server_script: &Path,
@@ -130,20 +137,11 @@ fn start_nize_web_sidecar(
 ) -> Result<NizeWebSidecar, String> {
     info!(script = %server_script.display(), "starting nize-web sidecar");
 
-    // In debug builds use a fixed port so the Vite dev proxy can forward to
-    // a known address (same-origin for the desktop shell + nize-web iframe).
-    #[cfg(debug_assertions)]
-    let nize_web_port_val = std::env::var("NIZE_WEB_PORT").unwrap_or_else(|_| "3100".to_string());
-    #[cfg(not(debug_assertions))]
     let nize_web_port_val = "0".to_string();
 
     let mut cmd = Command::new(bun_bin);
     cmd.arg(server_script)
         .arg(format!("--port={nize_web_port_val}"));
-
-    // @zen-impl: PLAN-014-2 — run next dev for hot-reload in debug builds
-    #[cfg(debug_assertions)]
-    cmd.arg("--dev");
 
     // @zen-impl: CFG-NizeWebApi — pass API port so nize-web can reach the backend
     if let Some(p) = api_port {
@@ -295,12 +293,21 @@ async fn get_mcp_port(state: tauri::State<'_, Mutex<AppServices>>) -> Result<u16
 }
 
 // @zen-impl: PLAN-012-3.5 — Tauri command to expose nize-web port to frontend
+// @zen-impl: PLAN-021 — only meaningful in production (dev uses devUrl directly)
 #[tauri::command]
 async fn get_nize_web_port(state: tauri::State<'_, Mutex<AppServices>>) -> Result<u16, String> {
-    let guard = state.lock().map_err(|e| format!("lock: {e}"))?;
-    match &guard.nize_web {
-        Some(s) => Ok(s.port),
-        None => Err("nize-web sidecar not running".into()),
+    #[cfg(not(debug_assertions))]
+    {
+        let guard = state.lock().map_err(|e| format!("lock: {e}"))?;
+        match &guard.nize_web {
+            Some(s) => Ok(s.port),
+            None => Err("nize-web sidecar not running".into()),
+        }
+    }
+    #[cfg(debug_assertions)]
+    {
+        let _ = state;
+        Err("get_nize_web_port is not available in dev builds".into())
     }
 }
 
@@ -344,6 +351,7 @@ pub fn run() {
 
         return run_tauri(AppServices {
             sidecar,
+            #[cfg(not(debug_assertions))]
             nize_web: None,
             _pglite: None,
             terminator,
@@ -392,6 +400,7 @@ pub fn run() {
             );
             return run_tauri(AppServices {
                 sidecar: None,
+                #[cfg(not(debug_assertions))]
                 nize_web: None,
                 _pglite: None,
                 terminator,
@@ -406,6 +415,7 @@ pub fn run() {
                 error!("Failed to create PgLiteManager: {e}");
                 return run_tauri(AppServices {
                     sidecar: None,
+                    #[cfg(not(debug_assertions))]
                     nize_web: None,
                     _pglite: None,
                     terminator,
@@ -418,6 +428,7 @@ pub fn run() {
             error!("PGlite start failed: {e}");
             return run_tauri(AppServices {
                 sidecar: None,
+                #[cfg(not(debug_assertions))]
                 nize_web: None,
                 _pglite: None,
                 terminator,
@@ -444,73 +455,50 @@ pub fn run() {
         };
 
         // @zen-impl: PLAN-012-3.4 — start nize-web sidecar after API sidecar
-        // @zen-impl: PLAN-014-1 — in dev, use the source script directly (no stale copy)
-        let nize_web_script = {
-            let resource = exe_dir.parent().map(|p| {
-                p.join("Resources")
-                    .join("nize-web")
-                    .join("nize-web-server.mjs")
-            });
-            match resource {
-                Some(ref p) if p.exists() => p.clone(),
-                _ => {
-                    #[cfg(debug_assertions)]
-                    {
-                        // Dev: use source script so edits are picked up without rebuilding.
-                        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                            .join("..")
-                            .join("..")
-                            .join("..")
-                            .join("packages")
-                            .join("nize-web")
-                            .join("scripts")
-                            .join("nize-web-server.mjs")
-                    }
-                    #[cfg(not(debug_assertions))]
-                    {
-                        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                            .join("resources")
-                            .join("nize-web")
-                            .join("nize-web-server.mjs")
-                    }
+        // @zen-impl: PLAN-021 — in dev, Tauri loads Next.js directly via devUrl;
+        //   nize-web sidecar only needed in production.
+        #[cfg(not(debug_assertions))]
+        let nize_web = {
+            let nize_web_script = {
+                let resource = exe_dir.parent().map(|p| {
+                    p.join("Resources")
+                        .join("nize-web")
+                        .join("nize-web-server.mjs")
+                });
+                match resource {
+                    Some(ref p) if p.exists() => p.clone(),
+                    _ => PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                        .join("resources")
+                        .join("nize-web")
+                        .join("nize-web-server.mjs"),
                 }
-            }
-        };
+            };
 
-        let nize_web = if nize_web_script.exists() {
-            let api_port = sidecar.as_ref().map(|s| s.port);
-            match start_nize_web_sidecar(&bun_bin, &nize_web_script, api_port) {
-                Ok(s) => {
-                    // Append kill command to terminator manifest.
-                    let kill_cmd = format!("kill {}", s._process.id());
-                    if let Err(e) = append_cleanup(&manifest_path, &kill_cmd) {
-                        error!("Failed to write nize-web cleanup to manifest: {e}");
-                    }
-                    // Remove the Next.js dev lock file on unclean shutdown.
-                    let lock_path = nize_web_script
-                        .parent()
-                        .and_then(|scripts| scripts.parent())
-                        .map(|pkg| pkg.join(".next").join("dev").join("lock"));
-                    if let Some(lp) = lock_path {
-                        let rm_cmd = format!("rm -f {}", lp.display());
-                        if let Err(e) = append_cleanup(&manifest_path, &rm_cmd) {
-                            error!("Failed to write lock cleanup to manifest: {e}");
+            if nize_web_script.exists() {
+                let api_port = sidecar.as_ref().map(|s| s.port);
+                match start_nize_web_sidecar(&bun_bin, &nize_web_script, api_port) {
+                    Ok(s) => {
+                        // Append kill command to terminator manifest.
+                        let kill_cmd = format!("kill {}", s._process.id());
+                        if let Err(e) = append_cleanup(&manifest_path, &kill_cmd) {
+                            error!("Failed to write nize-web cleanup to manifest: {e}");
                         }
+                        Some(s)
                     }
-                    Some(s)
+                    Err(e) => {
+                        error!("Failed to start nize-web sidecar: {e}");
+                        None
+                    }
                 }
-                Err(e) => {
-                    error!("Failed to start nize-web sidecar: {e}");
-                    None
-                }
+            } else {
+                info!("nize-web-server.mjs not found — skipping nize-web sidecar");
+                None
             }
-        } else {
-            info!("nize-web-server.mjs not found — skipping nize-web sidecar");
-            None
         };
 
         AppServices {
             sidecar,
+            #[cfg(not(debug_assertions))]
             nize_web,
             _pglite: Some(pglite),
             terminator,
@@ -559,6 +547,8 @@ fn run_tauri(services: AppServices) {
                     }
 
                     // @zen-impl: PLAN-012-3.7 — kill nize-web sidecar on exit
+                    // @zen-impl: PLAN-021 — only in production (dev uses devUrl)
+                    #[cfg(not(debug_assertions))]
                     if let Some(mut nize_web) = guard.nize_web.take() {
                         kill_child_gracefully(&mut nize_web._process);
                     }

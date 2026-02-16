@@ -5,9 +5,9 @@
   "identifier": "com.six5536.nize-desktop",
   "build": {
     "frontendDist": "../../../packages/nize-desktop/dist",
-    "devUrl": "http://localhost:1420",
-    "beforeDevCommand": "cargo build -p nize_desktop_server -p nize_terminator && bash scripts/setup-sidecar-binaries.sh && bun run --cwd packages/nize-desktop build:pglite-server && bun run --cwd packages/nize-desktop build:mcp-remote && bun run --cwd packages/nize-desktop dev",
-    "beforeBuildCommand": "cargo build -p nize_desktop_server -p nize_terminator --release && bash scripts/setup-sidecar-binaries.sh release && bun run --cwd packages/nize-desktop build:pglite-server && bun run --cwd packages/nize-desktop build:mcp-remote && bun run --cwd packages/nize-desktop build:nize-web && bun run --cwd packages/nize-desktop build"
+    "devUrl": "http://localhost:3100",
+    "beforeDevCommand": "cargo build -p nize_desktop_server -p nize_terminator && bash scripts/setup-sidecar-binaries.sh && bun run --cwd packages/nize-desktop build:pglite-server && bun run --cwd packages/nize-desktop build:mcp-remote && bun run --cwd packages/nize-web dev",
+    "beforeBuildCommand": "cargo build -p nize_desktop_server -p nize_terminator --release && bash scripts/setup-sidecar-binaries.sh release && bun run --cwd packages/nize-desktop build:pglite-server && bun run --cwd packages/nize-desktop build:mcp-remote && bun run --cwd packages/nize-desktop build:nize-web"
   },
   "app": {
     "windows": [

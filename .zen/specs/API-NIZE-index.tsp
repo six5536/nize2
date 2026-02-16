@@ -38,13 +38,10 @@ model HelloWorldResponse {
   bunAvailable: boolean;
 }
 
-@route("/api")
-namespace Api {
-  @route("/hello")
-  @tag("Hello")
-  namespace Hello {
-    /** Bootstrap health check — verifies core lib, DB, and Bun sidecar. */
-    @get
-    op helloWorld(): HelloWorldResponse;
-  }
+@route("/hello")
+@tag("Hello")
+namespace Hello {
+  /** Bootstrap health check — verifies core lib, DB, and Bun sidecar. */
+  @get
+  op helloWorld(): HelloWorldResponse;
 }

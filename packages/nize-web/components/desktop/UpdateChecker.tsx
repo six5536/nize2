@@ -1,4 +1,9 @@
 // @zen-component: PLAN-007-UpdateChecker
+// @zen-impl: PLAN-007-6.3
+// @zen-impl: PLAN-021 — ported from packages/nize-desktop/src/UpdateChecker.tsx
+
+"use client";
+
 import { useState, useEffect } from "react";
 import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";

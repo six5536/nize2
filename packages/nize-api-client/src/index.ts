@@ -52,7 +52,8 @@ export class NizeApiClient {
   // ---------------------------------------------------------------------------
 
   private async request<T>(method: string, path: string, options: { body?: unknown; signal?: AbortSignal } = {}): Promise<T> {
-    const url = new URL(path, this.config.baseUrl);
+    const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+    const url = new URL(`/api${normalizedPath}`, this.config.baseUrl);
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -114,7 +115,7 @@ export class NizeApiClient {
 
   /** Bootstrap health check. */
   async hello(): Promise<HelloWorldResponse> {
-    return this.request<HelloWorldResponse>("GET", "/api/hello");
+    return this.request<HelloWorldResponse>("GET", "/hello");
   }
 
   // ---------------------------------------------------------------------------
