@@ -26,7 +26,7 @@ Enable the chat interface (nize-chat) to use MCP meta-tools during conversations
 | `@ai-sdk/mcp` in nize-chat | **Not done** |
 | Frontend tool result rendering | **Not done** |
 
-## Architecture Decision
+## Architecture Decisiong
 
 | Considered | Decision | Rationale |
 |---|---|---|

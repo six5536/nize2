@@ -9,7 +9,8 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Duration;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant};
 
 use dashmap::DashMap;
 use sqlx::PgPool;
@@ -38,6 +39,9 @@ const STDIO_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 /// Default maximum number of concurrent stdio processes.
 const DEFAULT_MAX_STDIO_PROCESSES: usize = 50;
 
+/// Default idle timeout for stdio connections (5 minutes).
+const DEFAULT_IDLE_TIMEOUT: Duration = Duration::from_secs(300);
+
 /// Request to execute a tool on an external MCP server.
 #[derive(Debug, Clone)]
 pub struct ExecutionRequest {
@@ -59,6 +63,26 @@ pub struct ExecutionResult {
 struct PoolEntry {
     service: RunningService<RoleClient, ()>,
     transport: TransportType,
+    /// Milliseconds since pool epoch when this entry was last accessed.
+    last_accessed: AtomicU64,
+    /// When the entry was created.
+    #[allow(dead_code)]
+    created_at: Instant,
+}
+
+impl PoolEntry {
+    /// Update the last-accessed timestamp (lock-free atomic store).
+    fn touch(&self, epoch: &Instant) {
+        let ms = epoch.elapsed().as_millis() as u64;
+        self.last_accessed.store(ms, Ordering::Relaxed);
+    }
+
+    /// Duration since last access.
+    fn idle_duration(&self, epoch: &Instant) -> Duration {
+        let now_ms = epoch.elapsed().as_millis() as u64;
+        let last = self.last_accessed.load(Ordering::Relaxed);
+        Duration::from_millis(now_ms.saturating_sub(last))
+    }
 }
 
 /// Client connection pool — reuses MCP client sessions across calls.
@@ -74,6 +98,10 @@ pub struct ClientPool {
     manifest_path: Option<PathBuf>,
     /// Maximum number of concurrent stdio processes.
     max_stdio_processes: usize,
+    /// Idle timeout for stdio connections before eviction.
+    idle_timeout: Duration,
+    /// Reference point for atomic last-accessed timestamps.
+    epoch: Instant,
 }
 
 impl ClientPool {
@@ -83,6 +111,8 @@ impl ClientPool {
             connecting: Arc::new(Mutex::new(HashSet::new())),
             manifest_path: None,
             max_stdio_processes: DEFAULT_MAX_STDIO_PROCESSES,
+            idle_timeout: DEFAULT_IDLE_TIMEOUT,
+            epoch: Instant::now(),
         }
     }
 
@@ -99,6 +129,16 @@ impl ClientPool {
         self.max_stdio_processes = max;
     }
 
+    /// Set the idle timeout for stdio connections.
+    pub fn set_idle_timeout(&mut self, timeout: Duration) {
+        self.idle_timeout = timeout;
+    }
+
+    /// Get the current idle timeout.
+    pub fn idle_timeout(&self) -> Duration {
+        self.idle_timeout
+    }
+
     /// Count current stdio connections.
     fn stdio_count(&self) -> usize {
         self.connections
@@ -111,7 +151,8 @@ impl ClientPool {
     /// Get or create a connection to an MCP server.
     async fn get_or_connect(&self, pool: &PgPool, server_id: Uuid) -> Result<(), McpError> {
         // Fast path: already connected.
-        if self.connections.contains_key(&server_id) {
+        if let Some(entry) = self.connections.get(&server_id) {
+            entry.touch(&self.epoch);
             return Ok(());
         }
 
@@ -192,6 +233,8 @@ impl ClientPool {
             PoolEntry {
                 service,
                 transport: TransportType::Http,
+                last_accessed: AtomicU64::new(self.epoch.elapsed().as_millis() as u64),
+                created_at: Instant::now(),
             },
         );
         Ok(())
@@ -205,7 +248,8 @@ impl ClientPool {
         server_id: Uuid,
     ) -> Result<(), McpError> {
         // @zen-impl: PLAN-025 Phase 2.3 — enforce max stdio process limit
-        if self.stdio_count() >= self.max_stdio_processes {
+        // @zen-impl: PLAN-030 Phase 3.2 — LRU eviction before ResourceExhausted
+        if self.stdio_count() >= self.max_stdio_processes && !self.evict_lru_stdio() {
             return Err(McpError::ResourceExhausted(format!(
                 "Maximum stdio process limit ({}) reached",
                 self.max_stdio_processes
@@ -282,6 +326,8 @@ impl ClientPool {
             PoolEntry {
                 service,
                 transport: TransportType::Stdio,
+                last_accessed: AtomicU64::new(self.epoch.elapsed().as_millis() as u64),
+                created_at: Instant::now(),
             },
         );
         Ok(())
@@ -292,6 +338,58 @@ impl ClientPool {
         if let Some((_, entry)) = self.connections.remove(server_id) {
             let ct = entry.service.cancellation_token();
             ct.cancel();
+        }
+    }
+
+    // @zen-impl: PLAN-030 Phase 2.1 — evict idle stdio connections
+    /// Evict all stdio connections that have been idle longer than `timeout`.
+    fn evict_idle(&self, timeout: Duration) {
+        let mut evicted = Vec::new();
+        self.connections.retain(|id, entry| {
+            if entry.transport == TransportType::Stdio && entry.idle_duration(&self.epoch) > timeout
+            {
+                evicted.push(*id);
+                false
+            } else {
+                true
+            }
+        });
+        for id in &evicted {
+            info!(server_id = %id, "Evicted idle stdio connection");
+        }
+    }
+
+    // @zen-impl: PLAN-030 Phase 2.2 — spawn background reaper
+    /// Spawn a background reaper task that evicts idle stdio connections.
+    /// Returns a `JoinHandle` — the task runs until the Tokio runtime shuts down.
+    pub fn spawn_reaper(self: &Arc<Self>, idle_timeout: Duration) -> tokio::task::JoinHandle<()> {
+        let pool = Arc::clone(self);
+        let interval = idle_timeout / 4;
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(interval).await;
+                pool.evict_idle(idle_timeout);
+            }
+        })
+    }
+
+    // @zen-impl: PLAN-030 Phase 3.1 — LRU eviction for capacity management
+    /// Evict the single least-recently-used stdio connection.
+    /// Returns `true` if an entry was evicted.
+    fn evict_lru_stdio(&self) -> bool {
+        let oldest = self
+            .connections
+            .iter()
+            .filter(|e| e.value().transport == TransportType::Stdio)
+            .min_by_key(|e| e.value().last_accessed.load(Ordering::Relaxed))
+            .map(|e| *e.key());
+
+        if let Some(id) = oldest {
+            self.remove(&id);
+            info!(server_id = %id, "LRU-evicted stdio connection to make room");
+            true
+        } else {
+            false
         }
     }
 }
@@ -429,6 +527,7 @@ async fn call_tool(
         .get(&server_id)
         .ok_or_else(|| McpError::ConnectionFailed("No connection available".into()))?;
 
+    conn.touch(&client_pool.epoch);
     let peer = conn.service.peer().clone();
     drop(conn); // Release the DashMap ref before awaiting
 
@@ -564,5 +663,83 @@ mod tests {
     fn client_pool_remove_nonexistent_is_noop() {
         let pool = ClientPool::new();
         pool.remove(&Uuid::new_v4()); // Should not panic
+    }
+
+    // @zen-test: PLAN-030 Phase 1.2 — last_accessed AtomicU64 stores and loads correctly
+    #[test]
+    fn pool_entry_last_accessed_atomic_roundtrip() {
+        let epoch = Instant::now();
+        let last_accessed = AtomicU64::new(0);
+
+        // Initially zero
+        assert_eq!(last_accessed.load(Ordering::Relaxed), 0);
+
+        // Simulate touch
+        std::thread::sleep(Duration::from_millis(5));
+        let ms = epoch.elapsed().as_millis() as u64;
+        last_accessed.store(ms, Ordering::Relaxed);
+
+        let stored = last_accessed.load(Ordering::Relaxed);
+        assert!(stored >= 5, "expected at least 5ms, got {stored}");
+    }
+
+    // @zen-test: PLAN-030 Phase 1.2 — idle_duration increases over time
+    #[test]
+    fn pool_entry_idle_duration_logic() {
+        let epoch = Instant::now();
+        let last_accessed = AtomicU64::new(epoch.elapsed().as_millis() as u64);
+
+        // Simulate time passing
+        std::thread::sleep(Duration::from_millis(10));
+
+        let now_ms = epoch.elapsed().as_millis() as u64;
+        let last = last_accessed.load(Ordering::Relaxed);
+        let idle = Duration::from_millis(now_ms.saturating_sub(last));
+
+        assert!(idle >= Duration::from_millis(10));
+    }
+
+    // @zen-test: PLAN-030 Phase 1.3 — idle_timeout configuration
+    #[test]
+    fn client_pool_set_idle_timeout() {
+        let mut pool = ClientPool::new();
+        assert_eq!(pool.idle_timeout(), DEFAULT_IDLE_TIMEOUT);
+        pool.set_idle_timeout(Duration::from_secs(60));
+        assert_eq!(pool.idle_timeout(), Duration::from_secs(60));
+    }
+
+    // @zen-test: PLAN-030 Phase 1.1 — epoch is initialized
+    #[test]
+    fn client_pool_epoch_is_recent() {
+        let before = Instant::now();
+        let pool = ClientPool::new();
+        let after = Instant::now();
+        // epoch should be between before and after
+        assert!(pool.epoch >= before);
+        assert!(pool.epoch <= after);
+    }
+
+    // @zen-test: PLAN-030 Phase 3.1 — evict_lru_stdio returns false on empty pool
+    #[test]
+    fn evict_lru_stdio_returns_false_on_empty_pool() {
+        let pool = ClientPool::new();
+        assert!(!pool.evict_lru_stdio());
+    }
+
+    // @zen-test: PLAN-030 Phase 2.1 — evict_idle is no-op on empty pool
+    #[test]
+    fn evict_idle_noop_on_empty_pool() {
+        let pool = ClientPool::new();
+        pool.evict_idle(Duration::from_secs(1)); // Should not panic
+        assert_eq!(pool.connections.len(), 0);
+    }
+
+    // @zen-test: PLAN-030 Phase 1.1 — default pool has idle_timeout and epoch
+    #[test]
+    fn client_pool_default_has_idle_timeout_and_epoch() {
+        let pool = ClientPool::default();
+        assert_eq!(pool.idle_timeout(), DEFAULT_IDLE_TIMEOUT);
+        // epoch should be roughly now
+        assert!(pool.epoch.elapsed() < Duration::from_secs(1));
     }
 }
