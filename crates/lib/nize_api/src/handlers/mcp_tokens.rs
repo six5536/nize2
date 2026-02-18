@@ -16,9 +16,14 @@ pub async fn create_mcp_token_handler(
     axum::Extension(user): axum::Extension<AuthenticatedUser>,
     Json(body): Json<CreateMcpTokenRequest>,
 ) -> AppResult<Json<CreateMcpTokenResponse>> {
-    let (plaintext, record) =
-        nize_core::auth::mcp_tokens::create_mcp_token(&state.pool, &user.0.sub, &body.name)
-            .await?;
+    let overwrite = body.overwrite.unwrap_or(false);
+    let (plaintext, record) = nize_core::auth::mcp_tokens::create_mcp_token(
+        &state.pool,
+        &user.0.sub,
+        &body.name,
+        overwrite,
+    )
+    .await?;
     Ok(Json(CreateMcpTokenResponse {
         id: record.id,
         token: plaintext,
@@ -32,8 +37,7 @@ pub async fn list_mcp_tokens_handler(
     State(state): State<AppState>,
     axum::Extension(user): axum::Extension<AuthenticatedUser>,
 ) -> AppResult<Json<McpTokenListResponse>> {
-    let records =
-        nize_core::auth::mcp_tokens::list_mcp_tokens(&state.pool, &user.0.sub).await?;
+    let records = nize_core::auth::mcp_tokens::list_mcp_tokens(&state.pool, &user.0.sub).await?;
     let tokens = records
         .into_iter()
         .map(|r| McpTokenInfo {

@@ -33,13 +33,26 @@ export interface ChatConfig {
     openai?: string;
     google?: string;
   };
+  // @zen-impl: PLAN-029-3.3
+  /** Whether MCP tool calling is enabled */
+  toolsEnabled: boolean;
+  /** Maximum number of tool-call steps per message */
+  toolsMaxSteps: number;
+  /** System prompt to prepend when tools are enabled */
+  toolsSystemPrompt: string;
 }
+
+/** Default system prompt for MCP tools guidance */
+export const DEFAULT_TOOLS_SYSTEM_PROMPT = "You have access to tools for discovering and executing external MCP tools. " + "Use `discover_tools` to find relevant tools, `get_tool_schema` to understand parameters, " + "and `execute_tool` to run them. Use `list_tool_domains` and `browse_tool_domain` to explore available categories.";
 
 /** Default chat configuration values (must match migration 0003_config.sql) */
 export const DEFAULT_CHAT_CONFIG: ChatConfig = {
   modelName: "anthropic:claude-haiku-4-5-20251001",
   temperature: 0.7,
   compactionMaxMessages: 20,
+  toolsEnabled: true,
+  toolsMaxSteps: 10,
+  toolsSystemPrompt: DEFAULT_TOOLS_SYSTEM_PROMPT,
 };
 
 // ============================================================================

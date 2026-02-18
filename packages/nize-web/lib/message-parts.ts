@@ -85,7 +85,8 @@ export function isToolInvocationPart(part: unknown): part is ToolInvocationPart 
   }
   const type = (part as { type: unknown }).type;
   // Match "tool-*" pattern (e.g., "tool-execute_tool", "tool-discover_tools")
-  return typeof type === "string" && type.startsWith("tool-");
+  // and "dynamic-tool" (MCP tools via @ai-sdk/mcp)
+  return typeof type === "string" && (type.startsWith("tool-") || type === "dynamic-tool");
 }
 
 /**

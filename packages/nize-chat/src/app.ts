@@ -22,6 +22,12 @@ chatApp.post("/chat", async (c) => {
   // - fallback to localhost:3001
   const apiBaseUrl = process.env.NIZE_API_URL ?? (process.env.NIZE_API_PORT ? `http://127.0.0.1:${process.env.NIZE_API_PORT}` : "http://127.0.0.1:3001");
 
+  // @zen-impl: PLAN-029-2.3 — resolve MCP base URL for tool calling
+  // - NIZE_MCP_URL env var (explicit)
+  // - NIZE_MCP_PORT env var (e.g. set by nize-web-server.mjs)
+  // - fallback to localhost:19560
+  const mcpBaseUrl = process.env.NIZE_MCP_URL ?? (process.env.NIZE_MCP_PORT ? `http://127.0.0.1:${process.env.NIZE_MCP_PORT}` : "http://127.0.0.1:19560");
+
   try {
     // Parse request body
     const body = (await c.req.json()) as ChatRequest;
@@ -34,7 +40,7 @@ chatApp.post("/chat", async (c) => {
     const config = await fetchChatConfig(apiBaseUrl, cookie);
 
     // Process chat
-    const result = await processChat(body, config, apiBaseUrl, cookie);
+    const result = await processChat(body, config, apiBaseUrl, cookie, mcpBaseUrl);
 
     // Return streaming response
     const response = result.toUIMessageStreamResponse();

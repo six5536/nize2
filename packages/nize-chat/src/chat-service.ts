@@ -1,11 +1,12 @@
 // @zen-component: PLAN-027-ChatService
 
-import { streamText, convertToModelMessages, type UIMessage } from "ai";
+import { streamText, convertToModelMessages, stepCountIs, type UIMessage, type ToolSet } from "ai";
 import type { ChatConfig, ChatRequest, CompactMessage } from "./types";
 import { getChatModel, getProviderFromSpec } from "./model-registry";
 import type { GetChatModelOptions } from "./model-registry";
 import { maybeCompact } from "./compaction";
 import { createProxyFetch } from "./proxy-fetch";
+import { createMcpSession } from "./mcp-client";
 
 // ============================================================================
 // Helpers
@@ -123,7 +124,8 @@ export interface ProcessChatResult {
  * stream AI response, persist on finish.
  */
 // @zen-impl: PLAN-028-3.5
-export async function processChat(request: ChatRequest, config: ChatConfig, apiBaseUrl: string, cookie: string): Promise<ProcessChatResult> {
+// @zen-impl: PLAN-029-3.5
+export async function processChat(request: ChatRequest, config: ChatConfig, apiBaseUrl: string, cookie: string, mcpBaseUrl?: string): Promise<ProcessChatResult> {
   const conversation = await getOrCreateConversation(apiBaseUrl, cookie, request.conversationId);
 
   const allMessages = request.messages;
@@ -154,10 +156,35 @@ export async function processChat(request: ChatRequest, config: ChatConfig, apiB
 
   const model = getChatModel(config.modelName, modelOptions);
 
+  // @zen-impl: PLAN-029-3.5 — create MCP session for tool calling
+  let mcpClient: Awaited<ReturnType<typeof createMcpSession>> | null = null;
+  let tools: ToolSet | undefined;
+
+  if (config.toolsEnabled && mcpBaseUrl) {
+    try {
+      console.log("[mcp] Creating MCP session...");
+      mcpClient = await createMcpSession(apiBaseUrl, cookie, mcpBaseUrl);
+      console.log("[mcp] Session created, fetching tools...");
+      tools = await mcpClient.tools();
+      console.log(`[mcp] Got ${Object.keys(tools).length} tools`);
+    } catch (err) {
+      console.error("Failed to create MCP session, continuing without tools:", err);
+      mcpClient = null;
+      tools = undefined;
+    }
+  }
+
+  // When tools are enabled, prepend the tools system prompt
+  const systemMessages = config.toolsEnabled && tools && config.toolsSystemPrompt ? [{ role: "system" as const, content: config.toolsSystemPrompt }] : [];
+
   const result = streamText({
     model,
-    messages: modelMessages,
+    messages: [...systemMessages, ...modelMessages],
     temperature: config.temperature,
+    ...(tools ? { tools, stopWhen: stepCountIs(config.toolsMaxSteps) } : {}),
+    onStepFinish: ({ stepType, toolCalls }) => {
+      console.log(`[mcp] Step finished: type=${stepType}, toolCalls=${toolCalls?.length ?? 0}`);
+    },
     onError: (error) => {
       console.error("Chat stream error:", error);
     },
@@ -171,6 +198,15 @@ export async function processChat(request: ChatRequest, config: ChatConfig, apiB
       result.toUIMessageStreamResponse({
         originalMessages: allMessages,
         onFinish: async ({ messages: finalMessages }) => {
+          // Close MCP client after stream completes
+          if (mcpClient) {
+            try {
+              await mcpClient.close();
+            } catch (err) {
+              console.error("Failed to close MCP client:", err);
+            }
+          }
+
           // Persist all messages via Rust API
           try {
             await persistMessages(apiBaseUrl, cookie, conversation.id, finalMessages);

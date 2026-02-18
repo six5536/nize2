@@ -193,6 +193,7 @@ fn start_nize_web_sidecar(
     bun_bin: &Path,
     server_script: &Path,
     api_port: Option<u16>,
+    mcp_port: Option<u16>,
 ) -> Result<NizeWebSidecar, String> {
     info!(script = %server_script.display(), "starting nize-web sidecar");
 
@@ -205,6 +206,11 @@ fn start_nize_web_sidecar(
     // @zen-impl: CFG-NizeWebApi — pass API port so nize-web can reach the backend
     if let Some(p) = api_port {
         cmd.arg(format!("--api-port={p}"));
+    }
+
+    // @zen-impl: PLAN-029-2.1 — pass MCP port so nize-chat can reach the MCP server
+    if let Some(p) = mcp_port {
+        cmd.arg(format!("--mcp-port={p}"));
     }
 
     let mut child = cmd
@@ -540,7 +546,8 @@ pub fn run() {
 
             if nize_web_script.exists() {
                 let api_port = sidecar.as_ref().map(|s| s.port);
-                match start_nize_web_sidecar(&bun_bin, &nize_web_script, api_port) {
+                let mcp_port = sidecar.as_ref().map(|s| s.mcp_port);
+                match start_nize_web_sidecar(&bun_bin, &nize_web_script, api_port, mcp_port) {
                     Ok(s) => {
                         // Append kill command to terminator manifest.
                         let kill_cmd = format!("kill {}", s._process.id());

@@ -28,11 +28,45 @@ fn hash_token(token: &str) -> String {
 }
 
 /// Create a new MCP token for a user. Returns (plaintext_token, record).
+///
+/// When `overwrite` is true, any existing active (non-revoked) token with the
+/// same name for this user is revoked before creating the new one.
+/// When `overwrite` is false, returns an error if an active token with the same
+/// name already exists.
 pub async fn create_mcp_token(
     pool: &PgPool,
     user_id: &str,
     name: &str,
+    overwrite: bool,
 ) -> Result<(String, McpTokenRecord), AuthError> {
+    if overwrite {
+        // Revoke any existing active token with the same name for this user
+        sqlx::query(
+            "UPDATE mcp_tokens SET revoked_at = now() \
+             WHERE user_id = $1::uuid AND name = $2 AND revoked_at IS NULL",
+        )
+        .bind(user_id)
+        .bind(name)
+        .execute(pool)
+        .await?;
+    } else {
+        // Check for existing active token with same name
+        let existing = sqlx::query_as::<_, (i64,)>(
+            "SELECT COUNT(*) FROM mcp_tokens \
+             WHERE user_id = $1::uuid AND name = $2 AND revoked_at IS NULL",
+        )
+        .bind(user_id)
+        .bind(name)
+        .fetch_one(pool)
+        .await?;
+
+        if existing.0 > 0 {
+            return Err(AuthError::ValidationError(format!(
+                "An active token with name '{name}' already exists. Use overwrite=true to replace it."
+            )));
+        }
+    }
+
     let plaintext = generate_token();
     let token_hash = hash_token(&plaintext);
 
@@ -93,7 +127,17 @@ pub async fn list_mcp_tokens(
     pool: &PgPool,
     user_id: &str,
 ) -> Result<Vec<McpTokenRecord>, AuthError> {
-    let rows = sqlx::query_as::<_, (String, String, String, chrono::DateTime<chrono::Utc>, Option<chrono::DateTime<chrono::Utc>>, Option<chrono::DateTime<chrono::Utc>>)>(
+    let rows = sqlx::query_as::<
+        _,
+        (
+            String,
+            String,
+            String,
+            chrono::DateTime<chrono::Utc>,
+            Option<chrono::DateTime<chrono::Utc>>,
+            Option<chrono::DateTime<chrono::Utc>>,
+        ),
+    >(
         "SELECT id::text, user_id::text, name, created_at, expires_at, revoked_at \
          FROM mcp_tokens \
          WHERE user_id = $1::uuid \
@@ -105,13 +149,15 @@ pub async fn list_mcp_tokens(
 
     Ok(rows
         .into_iter()
-        .map(|(id, user_id, name, created_at, expires_at, revoked_at)| McpTokenRecord {
-            id,
-            user_id,
-            name,
-            created_at,
-            expires_at,
-            revoked_at,
-        })
+        .map(
+            |(id, user_id, name, created_at, expires_at, revoked_at)| McpTokenRecord {
+                id,
+                user_id,
+                name,
+                created_at,
+                expires_at,
+                revoked_at,
+            },
+        )
         .collect())
 }

@@ -11,6 +11,7 @@
 // Usage:
 //   bun nize-web-server.mjs --port=<N>
 //   bun nize-web-server.mjs --port=<N> --api-port=<M>
+//   bun nize-web-server.mjs --port=<N> --api-port=<M> --mcp-port=<P>
 
 import { parseArgs } from "node:util";
 import { createServer } from "node:net";
@@ -26,11 +27,13 @@ const { values: args } = parseArgs({
   options: {
     port: { type: "string", default: "0" },
     "api-port": { type: "string", default: "" },
+    "mcp-port": { type: "string", default: "" },
   },
 });
 
 const requestedPort = parseInt(args.port, 10);
 const apiPort = args["api-port"];
+const mcpPort = args["mcp-port"];
 
 // @zen-impl: PLAN-012-2.1 — find free port for ephemeral binding
 async function findFreePort() {
@@ -86,6 +89,8 @@ const child = spawn(process.execPath, [serverPath], {
     ...process.env,
     PORT: String(internalPort),
     HOSTNAME: "127.0.0.1",
+    // @zen-impl: PLAN-029-2.2 — pass MCP port to Next.js process for nize-chat
+    ...(mcpPort ? { NIZE_MCP_PORT: mcpPort } : {}),
   },
   stdio: ["pipe", "pipe", "inherit"],
 });

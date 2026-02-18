@@ -1,1 +1,0 @@
-{"root":["./src/app.tsx","./src/authgate.tsx","./src/mainapp.tsx","./src/tabview.tsx","./src/updatechecker.tsx","./src/main.tsx","./src/auth/authcontext.tsx","./src/auth/loginpage.tsx","./src/auth/registerpage.tsx","./src/auth/index.ts","./src/settings/mcpclientcard.tsx","./src/settings/mcpclientsettings.tsx","./src/settings/mcptokensection.tsx"],"version":"5.9.3"}

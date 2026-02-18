@@ -116,6 +116,9 @@ model AuthStatusResponse {
 model CreateMcpTokenRequest {
   @doc("Human-readable name for the token")
   name: string;
+
+  @doc("If true, revoke any existing active token with the same name before creating. If false (default), reject with 409 if a token with the same name already exists.")
+  overwrite?: boolean;
 }
 
 /** Response after creating an MCP API token (contains plaintext token once) */
