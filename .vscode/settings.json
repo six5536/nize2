@@ -20,7 +20,9 @@
     "cargo bench": true,
     "wasm-pack": true,
     "npx tsc": true,
-    "npx tsup": true
+    "npx tsup": true,
+    "bun": true,
+    "npx vitest": true
   },
   "search.exclude": {
     "**/target": true
@@ -28,3 +30,4 @@
   "files.watcherExclude": {
     "**/target/**": true
   }
+}

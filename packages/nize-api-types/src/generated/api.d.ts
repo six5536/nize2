@@ -46,21 +46,100 @@ export interface paths {
         patch: operations["AdminConfigRoutes_update"];
         trace?: never;
     };
-    "/api/hello": {
+    "/admin/permissions/grants": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** @description Bootstrap health check — verifies core lib, DB, and Bun sidecar. */
-        get: operations["Hello_helloWorld"];
+        get: operations["AdminPermissionRoutes_listAllGrants"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/admin/permissions/grants/{grantId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["AdminPermissionRoutes_adminRevokeGrant"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/permissions/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AdminPermissionRoutes_listAllGroups"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/permissions/links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AdminPermissionRoutes_listAllLinks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/permissions/links/{linkId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["AdminPermissionRoutes_adminRevokeLink"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/permissions/users/{userId}/admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["AdminPermissionRoutes_setAdminRole"];
         trace?: never;
     };
     "/auth/login": {
@@ -99,6 +178,27 @@ export interface paths {
          *     Requires valid access token.
          */
         post: operations["AuthRoutes_logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout/all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout all sessions
+         * @description Logout from all sessions.
+         *     Revokes all refresh tokens for the user.
+         */
+        post: operations["AuthRoutes_logoutAll"];
         delete?: never;
         options?: never;
         head?: never;
@@ -147,6 +247,26 @@ export interface paths {
          *     Requires authentication.
          */
         delete: operations["AuthRoutes_revokeMcpToken"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/oauth/mcp/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * OAuth callback
+         * @description Handle OAuth callback from MCP server authorization.
+         */
+        get: operations["AuthRoutes_oauthCallback"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -216,6 +336,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send chat message
+         * @description Send a chat message and receive response.
+         *     Demo: returns simple JSON response.
+         */
+        post: operations["ChatRoutes_chat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/config/user": {
         parameters: {
             query?: never;
@@ -263,10 +404,439 @@ export interface paths {
         patch: operations["UserConfigRoutes_update"];
         trace?: never;
     };
+    "/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List conversations
+         * @description List all conversations for the authenticated user.
+         *     Sorted by most recent activity.
+         */
+        get: operations["ConversationsRoutes_list"];
+        put?: never;
+        /**
+         * Create conversation
+         * @description Create a new conversation.
+         */
+        post: operations["ConversationsRoutes_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get conversation
+         * @description Get a conversation by ID with all messages.
+         */
+        get: operations["ConversationsRoutes_get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete conversation
+         * @description Delete a conversation and all its messages.
+         */
+        delete: operations["ConversationsRoutes_delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update conversation
+         * @description Update a conversation (e.g., title).
+         */
+        patch: operations["ConversationsRoutes_update"];
+        trace?: never;
+    };
+    "/conversations/{id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save conversation messages
+         * @description Bulk save messages for a conversation.
+         *     Replaces existing messages with the provided set.
+         *     Called by the chat backend after stream completion.
+         */
+        put: operations["ConversationsRoutes_saveMessages"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dev/chat_trace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get chat trace
+         * @description Returns trace events for a conversation.
+         *     Admin-only: returns 404 for non-admin users.
+         */
+        get: operations["DevTraceRoutes_getChatTrace"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hello": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Bootstrap health check — verifies core lib, DB, and Bun sidecar. */
+        get: operations["Hello_helloWorld"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ingest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List documents
+         * @description List all documents for the authenticated user.
+         */
+        get: operations["IngestRoutes_listDocuments"];
+        put?: never;
+        /**
+         * Upload and ingest file
+         * @description Upload and process a file for ingestion.
+         *     Extracts text, generates embeddings, and stores document.
+         */
+        post: operations["IngestRoutes_upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ingest/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get document by ID
+         * @description Get document by ID.
+         */
+        get: operations["IngestRoutes_getDocument"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete document
+         * @description Delete a document by ID.
+         */
+        delete: operations["IngestRoutes_deleteDocument"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp/admin/servers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all servers (admin) */
+        get: operations["MCPConfigRoutes_listAllServers"];
+        put?: never;
+        /** Create built-in server */
+        post: operations["MCPConfigRoutes_createBuiltInServer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp/admin/servers/{serverId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete built-in server */
+        delete: operations["MCPConfigRoutes_deleteBuiltInServer"];
+        options?: never;
+        head?: never;
+        /** Update built-in server */
+        patch: operations["MCPConfigRoutes_updateBuiltInServer"];
+        trace?: never;
+    };
+    "/mcp/servers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List servers for current user */
+        get: operations["MCPConfigRoutes_listUserServers"];
+        put?: never;
+        /** Add user server */
+        post: operations["MCPConfigRoutes_addUserServer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp/servers/{serverId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete user server */
+        delete: operations["MCPConfigRoutes_deleteUserServer"];
+        options?: never;
+        head?: never;
+        /** Update user server */
+        patch: operations["MCPConfigRoutes_updateUserServer"];
+        trace?: never;
+    };
+    "/mcp/servers/{serverId}/oauth/initiate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Initiate OAuth flow */
+        post: operations["MCPConfigRoutes_initiateOAuth"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp/servers/{serverId}/oauth/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke OAuth */
+        post: operations["MCPConfigRoutes_revokeOAuth"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp/servers/{serverId}/oauth/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get OAuth status */
+        get: operations["MCPConfigRoutes_getOAuthStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp/servers/{serverId}/preference": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Toggle server preference */
+        patch: operations["MCPConfigRoutes_togglePreference"];
+        trace?: never;
+    };
+    "/mcp/servers/{serverId}/tools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get server tools */
+        get: operations["MCPConfigRoutes_getServerTools"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp/test-connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test connection */
+        post: operations["MCPConfigRoutes_testConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/permissions/grants/{grantId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["PermissionRoutes_revokeGrant"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/permissions/links/{linkId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["PermissionRoutes_revokeLink"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/permissions/shared/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PermissionRoutes_accessShared"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/permissions/{resourceType}/{resourceId}/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PermissionRoutes_listGrants"];
+        put?: never;
+        post: operations["PermissionRoutes_createGrant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/permissions/{resourceType}/{resourceId}/links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PermissionRoutes_listLinks"];
+        put?: never;
+        post: operations["PermissionRoutes_createLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AdminServerListResponse: {
+            servers: components["schemas"]["AdminServerView"][];
+        };
+        AdminServerView: {
+            visibility: components["schemas"]["ServerVisibility"];
+            transport: components["schemas"]["ServerTransport"];
+            authType: components["schemas"]["AuthType"];
+            ownerId?: components["schemas"]["UUID"];
+            /** Format: int32 */
+            userPreferenceCount: number;
+            enabled: boolean;
+            available: boolean;
+        } & components["schemas"]["MCPServerBase"];
         /** @description Auth status response (for first-run detection) */
         "Auth.AuthStatusResponse": {
             /** @description Whether an admin user has been created */
@@ -384,6 +954,60 @@ export interface components {
             /** @description Authenticated user information */
             user: components["schemas"]["Auth.AuthUser"];
         };
+        /** @enum {string} */
+        AuthType: "none" | "api-key" | "oauth";
+        /** @description Non-streaming chat response (demo) */
+        "Chat.ChatCompletionResponse": {
+            /** @description Generated response content */
+            content: string;
+            /** @description Conversation ID */
+            conversationId: components["schemas"]["UUID"];
+            /** @description Message ID */
+            messageId: components["schemas"]["UUID"];
+        };
+        /** @description Send a chat message (AI SDK compatible format) */
+        "Chat.ChatRequest": {
+            /** @description Messages array (AI SDK UIMessage format) */
+            messages: components["schemas"]["Chat.UIMessage"][];
+            /** @description Conversation ID (optional, creates new if not provided) */
+            conversationId?: components["schemas"]["UUID"];
+        };
+        /** @description UI Message (AI SDK format) */
+        "Chat.UIMessage": {
+            /** @description Unique message ID */
+            id: string;
+            /**
+             * @description Message role
+             * @enum {string}
+             */
+            role: "user" | "assistant" | "system";
+            /** @description Message parts array */
+            parts: components["schemas"]["Chat.UIMessagePart"][];
+            /** @description Creation timestamp */
+            createdAt?: string;
+        };
+        /** @description UI message part — supports text, reasoning, tool calls, files, etc. */
+        "Chat.UIMessagePart": {
+            /** @description Part type (text, reasoning, file, step-start, dynamic-tool, or tool-{name}) */
+            type: string;
+            /** @description Text content (for text/reasoning parts) */
+            text?: string;
+            /** @description Tool call ID (for tool parts) */
+            toolCallId?: string;
+            /** @description Tool name (for dynamic-tool parts) */
+            toolName?: string;
+            /** @description Tool state (for tool parts) */
+            state?: string;
+        };
+        ChatTrace: {
+            id: components["schemas"]["UUID"];
+            conversationId: components["schemas"]["UUID"];
+            messageId: string;
+            events: components["schemas"]["TraceEvent"][];
+            createdAt: string;
+            expiresAt: string;
+        };
+        ChatTraceResponse: components["schemas"]["ChatTrace"];
         /** @description Admin config item — definition + all values across scopes */
         "Config.AdminConfigItem": {
             /** @description Dotted key path */
@@ -474,9 +1098,129 @@ export interface components {
             /** @description Array of resolved config items with effective values */
             items: components["schemas"]["Config.ResolvedConfigItem"][];
         };
+        /** @description Bulk save messages request (AI SDK UIMessage format) */
+        "Conversations.BulkSaveMessagesRequest": {
+            /** @description Messages to save (AI SDK UIMessage format) */
+            messages: components["schemas"]["Chat.UIMessage"][];
+        };
+        /** @description Full conversation with messages */
+        "Conversations.Conversation": {
+            /** @description Conversation unique identifier */
+            id: components["schemas"]["UUID"];
+            /** @description Conversation title */
+            title: string;
+            /** @description Messages in the conversation */
+            messages: components["schemas"]["Conversations.Message"][];
+            /** @description Creation timestamp */
+            createdAt: components["schemas"]["DateTime"];
+            /** @description Last activity timestamp */
+            updatedAt: components["schemas"]["DateTime"];
+        };
+        /** @description Conversation summary for list view */
+        "Conversations.ConversationSummary": {
+            /** @description Conversation unique identifier */
+            id: components["schemas"]["UUID"];
+            /** @description Conversation title */
+            title: string;
+            /** @description Creation timestamp */
+            createdAt: components["schemas"]["DateTime"];
+            /** @description Last activity timestamp */
+            updatedAt: components["schemas"]["DateTime"];
+        };
+        /** @description Create conversation request */
+        "Conversations.CreateConversationRequest": {
+            /** @description Initial title (defaults to 'New Chat') */
+            title?: string;
+        };
+        /** @description Chat message in UIMessage format */
+        "Conversations.Message": {
+            /** @description Message unique identifier */
+            id: components["schemas"]["UUID"];
+            /**
+             * @description Message role
+             * @enum {string}
+             */
+            role: "user" | "assistant" | "system";
+            /** @description Message parts array (AI SDK UIMessage format) */
+            parts: components["schemas"]["Conversations.MessagePart"][];
+            /** @description Message creation timestamp */
+            createdAt: components["schemas"]["DateTime"];
+        };
+        /** @description Message part (AI SDK UIMessage format) */
+        "Conversations.MessagePart": {
+            /**
+             * @description Part type
+             * @enum {string}
+             */
+            type: "text" | "tool-call" | "tool-result" | "reasoning";
+            /** @description Text content (for text parts) */
+            text?: string;
+        };
+        /** @description Update conversation request */
+        "Conversations.UpdateConversationRequest": {
+            /** @description New conversation title */
+            title?: string;
+        };
+        CreateBuiltInServerRequest: {
+            name: string;
+            description?: string;
+            domain: string;
+            /** @enum {string} */
+            visibility: "hidden" | "visible";
+            transport: components["schemas"]["ServerTransport"];
+            command?: string;
+            args?: string[];
+            env?: {
+                [key: string]: string;
+            };
+            url?: string;
+            headers?: {
+                [key: string]: string;
+            };
+            authType?: components["schemas"]["AuthType"];
+            apiKey?: string;
+            apiKeyHeader?: string;
+        };
+        CreateGrantRequest: {
+            email: string;
+            level: components["schemas"]["PermissionLevel"];
+            cascade?: boolean;
+        };
+        CreateLinkRequest: {
+            level: components["schemas"]["PermissionLevel"];
+            cascade?: boolean;
+            expiresAt?: components["schemas"]["DateTime"];
+        };
+        CreateUserServerRequest: {
+            name: string;
+            description?: string;
+            domain: string;
+            url: string;
+            headers?: {
+                [key: string]: string;
+            };
+            authType: components["schemas"]["AuthType"];
+            apiKey?: string;
+            apiKeyHeader?: string;
+        };
+        /** @description ISO 8601 datetime string */
+        DateTime: string;
+        DeleteServerResponse: {
+            deleted: boolean;
+            warning?: string;
+            /** Format: int32 */
+            affectedUsers?: number;
+        };
         ErrorResponse: {
             error: string;
             message: string;
+        };
+        ForbiddenError: {
+            error: string;
+            message: string;
+        };
+        GrantListResponse: {
+            grants: components["schemas"]["PermissionGrant"][];
         };
         /** @description Health check and bootstrap verification response. */
         HelloWorldResponse: {
@@ -489,17 +1233,209 @@ export interface components {
             /** @description Whether the Bun sidecar runtime is available. */
             bunAvailable: boolean;
         };
+        /** @description Document metadata after ingestion */
+        "Ingest.Document": {
+            /** @description Document unique identifier */
+            id: components["schemas"]["UUID"];
+            /** @description Original filename */
+            filename: string;
+            /** @description MIME type of the file */
+            mimeType: string;
+            /**
+             * Format: int64
+             * @description File size in bytes
+             */
+            size: number;
+            /** @description Generated document title */
+            title?: string;
+            /** @description AI-generated summary */
+            summary?: string;
+            /** @description AI-generated labels */
+            labels?: string[];
+            /** @description AI-assigned category */
+            category?: string;
+            /** @description Document creation timestamp */
+            createdAt: components["schemas"]["DateTime"];
+            /** @description Document last update timestamp */
+            updatedAt: components["schemas"]["DateTime"];
+        };
+        /** @description Successful ingestion response */
+        "Ingest.IngestResponse": {
+            /** @description Ingested document metadata */
+            document: components["schemas"]["Ingest.Document"];
+            /**
+             * Format: int32
+             * @description Number of chunks created
+             */
+            chunkCount: number;
+        };
+        InitiateOAuthResponse: {
+            authorizationUrl: string;
+        };
+        LinkListResponse: {
+            links: components["schemas"]["ShareLink"][];
+        };
+        MCPServerBase: {
+            id: components["schemas"]["UUID"];
+            name: string;
+            description: string;
+            domain: string;
+            status: components["schemas"]["ServerStatus"];
+            /** Format: int32 */
+            toolCount: number;
+            createdAt: components["schemas"]["DateTime"];
+            updatedAt: components["schemas"]["DateTime"];
+        };
+        NotFoundError: {
+            error: string;
+            message: string;
+        };
+        OAuthStatusResponse: {
+            authorized: boolean;
+            scopes?: string[];
+            expiresAt?: components["schemas"]["DateTime"];
+        };
+        PermissionGrant: {
+            id: components["schemas"]["UUID"];
+            granterId: components["schemas"]["UUID"];
+            granteeId?: components["schemas"]["UUID"];
+            granteeEmail: string;
+            resourceType: components["schemas"]["ResourceType"];
+            resourceId: components["schemas"]["UUID"];
+            level: components["schemas"]["PermissionLevel"];
+            cascade: boolean;
+            createdAt: components["schemas"]["DateTime"];
+        };
+        /** @enum {string} */
+        PermissionLevel: "view" | "comment" | "edit" | "full";
+        /** @enum {string} */
+        ResourceType: "conversation" | "document" | "group";
+        /** @enum {string} */
+        ServerStatus: "enabled" | "disabled" | "unavailable" | "unauthorized";
+        ServerToolSummary: {
+            name: string;
+            description: string;
+        };
+        ServerToolsResponse: {
+            serverId: components["schemas"]["UUID"];
+            tools: components["schemas"]["ServerToolSummary"][];
+        };
+        /** @enum {string} */
+        ServerTransport: "stdio" | "http";
+        /** @enum {string} */
+        ServerVisibility: "hidden" | "visible" | "user";
+        SetAdminRoleRequest: {
+            isAdmin?: boolean;
+        };
+        ShareLink: {
+            id: components["schemas"]["UUID"];
+            ownerId: components["schemas"]["UUID"];
+            resourceType: components["schemas"]["ResourceType"];
+            resourceId: components["schemas"]["UUID"];
+            token: string;
+            level: components["schemas"]["PermissionLevel"];
+            cascade: boolean;
+            expiresAt?: components["schemas"]["DateTime"];
+            createdAt: components["schemas"]["DateTime"];
+            url: string;
+        };
+        SharedResourceResponse: {
+            resourceType: components["schemas"]["ResourceType"];
+            resourceId: components["schemas"]["UUID"];
+            level: components["schemas"]["PermissionLevel"];
+            cascade: boolean;
+        };
+        TestConnectionRequest: {
+            transport: components["schemas"]["ServerTransport"];
+            command?: string;
+            args?: string[];
+            env?: {
+                [key: string]: string;
+            };
+            url?: string;
+            headers?: {
+                [key: string]: string;
+            };
+            authType?: components["schemas"]["AuthType"];
+            apiKey?: string;
+            apiKeyHeader?: string;
+        };
+        TestConnectionResponse: {
+            success: boolean;
+            serverName?: string;
+            serverVersion?: string;
+            protocolVersion?: string;
+            /** Format: int32 */
+            toolCount?: number;
+            error?: string;
+            errorDetails?: string;
+        };
+        TogglePreferenceRequest: {
+            enabled?: boolean;
+        };
+        TraceEvent: {
+            type: components["schemas"]["TraceEventType"];
+            timestamp: string;
+            messageId: string;
+        };
+        /** @enum {string} */
+        TraceEventType: "conversation_start" | "prompt_construction" | "rag_search" | "compaction" | "tool_call" | "model_config" | "decision" | "phase_timing" | "stream_complete";
+        /** @description UUID string */
+        UUID: string;
         UnauthorizedError: {
             error: string;
             message: string;
         };
+        UpdateBuiltInServerRequest: {
+            name?: string;
+            description?: string;
+            domain?: string;
+            /** @enum {string} */
+            visibility?: "hidden" | "visible";
+            enabled?: boolean;
+            command?: string;
+            args?: string[];
+            env?: {
+                [key: string]: string;
+            };
+            url?: string;
+            headers?: {
+                [key: string]: string;
+            };
+            authType?: components["schemas"]["AuthType"];
+            apiKey?: string;
+            apiKeyHeader?: string;
+        };
+        UpdateUserServerRequest: {
+            name?: string;
+            description?: string;
+            domain?: string;
+            url?: string;
+            headers?: {
+                [key: string]: string;
+            };
+            authType?: components["schemas"]["AuthType"];
+            apiKey?: string;
+            apiKeyHeader?: string;
+        };
+        UserServerListResponse: {
+            servers: components["schemas"]["UserServerView"][];
+        };
+        UserServerView: {
+            /** @enum {string} */
+            visibility: "visible" | "user";
+            isOwned: boolean;
+        } & components["schemas"]["MCPServerBase"];
         ValidationError: {
             error: string;
             message: string;
         };
     };
     responses: never;
-    parameters: never;
+    parameters: {
+        "PaginationParams.limit": number;
+        "PaginationParams.offset": number;
+    };
     requestBodies: never;
     headers: never;
     pathItems: never;
@@ -585,7 +1521,7 @@ export interface operations {
             };
         };
     };
-    Hello_helloWorld: {
+    AdminPermissionRoutes_listAllGrants: {
         parameters: {
             query?: never;
             header?: never;
@@ -600,7 +1536,192 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HelloWorldResponse"];
+                    "application/json": components["schemas"]["GrantListResponse"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+        };
+    };
+    AdminPermissionRoutes_adminRevokeGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grantId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    AdminPermissionRoutes_listAllGroups: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantListResponse"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+        };
+    };
+    AdminPermissionRoutes_listAllLinks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkListResponse"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+        };
+    };
+    AdminPermissionRoutes_adminRevokeLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                linkId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    AdminPermissionRoutes_setAdminRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetAdminRoleRequest"];
+            };
+        };
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
                 };
             };
         };
@@ -659,6 +1780,35 @@ export interface operations {
                 "application/json": components["schemas"]["Auth.LogoutRequest"];
             };
         };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Auth.LogoutResponse"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+        };
+    };
+    AuthRoutes_logoutAll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description The request has succeeded. */
             200: {
@@ -773,6 +1923,36 @@ export interface operations {
             };
         };
     };
+    AuthRoutes_oauthCallback: {
+        parameters: {
+            query: {
+                code: string;
+                state: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationError"];
+                };
+            };
+        };
+    };
     AuthRoutes_refresh: {
         parameters: {
             query?: never;
@@ -855,6 +2035,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Auth.AuthStatusResponse"];
+                };
+            };
+        };
+    };
+    ChatRoutes_chat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Chat.ChatRequest"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Chat.ChatCompletionResponse"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationError"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
                 };
             };
         };
@@ -957,6 +2179,1342 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+        };
+    };
+    ConversationsRoutes_list: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["PaginationParams.limit"];
+                offset?: components["parameters"]["PaginationParams.offset"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["Conversations.ConversationSummary"][];
+                        /** Format: int32 */
+                        total: number;
+                        /** Format: int32 */
+                        limit: number;
+                        /** Format: int32 */
+                        offset: number;
+                    };
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+        };
+    };
+    ConversationsRoutes_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Conversations.CreateConversationRequest"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Conversations.ConversationSummary"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationError"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+        };
+    };
+    ConversationsRoutes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Conversations.Conversation"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    ConversationsRoutes_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    ConversationsRoutes_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Conversations.UpdateConversationRequest"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Conversations.ConversationSummary"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationError"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    ConversationsRoutes_saveMessages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Conversations.BulkSaveMessagesRequest"];
+            };
+        };
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationError"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    DevTraceRoutes_getChatTrace: {
+        parameters: {
+            query: {
+                conversationId: components["schemas"]["UUID"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatTraceResponse"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    Hello_helloWorld: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HelloWorldResponse"];
+                };
+            };
+        };
+    };
+    IngestRoutes_listDocuments: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["PaginationParams.limit"];
+                offset?: components["parameters"]["PaginationParams.offset"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["Ingest.Document"][];
+                        /** Format: int32 */
+                        total: number;
+                        /** Format: int32 */
+                        limit: number;
+                        /** Format: int32 */
+                        offset: number;
+                    };
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+        };
+    };
+    IngestRoutes_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ingest.IngestResponse"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationError"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+        };
+    };
+    IngestRoutes_getDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ingest.Document"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    IngestRoutes_deleteDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    MCPConfigRoutes_listAllServers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminServerListResponse"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+        };
+    };
+    MCPConfigRoutes_createBuiltInServer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBuiltInServerRequest"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminServerView"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+        };
+    };
+    MCPConfigRoutes_deleteBuiltInServer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serverId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteServerResponse"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    MCPConfigRoutes_updateBuiltInServer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serverId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBuiltInServerRequest"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminServerView"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    MCPConfigRoutes_listUserServers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserServerListResponse"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+        };
+    };
+    MCPConfigRoutes_addUserServer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateUserServerRequest"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminServerView"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+        };
+    };
+    MCPConfigRoutes_deleteUserServer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serverId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    MCPConfigRoutes_updateUserServer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serverId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateUserServerRequest"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminServerView"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    MCPConfigRoutes_initiateOAuth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serverId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InitiateOAuthResponse"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    MCPConfigRoutes_revokeOAuth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serverId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    MCPConfigRoutes_getOAuthStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serverId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthStatusResponse"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    MCPConfigRoutes_togglePreference: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serverId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TogglePreferenceRequest"];
+            };
+        };
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    MCPConfigRoutes_getServerTools: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serverId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerToolsResponse"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    MCPConfigRoutes_testConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestConnectionRequest"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestConnectionResponse"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+        };
+    };
+    PermissionRoutes_revokeGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grantId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    PermissionRoutes_revokeLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                linkId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    PermissionRoutes_accessShared: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedResourceResponse"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    PermissionRoutes_listGrants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                resourceType: components["schemas"]["ResourceType"];
+                resourceId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantListResponse"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    PermissionRoutes_createGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                resourceType: components["schemas"]["ResourceType"];
+                resourceId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateGrantRequest"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionGrant"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    PermissionRoutes_listLinks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                resourceType: components["schemas"]["ResourceType"];
+                resourceId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkListResponse"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    PermissionRoutes_createLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                resourceType: components["schemas"]["ResourceType"];
+                resourceId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateLinkRequest"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShareLink"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
                 };
             };
         };

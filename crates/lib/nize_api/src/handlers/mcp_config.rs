@@ -273,6 +273,7 @@ pub async fn admin_create_server_handler(
             &state.pool,
             &state.config_cache,
             &server.id,
+            &state.config.mcp_encryption_key,
         )
         .await
         {
@@ -323,6 +324,7 @@ pub async fn admin_update_server_handler(
                 &state.pool,
                 &state.config_cache,
                 &server.id,
+                &state.config.mcp_encryption_key,
             )
             .await
             {

@@ -101,6 +101,7 @@ impl From<nize_core::mcp::McpError> for AppError {
             }
             nize_core::mcp::McpError::InvalidTransport(msg) => AppError::Validation(msg),
             nize_core::mcp::McpError::ConnectionFailed(msg) => AppError::Validation(msg),
+            nize_core::mcp::McpError::ResourceExhausted(msg) => AppError::Validation(msg),
             nize_core::mcp::McpError::EncryptionError(msg) => AppError::Internal(msg),
             nize_core::mcp::McpError::DbError(e) => AppError::from(e),
         }

@@ -1,85 +1,191 @@
 // @zen-component: PLAN-017-ConversationsHandler
 //
-//! Conversations request handlers — demo stubs.
+//! Conversations request handlers.
 
 use axum::Json;
-use axum::extract::Path;
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
+use serde::Deserialize;
+use uuid::Uuid;
 
-use crate::error::AppResult;
+use crate::AppState;
+use crate::error::{AppError, AppResult};
+use crate::middleware::auth::AuthenticatedUser;
 
-/// `GET /conversations` — list conversations (demo).
-pub async fn list_conversations_handler() -> AppResult<Json<serde_json::Value>> {
+/// Query params for listing conversations.
+#[derive(Debug, Deserialize)]
+pub struct ListParams {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+/// `GET /conversations` — list conversations for the authenticated user.
+pub async fn list_conversations_handler(
+    State(state): State<AppState>,
+    axum::Extension(user): axum::Extension<AuthenticatedUser>,
+    Query(params): Query<ListParams>,
+) -> AppResult<Json<serde_json::Value>> {
+    let user_id = parse_user_id(&user.0.sub)?;
+    let limit = params.limit.unwrap_or(20).min(100);
+    let offset = params.offset.unwrap_or(0);
+
+    let (rows, total) =
+        nize_core::conversations::list_conversations(&state.pool, &user_id, limit, offset).await?;
+
+    let items: Vec<serde_json::Value> = rows
+        .into_iter()
+        .map(|r| {
+            serde_json::json!({
+                "id": r.id,
+                "title": r.title,
+                "createdAt": r.created_at.to_rfc3339(),
+                "updatedAt": r.updated_at.to_rfc3339(),
+            })
+        })
+        .collect();
+
     Ok(Json(serde_json::json!({
-        "items": [
-            {
-                "id": "00000000-0000-0000-0000-000000000001",
-                "title": "Demo Conversation",
-                "createdAt": "2026-02-16T00:00:00Z",
-                "updatedAt": "2026-02-16T00:00:00Z"
-            }
-        ],
-        "total": 1,
-        "limit": 20,
-        "offset": 0
+        "items": items,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
     })))
 }
 
-/// `POST /conversations` — create a conversation (demo).
+/// Request body for creating a conversation.
+#[derive(Debug, Deserialize)]
+pub struct CreateConversationBody {
+    pub title: Option<String>,
+}
+
+/// `POST /conversations` — create a conversation.
 pub async fn create_conversation_handler(
-    Json(_body): Json<serde_json::Value>,
+    State(state): State<AppState>,
+    axum::Extension(user): axum::Extension<AuthenticatedUser>,
+    Json(body): Json<CreateConversationBody>,
 ) -> AppResult<(StatusCode, Json<serde_json::Value>)> {
+    let user_id = parse_user_id(&user.0.sub)?;
+    let title = body.title.as_deref().unwrap_or("New Chat");
+
+    let row =
+        nize_core::conversations::create_conversation(&state.pool, &user_id, title).await?;
+
     Ok((
         StatusCode::CREATED,
         Json(serde_json::json!({
-            "id": "00000000-0000-0000-0000-000000000099",
-            "title": "New Chat",
-            "createdAt": "2026-02-16T00:00:00Z",
-            "updatedAt": "2026-02-16T00:00:00Z"
+            "id": row.id,
+            "title": row.title,
+            "createdAt": row.created_at.to_rfc3339(),
+            "updatedAt": row.updated_at.to_rfc3339(),
         })),
     ))
 }
 
-/// `GET /conversations/{id}` — get a conversation with messages (demo).
+/// `GET /conversations/{id}` — get a conversation with messages.
 pub async fn get_conversation_handler(
-    Path(_id): Path<String>,
+    State(state): State<AppState>,
+    axum::Extension(user): axum::Extension<AuthenticatedUser>,
+    Path(id): Path<String>,
 ) -> AppResult<Json<serde_json::Value>> {
+    let user_id = parse_user_id(&user.0.sub)?;
+    let conv_id = parse_uuid(&id)?;
+
+    let row =
+        nize_core::conversations::get_conversation(&state.pool, &user_id, &conv_id).await?;
+
+    let message_rows =
+        nize_core::conversations::get_messages(&state.pool, &conv_id).await?;
+
+    let messages: Vec<serde_json::Value> = message_rows
+        .into_iter()
+        .map(|m| m.message_data)
+        .collect();
+
     Ok(Json(serde_json::json!({
-        "id": "00000000-0000-0000-0000-000000000001",
-        "title": "Demo Conversation",
-        "messages": [
-            {
-                "id": "00000000-0000-0000-0000-000000000010",
-                "role": "user",
-                "parts": [{"type": "text", "text": "Hello"}],
-                "createdAt": "2026-02-16T00:00:00Z"
-            },
-            {
-                "id": "00000000-0000-0000-0000-000000000011",
-                "role": "assistant",
-                "parts": [{"type": "text", "text": "Hi there! This is a demo response."}],
-                "createdAt": "2026-02-16T00:00:01Z"
-            }
-        ],
-        "createdAt": "2026-02-16T00:00:00Z",
-        "updatedAt": "2026-02-16T00:00:01Z"
+        "id": row.id,
+        "title": row.title,
+        "messages": messages,
+        "createdAt": row.created_at.to_rfc3339(),
+        "updatedAt": row.updated_at.to_rfc3339(),
     })))
 }
 
-/// `PATCH /conversations/{id}` — update a conversation (demo).
+/// `PATCH /conversations/{id}` — update a conversation (e.g., title).
 pub async fn update_conversation_handler(
-    Path(_id): Path<String>,
-    Json(_body): Json<serde_json::Value>,
+    State(state): State<AppState>,
+    axum::Extension(user): axum::Extension<AuthenticatedUser>,
+    Path(id): Path<String>,
+    Json(body): Json<serde_json::Value>,
 ) -> AppResult<Json<serde_json::Value>> {
+    let user_id = parse_user_id(&user.0.sub)?;
+    let conv_id = parse_uuid(&id)?;
+
+    let title = body
+        .get("title")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::Validation("title is required".into()))?;
+
+    let row =
+        nize_core::conversations::update_conversation(&state.pool, &user_id, &conv_id, title)
+            .await?;
+
     Ok(Json(serde_json::json!({
-        "id": "00000000-0000-0000-0000-000000000001",
-        "title": "Updated Title",
-        "createdAt": "2026-02-16T00:00:00Z",
-        "updatedAt": "2026-02-16T00:00:02Z"
+        "id": row.id,
+        "title": row.title,
+        "createdAt": row.created_at.to_rfc3339(),
+        "updatedAt": row.updated_at.to_rfc3339(),
     })))
 }
 
-/// `DELETE /conversations/{id}` — delete a conversation (demo).
-pub async fn delete_conversation_handler(Path(_id): Path<String>) -> StatusCode {
-    StatusCode::NO_CONTENT
+/// `DELETE /conversations/{id}` — delete a conversation and all its messages.
+pub async fn delete_conversation_handler(
+    State(state): State<AppState>,
+    axum::Extension(user): axum::Extension<AuthenticatedUser>,
+    Path(id): Path<String>,
+) -> AppResult<StatusCode> {
+    let user_id = parse_user_id(&user.0.sub)?;
+    let conv_id = parse_uuid(&id)?;
+
+    let deleted =
+        nize_core::conversations::delete_conversation(&state.pool, &user_id, &conv_id).await?;
+
+    if deleted {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(AppError::NotFound("Conversation not found".into()))
+    }
+}
+
+/// Request body for bulk saving messages.
+#[derive(Debug, Deserialize)]
+pub struct SaveMessagesBody {
+    pub messages: Vec<serde_json::Value>,
+}
+
+/// `PUT /conversations/{id}/messages` — bulk save messages for a conversation.
+pub async fn save_messages_handler(
+    State(state): State<AppState>,
+    axum::Extension(user): axum::Extension<AuthenticatedUser>,
+    Path(id): Path<String>,
+    Json(body): Json<SaveMessagesBody>,
+) -> AppResult<StatusCode> {
+    let user_id = parse_user_id(&user.0.sub)?;
+    let conv_id = parse_uuid(&id)?;
+
+    // Verify the conversation belongs to this user
+    nize_core::conversations::get_conversation(&state.pool, &user_id, &conv_id).await?;
+
+    nize_core::conversations::save_messages(&state.pool, &conv_id, &body.messages).await?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Parse a user ID string into a UUID.
+fn parse_user_id(sub: &str) -> Result<Uuid, AppError> {
+    Uuid::parse_str(sub).map_err(|_| AppError::Unauthorized("Invalid user ID".into()))
+}
+
+/// Parse a path parameter string into a UUID.
+fn parse_uuid(s: &str) -> Result<Uuid, AppError> {
+    Uuid::parse_str(s).map_err(|_| AppError::Validation("Invalid UUID".into()))
 }

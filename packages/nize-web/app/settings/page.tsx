@@ -19,7 +19,7 @@ interface ResolvedConfigItem {
   key: string;
   category: string;
   type: "number" | "string";
-  displayType: "number" | "text" | "longText" | "selector";
+  displayType: "number" | "text" | "longText" | "selector" | "secret";
   possibleValues?: string[];
   validators?: ConfigValidator[];
   defaultValue: string;
@@ -38,6 +38,8 @@ export default function SettingsPage() {
   const [resetting, setResetting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [secretInputs, setSecretInputs] = useState<Record<string, string>>({});
+  const [secretVisible, setSecretVisible] = useState<Record<string, boolean>>({});
 
   const loadConfigs = useCallback(async () => {
     try {
@@ -204,6 +206,51 @@ export default function SettingsPage() {
             ))}
           </select>
         );
+
+      // @zen-impl: PLAN-028-2.1
+      case "secret": {
+        const currentValue = String(config.value);
+        const isConfigured = currentValue.length > 0;
+        const inputValue = secretInputs[config.key] ?? "";
+        const isVisible = secretVisible[config.key] ?? false;
+        return (
+          <div>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <div style={{ position: "relative", flex: 1 }}>
+                <input
+                  type={isVisible ? "text" : "password"}
+                  value={inputValue}
+                  placeholder={isConfigured ? currentValue : "Enter API key..."}
+                  onChange={(e) => setSecretInputs((prev) => ({ ...prev, [config.key]: e.target.value }))}
+                  onBlur={() => {
+                    if (inputValue && inputValue !== currentValue) {
+                      handleUpdate(config.key, inputValue);
+                      setSecretInputs((prev) => ({ ...prev, [config.key]: "" }));
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && inputValue) {
+                      handleUpdate(config.key, inputValue);
+                      setSecretInputs((prev) => ({ ...prev, [config.key]: "" }));
+                    }
+                  }}
+                  disabled={isDisabled}
+                  style={{ ...s.input, paddingRight: "2.5rem", ...(isDisabled ? s.inputDisabled : {}) }}
+                />
+                <button type="button" onClick={() => setSecretVisible((prev) => ({ ...prev, [config.key]: !isVisible }))} style={s.eyeButton} title={isVisible ? "Hide" : "Show"}>
+                  {isVisible ? "◉" : "◎"}
+                </button>
+              </div>
+              {isConfigured && (
+                <button onClick={() => handleReset(config.key)} disabled={isDisabled} style={s.clearButton} title="Remove key">
+                  ✕
+                </button>
+              )}
+            </div>
+            {isConfigured && <span style={s.configuredBadge}>✓ Configured</span>}
+          </div>
+        );
+      }
 
       default:
         return null;
@@ -378,6 +425,34 @@ const s: Record<string, React.CSSProperties> = {
   validatorHint: {
     fontSize: "0.75rem",
     color: "#999",
+    marginTop: "0.25rem",
+  },
+  eyeButton: {
+    position: "absolute" as const,
+    right: "0.5rem",
+    top: "50%",
+    transform: "translateY(-50%)",
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    fontSize: "1rem",
+    color: "#666",
+    padding: "0.25rem",
+  },
+  clearButton: {
+    background: "none",
+    border: "1px solid #d1d5db",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontSize: "0.875rem",
+    color: "#666",
+    padding: "0.5rem 0.75rem",
+    whiteSpace: "nowrap" as const,
+  },
+  configuredBadge: {
+    display: "inline-block",
+    fontSize: "0.75rem",
+    color: "#166534",
     marginTop: "0.25rem",
   },
 };

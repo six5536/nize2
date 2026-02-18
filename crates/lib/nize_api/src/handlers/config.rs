@@ -117,9 +117,15 @@ pub async fn user_config_update_handler(
         .value
         .ok_or_else(|| AppError::Validation("value is required".into()))?;
 
-    let item =
-        config::update_user_config(&state.pool, &state.config_cache, &user.0.sub, &key, &value)
-            .await?;
+    let item = config::update_user_config(
+        &state.pool,
+        &state.config_cache,
+        &user.0.sub,
+        &key,
+        &value,
+        &state.config.mcp_encryption_key,
+    )
+    .await?;
     Ok(Json(serde_json::to_value(item).unwrap()))
 }
 
@@ -187,6 +193,7 @@ pub async fn admin_config_update_handler(
         &key,
         &value,
         body.user_id.as_deref(),
+        &state.config.mcp_encryption_key,
     )
     .await?;
     Ok(Json(serde_json::to_value(cv).unwrap()))

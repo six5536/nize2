@@ -3,6 +3,8 @@
 //! Provides database queries, secret encryption, and shared business logic
 //! for MCP server configuration.
 
+pub mod discovery;
+pub mod execution;
 pub mod queries;
 pub mod secrets;
 
@@ -31,6 +33,9 @@ pub enum McpError {
 
     #[error("Connection failed: {0}")]
     ConnectionFailed(String),
+
+    #[error("Resource exhausted: {0}")]
+    ResourceExhausted(String),
 
     #[error("Encryption error: {0}")]
     EncryptionError(String),

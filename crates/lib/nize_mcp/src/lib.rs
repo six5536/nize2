@@ -7,6 +7,7 @@
 //! a dedicated port.
 
 pub mod auth;
+pub mod hooks;
 pub mod server;
 pub mod tools;
 
@@ -16,7 +17,11 @@ use rmcp::transport::streamable_http_server::{
     StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
 };
 use sqlx::PgPool;
+use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
+
+use nize_core::config::cache::ConfigCache;
+use nize_core::mcp::execution::ClientPool;
 
 /// Returns the crate version.
 pub fn version() -> &'static str {
@@ -32,13 +37,47 @@ pub fn version() -> &'static str {
 /// # Arguments
 ///
 /// * `pool` — shared database connection pool (same pool as the REST API).
+/// * `config_cache` — shared config cache for embedding resolution.
 /// * `ct` — cancellation token for graceful shutdown of SSE streams.
-pub fn mcp_router(pool: PgPool, ct: CancellationToken) -> axum::Router {
+pub fn mcp_router(
+    pool: PgPool,
+    config_cache: Arc<RwLock<ConfigCache>>,
+    ct: CancellationToken,
+    encryption_key: String,
+) -> axum::Router {
+    mcp_router_with_manifest(pool, config_cache, ct, None, encryption_key)
+}
+
+/// Build an Axum router with an optional terminator manifest path.
+///
+/// When `manifest_path` is `Some`, stdio MCP server process PIDs are
+/// appended to the manifest file for crash recovery by nize_terminator.
+pub fn mcp_router_with_manifest(
+    pool: PgPool,
+    config_cache: Arc<RwLock<ConfigCache>>,
+    ct: CancellationToken,
+    manifest_path: Option<std::path::PathBuf>,
+    encryption_key: String,
+) -> axum::Router {
     let pool_for_service = pool.clone();
+
+    let hook_pipeline = Arc::new(hooks::default_pipeline(pool.clone()));
+    let client_pool = Arc::new(match manifest_path {
+        Some(path) => ClientPool::with_manifest(path),
+        None => ClientPool::new(),
+    });
 
     let service: StreamableHttpService<server::NizeMcpServer, LocalSessionManager> =
         StreamableHttpService::new(
-            move || Ok(server::NizeMcpServer::new(pool_for_service.clone())),
+            move || {
+                Ok(server::NizeMcpServer::new(
+                    pool_for_service.clone(),
+                    config_cache.clone(),
+                    client_pool.clone(),
+                    hook_pipeline.clone(),
+                    encryption_key.clone(),
+                ))
+            },
             Arc::new(LocalSessionManager::default()),
             StreamableHttpServerConfig {
                 stateful_mode: true,

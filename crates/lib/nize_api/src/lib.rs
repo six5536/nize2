@@ -14,7 +14,7 @@ use std::sync::Arc;
 use axum::Router;
 use axum::http::Method;
 use axum::http::header;
-use axum::routing::{delete, get, patch, post};
+use axum::routing::{delete, get, patch, post, put};
 use sqlx::PgPool;
 use tokio::sync::RwLock;
 use tower_http::cors::{AllowHeaders, AllowOrigin, CorsLayer};
@@ -23,7 +23,7 @@ use crate::config::ApiConfig;
 use crate::generated::routes;
 use crate::handlers::config as config_handlers;
 use crate::handlers::{
-    admin_permissions, auth, chat, conversations, embeddings, hello, ingest, mcp_config,
+    admin_permissions, ai_proxy, auth, chat, conversations, embeddings, hello, ingest, mcp_config,
     mcp_tokens, oauth, permissions, trace,
 };
 
@@ -114,6 +114,8 @@ pub fn router(state: AppState) -> Router {
         )
         // Chat
         .route(routes::POST_CHAT, post(chat::chat_handler))
+        // AI Proxy
+        .route("/ai-proxy", post(ai_proxy::ai_proxy_handler))
         // Conversations
         .route(
             routes::GET_CONVERSATIONS,
@@ -134,6 +136,10 @@ pub fn router(state: AppState) -> Router {
         .route(
             routes::DELETE_CONVERSATIONS_ID,
             delete(conversations::delete_conversation_handler),
+        )
+        .route(
+            routes::PUT_CONVERSATIONS_ID_MESSAGES,
+            put(conversations::save_messages_handler),
         )
         // Ingest
         .route(routes::GET_INGEST, get(ingest::list_documents_handler))

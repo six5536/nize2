@@ -12,6 +12,7 @@ use nize_core::config::cache::ConfigCache;
 use nize_core::config::queries;
 use nize_core::config::resolver;
 use nize_core::config::validation;
+use nize_core::mcp::secrets;
 use nize_core::models::config::{ConfigScope, ConfigValue, ResolvedConfigItem};
 
 use crate::error::{AppError, AppResult};
@@ -31,26 +32,60 @@ impl From<ConfigError> for AppError {
 }
 
 // ---------------------------------------------------------------------------
+// Secret helpers
+// ---------------------------------------------------------------------------
+
+/// Mask a secret value for API responses — show last 4 chars or empty.
+fn mask_secret_value(value: &str) -> String {
+    if value.is_empty() {
+        return String::new();
+    }
+    let chars: Vec<char> = value.chars().collect();
+    if chars.len() <= 4 {
+        "••••".to_string()
+    } else {
+        let tail: String = chars[chars.len() - 4..].iter().collect();
+        format!("••••••{tail}")
+    }
+}
+
+/// Apply masking to resolved config items with `display_type = "secret"`.
+fn mask_secret_items(items: Vec<ResolvedConfigItem>) -> Vec<ResolvedConfigItem> {
+    items
+        .into_iter()
+        .map(|mut item| {
+            if item.display_type == "secret" {
+                item.value = mask_secret_value(&item.value);
+            }
+            item
+        })
+        .collect()
+}
+
+// ---------------------------------------------------------------------------
 // User config operations
 // ---------------------------------------------------------------------------
 
 /// Get all config items resolved for a user.
+// @zen-impl: PLAN-028-1.3
 pub async fn get_user_config(
     pool: &PgPool,
     cache: &Arc<RwLock<ConfigCache>>,
     user_id: &str,
 ) -> AppResult<Vec<ResolvedConfigItem>> {
     let items = resolver::get_all_effective_values(pool, cache, Some(user_id)).await?;
-    Ok(items)
+    Ok(mask_secret_items(items))
 }
 
 /// Update a single user config override.
+// @zen-impl: PLAN-028-1.2
 pub async fn update_user_config(
     pool: &PgPool,
     cache: &Arc<RwLock<ConfigCache>>,
     user_id: &str,
     key: &str,
     value: &str,
+    encryption_key: &str,
 ) -> AppResult<ResolvedConfigItem> {
     // Verify definition exists
     let def = queries::get_definition(pool, key)
@@ -65,8 +100,23 @@ pub async fn update_user_config(
         }
     }
 
+    // Encrypt secret values before storage
+    let store_value = if def.display_type == "secret" && !value.is_empty() {
+        secrets::encrypt(value, encryption_key)
+            .map_err(|e| AppError::Internal(format!("Encryption failed: {e}")))?
+    } else {
+        value.to_string()
+    };
+
     // Upsert
-    let cv = queries::upsert_value(pool, key, &ConfigScope::UserOverride, Some(user_id), value).await?;
+    let cv = queries::upsert_value(
+        pool,
+        key,
+        &ConfigScope::UserOverride,
+        Some(user_id),
+        &store_value,
+    )
+    .await?;
 
     // Invalidate cache
     {
@@ -74,7 +124,12 @@ pub async fn update_user_config(
         c.invalidate(key, ConfigScope::UserOverride.as_str(), Some(user_id));
     }
 
-    Ok(ResolvedConfigItem::from_definition(&def, Some(&cv.value), true))
+    // Mask the response value for secret display types
+    let mut result = ResolvedConfigItem::from_definition(&def, Some(&cv.value), true);
+    if def.display_type == "secret" {
+        result.value = mask_secret_value(value);
+    }
+    Ok(result)
 }
 
 /// Reset (delete) a user config override, reverting to system/default.
@@ -89,7 +144,8 @@ pub async fn reset_user_config(
         .await?
         .ok_or_else(|| AppError::NotFound(format!("Config key not found: {key}")))?;
 
-    let deleted = queries::delete_value(pool, key, &ConfigScope::UserOverride, Some(user_id)).await?;
+    let deleted =
+        queries::delete_value(pool, key, &ConfigScope::UserOverride, Some(user_id)).await?;
 
     // Invalidate cache
     {
@@ -160,8 +216,14 @@ pub async fn get_admin_config(
                 let s = s.to_lowercase();
                 def.key.to_lowercase().contains(&s)
                     || def.category.to_lowercase().contains(&s)
-                    || def.label.as_ref().is_some_and(|l| l.to_lowercase().contains(&s))
-                    || def.description.as_ref().is_some_and(|d| d.to_lowercase().contains(&s))
+                    || def
+                        .label
+                        .as_ref()
+                        .is_some_and(|l| l.to_lowercase().contains(&s))
+                    || def
+                        .description
+                        .as_ref()
+                        .is_some_and(|d| d.to_lowercase().contains(&s))
             } else {
                 true
             }
@@ -174,6 +236,7 @@ pub async fn get_admin_config(
             }
         })
         .map(|def| {
+            let is_secret = def.display_type == "secret";
             let vals = values_by_key
                 .get(&def.key)
                 .map(|vs| {
@@ -182,7 +245,11 @@ pub async fn get_admin_config(
                             id: v.id.clone(),
                             scope: v.scope.as_str().to_string(),
                             user_id: v.user_id.clone(),
-                            value: v.value.clone(),
+                            value: if is_secret {
+                                mask_secret_value(&v.value)
+                            } else {
+                                v.value.clone()
+                            },
                             updated_at: v.updated_at.to_rfc3339(),
                         })
                         .collect()
@@ -209,6 +276,7 @@ pub async fn get_admin_config(
 }
 
 /// Update an admin config value (system or user-override scope).
+// @zen-impl: PLAN-028-1.2
 pub async fn update_admin_config(
     pool: &PgPool,
     cache: &Arc<RwLock<ConfigCache>>,
@@ -216,6 +284,7 @@ pub async fn update_admin_config(
     key: &str,
     value: &str,
     user_id: Option<&str>,
+    encryption_key: &str,
 ) -> AppResult<ConfigValue> {
     // Verify definition exists
     let def = queries::get_definition(pool, key)
@@ -230,7 +299,15 @@ pub async fn update_admin_config(
         }
     }
 
-    let cv = queries::upsert_value(pool, key, scope, user_id, value).await?;
+    // Encrypt secret values before storage
+    let store_value = if def.display_type == "secret" && !value.is_empty() {
+        secrets::encrypt(value, encryption_key)
+            .map_err(|e| AppError::Internal(format!("Encryption failed: {e}")))?
+    } else {
+        value.to_string()
+    };
+
+    let cv = queries::upsert_value(pool, key, scope, user_id, &store_value).await?;
 
     // Invalidate cache
     {
@@ -238,5 +315,150 @@ pub async fn update_admin_config(
         c.invalidate_all_for_key(key);
     }
 
+    // Mask the stored value for secret display types
+    let mut cv = cv;
+    if def.display_type == "secret" {
+        cv.value = mask_secret_value(value);
+    }
     Ok(cv)
+}
+
+// ---------------------------------------------------------------------------
+// Secret decryption (internal use only — AI proxy)
+// ---------------------------------------------------------------------------
+
+/// Resolve and decrypt a secret config value for a user.
+///
+/// Resolution order: user-override → system → env var → None.
+/// Only works for `display_type = "secret"` definitions.
+// @zen-impl: PLAN-028-1.4
+pub async fn decrypt_secret_config_value(
+    pool: &PgPool,
+    _cache: &Arc<RwLock<ConfigCache>>,
+    user_id: &str,
+    key: &str,
+    encryption_key: &str,
+    env_fallback: Option<&str>,
+) -> AppResult<Option<String>> {
+    // Verify definition exists and is a secret
+    let def = queries::get_definition(pool, key)
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("Config key not found: {key}")))?;
+    if def.display_type != "secret" {
+        return Err(AppError::Validation(format!(
+            "Config key {key} is not a secret"
+        )));
+    }
+
+    // Try user-override first
+    if let Some(v) =
+        queries::get_value(pool, key, &ConfigScope::UserOverride, Some(user_id)).await?
+    {
+        if !v.value.is_empty() {
+            let decrypted = secrets::decrypt(&v.value, encryption_key)
+                .map_err(|e| AppError::Internal(format!("Decryption failed: {e}")))?;
+            return Ok(Some(decrypted));
+        }
+    }
+
+    // Try system scope
+    if let Some(v) = queries::get_value(pool, key, &ConfigScope::System, None).await? {
+        if !v.value.is_empty() {
+            let decrypted = secrets::decrypt(&v.value, encryption_key)
+                .map_err(|e| AppError::Internal(format!("Decryption failed: {e}")))?;
+            return Ok(Some(decrypted));
+        }
+    }
+
+    // Env var fallback
+    if let Some(env_var) = env_fallback {
+        if let Ok(val) = std::env::var(env_var) {
+            if !val.is_empty() {
+                return Ok(Some(val));
+            }
+        }
+    }
+
+    Ok(None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // @zen-test: PLAN-028-1.2 — mask hides all but last 4 chars
+    #[test]
+    fn mask_shows_last_four_chars() {
+        assert_eq!(mask_secret_value("sk-abc123xyz"), "••••••3xyz");
+    }
+
+    // @zen-test: PLAN-028-1.2 — mask returns empty for empty input
+    #[test]
+    fn mask_empty_returns_empty() {
+        assert_eq!(mask_secret_value(""), "");
+    }
+
+    // @zen-test: PLAN-028-1.2 — mask short values (<= 4 chars)
+    #[test]
+    fn mask_short_value_fully_masked() {
+        assert_eq!(mask_secret_value("abcd"), "••••");
+        assert_eq!(mask_secret_value("ab"), "••••");
+        assert_eq!(mask_secret_value("a"), "••••");
+    }
+
+    // @zen-test: PLAN-028-1.2 — mask preserves exactly 4 trailing chars
+    #[test]
+    fn mask_preserves_trailing_four() {
+        // "12345" has 5 chars, tail = chars[1..] = "2345"
+        assert_eq!(mask_secret_value("12345"), "••••••2345");
+    }
+
+    // @zen-test: PLAN-028-1.2 — mask_secret_items applies to secret display type only
+    #[test]
+    fn mask_items_only_secrets() {
+        let items = vec![
+            ResolvedConfigItem {
+                key: "agent.apiKey.anthropic".to_string(),
+                value: "sk-ant-secret-key".to_string(),
+                default_value: "".to_string(),
+                display_type: "secret".to_string(),
+                label: Some("Anthropic API Key".to_string()),
+                description: None,
+                category: "agent".to_string(),
+                value_type: "string".to_string(),
+                validators: None,
+                possible_values: None,
+                is_overridden: false,
+            },
+            ResolvedConfigItem {
+                key: "agent.model".to_string(),
+                value: "claude-sonnet-4-20250514".to_string(),
+                default_value: "claude-sonnet-4-20250514".to_string(),
+                display_type: "text".to_string(),
+                label: Some("Model".to_string()),
+                description: None,
+                category: "agent".to_string(),
+                value_type: "string".to_string(),
+                validators: None,
+                possible_values: None,
+                is_overridden: false,
+            },
+        ];
+        let masked = mask_secret_items(items);
+        // Secret item should be masked
+        assert_eq!(masked[0].value, "••••••-key");
+        // Non-secret item should be unchanged
+        assert_eq!(masked[1].value, "claude-sonnet-4-20250514");
+    }
+
+    // @zen-test: PLAN-028-1.1 — encrypt-on-write roundtrips correctly
+    #[test]
+    fn encrypt_decrypt_roundtrip() {
+        let key = "test-encryption-key-for-roundtrip";
+        let plaintext = "sk-ant-api03-secret";
+        let encrypted = secrets::encrypt(plaintext, key).unwrap();
+        assert_ne!(encrypted, plaintext);
+        let decrypted = secrets::decrypt(&encrypted, key).unwrap();
+        assert_eq!(decrypted, plaintext);
+    }
 }

@@ -39,9 +39,12 @@ pub async fn list_models_handler(
     .map_err(|e| AppError::Internal(format!("Failed to list embedding models: {e}")))?;
 
     // Resolve active model name from config
-    let active_model_config =
-        nize_core::embedding::config::EmbeddingConfig::resolve(&state.pool, &state.config_cache)
-            .await;
+    let active_model_config = nize_core::embedding::config::EmbeddingConfig::resolve(
+        &state.pool,
+        &state.config_cache,
+        &state.config.mcp_encryption_key,
+    )
+    .await;
     let active_model = active_model_config
         .as_ref()
         .map(|c| c.active_model.as_str())
@@ -98,10 +101,13 @@ pub async fn search_handler(
         .unwrap_or(0);
 
     // Resolve embedding config
-    let config =
-        nize_core::embedding::config::EmbeddingConfig::resolve(&state.pool, &state.config_cache)
-            .await
-            .map_err(|e| AppError::Internal(format!("Embedding config error: {e}")))?;
+    let config = nize_core::embedding::config::EmbeddingConfig::resolve(
+        &state.pool,
+        &state.config_cache,
+        &state.config.mcp_encryption_key,
+    )
+    .await
+    .map_err(|e| AppError::Internal(format!("Embedding config error: {e}")))?;
 
     // Get active model
     let model_config = nize_core::embedding::models::get_active_model(&state.pool, &config)
@@ -202,6 +208,7 @@ pub async fn reindex_handler(State(state): State<AppState>) -> AppResult<Json<se
             &state.pool,
             &state.config_cache,
             &server_id,
+            &state.config.mcp_encryption_key,
         )
         .await
         {

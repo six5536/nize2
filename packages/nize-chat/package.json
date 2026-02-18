@@ -1,0 +1,34 @@
+{
+  "name": "@six5536/nize-chat",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Nize Chat — Hono-based chat backend with AI SDK streaming and compaction.",
+  "author": "Six5536 Ltd",
+  "license": "ISC",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "hono": "^4.7.0",
+    "ai": "^6.0.66",
+    "@ai-sdk/anthropic": "^3.0.0",
+    "@ai-sdk/openai": "^3.0.0",
+    "@ai-sdk/google": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.1.0",
+    "typescript": "^5.8.0",
+    "vitest": "^4.0.18"
+  }
+}

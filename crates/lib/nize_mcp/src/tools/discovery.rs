@@ -28,8 +28,8 @@ pub struct ExecuteToolRequest {
     pub tool_id: String,
     /// Human-readable tool name for display.
     pub tool_name: String,
-    /// Parameters matching the tool schema.
-    pub params: serde_json::Value,
+    /// Parameters matching the tool schema (JSON object). Omit or pass null for tools with no parameters.
+    pub params: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 /// Parameters for the `browse_tool_domain` meta-tool.

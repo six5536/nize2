@@ -9,6 +9,7 @@ use crate::models::mcp::{
     AuthType, McpServerRow, McpServerToolRow, McpToolSummary, ServerConfig, TransportType,
     UserMcpPreferenceRow, VisibilityTier,
 };
+use crate::uuid::uuidv7;
 
 // =============================================================================
 // Server queries
@@ -122,14 +123,15 @@ pub async fn insert_user_server(
 
     let row = sqlx::query_as::<_, McpServerRow>(
         r#"
-        INSERT INTO mcp_servers (name, description, domain, endpoint, visibility, transport, config, owner_id, enabled, available)
-        VALUES ($1, $2, $3, $4, 'user', $5, $6, $7::uuid, true, $8)
+        INSERT INTO mcp_servers (id, name, description, domain, endpoint, visibility, transport, config, owner_id, enabled, available)
+        VALUES ($1, $2, $3, $4, $5, 'user', $6, $7, $8::uuid, true, $9)
         RETURNING id, name, description, domain, endpoint,
                   visibility, transport, config, oauth_config,
                   default_response_size_limit, owner_id,
                   enabled, available, created_at, updated_at
         "#,
     )
+    .bind(uuidv7())
     .bind(name)
     .bind(description)
     .bind(domain)
@@ -158,14 +160,15 @@ pub async fn insert_built_in_server(
 ) -> Result<McpServerRow, McpError> {
     let row = sqlx::query_as::<_, McpServerRow>(
         r#"
-        INSERT INTO mcp_servers (name, description, domain, endpoint, visibility, transport, config, oauth_config, enabled, available)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9)
+        INSERT INTO mcp_servers (id, name, description, domain, endpoint, visibility, transport, config, oauth_config, enabled, available)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10)
         RETURNING id, name, description, domain, endpoint,
                   visibility, transport, config, oauth_config,
                   default_response_size_limit, owner_id,
                   enabled, available, created_at, updated_at
         "#,
     )
+    .bind(uuidv7())
     .bind(name)
     .bind(description)
     .bind(domain)
@@ -332,10 +335,11 @@ pub async fn replace_server_tools(
         });
         sqlx::query(
             r#"
-            INSERT INTO mcp_server_tools (server_id, name, description, manifest)
-            VALUES ($1::uuid, $2, $3, $4)
+            INSERT INTO mcp_server_tools (id, server_id, name, description, manifest)
+            VALUES ($1, $2::uuid, $3, $4, $5)
             "#,
         )
+        .bind(uuidv7())
         .bind(server_id)
         .bind(&tool.name)
         .bind(&tool.description)
@@ -399,14 +403,15 @@ pub async fn store_api_key(
 ) -> Result<(), McpError> {
     sqlx::query(
         r#"
-        INSERT INTO mcp_server_secrets (server_id, api_key_encrypted, encryption_key_id)
-        VALUES ($1::uuid, $2, $3)
+        INSERT INTO mcp_server_secrets (id, server_id, api_key_encrypted, encryption_key_id)
+        VALUES ($1, $2::uuid, $3, $4)
         ON CONFLICT (server_id)
         DO UPDATE SET api_key_encrypted = EXCLUDED.api_key_encrypted,
                       encryption_key_id = EXCLUDED.encryption_key_id,
                       updated_at = now()
         "#,
     )
+    .bind(uuidv7())
     .bind(server_id)
     .bind(api_key_encrypted)
     .bind(encryption_key_id)
@@ -444,10 +449,11 @@ pub async fn insert_audit_log(
 ) -> Result<(), McpError> {
     sqlx::query(
         r#"
-        INSERT INTO mcp_config_audit (actor_id, server_id, server_name, action, details)
-        VALUES ($1::uuid, $2::uuid, $3, $4, $5)
+        INSERT INTO mcp_config_audit (id, actor_id, server_id, server_name, action, details)
+        VALUES ($1, $2::uuid, $3::uuid, $4, $5, $6)
         "#,
     )
+    .bind(uuidv7())
     .bind(actor_id)
     .bind(server_id)
     .bind(server_name)
@@ -470,4 +476,194 @@ pub fn extract_auth_type(config: &Option<serde_json::Value>) -> AuthType {
             _ => AuthType::None,
         })
         .unwrap_or(AuthType::None)
+}
+
+// =============================================================================
+// Discovery queries (tool domains, manifests)
+// =============================================================================
+
+/// A tool domain with its tool count.
+#[derive(Debug, Clone)]
+pub struct ToolDomainRow {
+    pub domain: String,
+    pub tool_count: i64,
+}
+
+/// List distinct tool domains visible to a user, with tool counts.
+///
+/// Filters by servers the user has access to: globally visible servers
+/// (unless explicitly disabled) or explicitly enabled servers.
+pub async fn list_tool_domains(
+    pool: &PgPool,
+    user_id: &str,
+) -> Result<Vec<ToolDomainRow>, McpError> {
+    let rows = sqlx::query_as::<_, (String, i64)>(
+        r#"
+        SELECT s.domain, COUNT(*) AS tool_count
+        FROM mcp_server_tools t
+        JOIN mcp_servers s ON s.id = t.server_id
+        WHERE s.enabled = true
+          AND (
+            (s.visibility = 'visible' AND NOT EXISTS (
+              SELECT 1 FROM user_mcp_preferences p
+              WHERE p.user_id = $1::uuid AND p.server_id = s.id AND p.enabled = false
+            ))
+            OR EXISTS (
+              SELECT 1 FROM user_mcp_preferences p
+              WHERE p.user_id = $1::uuid AND p.server_id = s.id AND p.enabled = true
+            )
+          )
+        GROUP BY s.domain
+        ORDER BY s.domain
+        "#,
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|(domain, tool_count)| ToolDomainRow { domain, tool_count })
+        .collect())
+}
+
+/// A tool row returned by domain browsing.
+#[derive(Debug, Clone)]
+pub struct BrowseToolRow {
+    pub tool_id: sqlx::types::Uuid,
+    pub tool_name: String,
+    pub tool_description: String,
+    pub domain: String,
+    pub server_id: sqlx::types::Uuid,
+    pub server_name: String,
+}
+
+/// Browse all tools in a domain, filtered by user-enabled servers.
+pub async fn browse_tool_domain(
+    pool: &PgPool,
+    user_id: &str,
+    domain: &str,
+) -> Result<Vec<BrowseToolRow>, McpError> {
+    let rows = sqlx::query_as::<
+        _,
+        (
+            sqlx::types::Uuid,
+            String,
+            String,
+            String,
+            sqlx::types::Uuid,
+            String,
+        ),
+    >(
+        r#"
+        SELECT t.id, t.name, t.description, s.domain, s.id, s.name
+        FROM mcp_server_tools t
+        JOIN mcp_servers s ON s.id = t.server_id
+        WHERE s.enabled = true
+          AND s.domain = $2
+          AND (
+            (s.visibility = 'visible' AND NOT EXISTS (
+              SELECT 1 FROM user_mcp_preferences p
+              WHERE p.user_id = $1::uuid AND p.server_id = s.id AND p.enabled = false
+            ))
+            OR EXISTS (
+              SELECT 1 FROM user_mcp_preferences p
+              WHERE p.user_id = $1::uuid AND p.server_id = s.id AND p.enabled = true
+            )
+          )
+        ORDER BY t.name
+        "#,
+    )
+    .bind(user_id)
+    .bind(domain)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(
+            |(tool_id, tool_name, tool_description, domain, server_id, server_name)| {
+                BrowseToolRow {
+                    tool_id,
+                    tool_name,
+                    tool_description,
+                    domain,
+                    server_id,
+                    server_name,
+                }
+            },
+        )
+        .collect())
+}
+
+/// Get a tool manifest by tool ID, verifying user access.
+///
+/// Returns `None` if the tool doesn't exist or the user doesn't have access
+/// to the server hosting it.
+pub async fn get_tool_manifest(
+    pool: &PgPool,
+    user_id: &str,
+    tool_id: &str,
+) -> Result<Option<McpServerToolRow>, McpError> {
+    let row = sqlx::query_as::<_, McpServerToolRow>(
+        r#"
+        SELECT t.id, t.server_id, t.name, t.description, t.manifest,
+               t.response_size_limit, t.created_at
+        FROM mcp_server_tools t
+        JOIN mcp_servers s ON s.id = t.server_id
+        WHERE t.id = $2::uuid
+          AND s.enabled = true
+          AND (
+            (s.visibility = 'visible' AND NOT EXISTS (
+              SELECT 1 FROM user_mcp_preferences p
+              WHERE p.user_id = $1::uuid AND p.server_id = s.id AND p.enabled = false
+            ))
+            OR EXISTS (
+              SELECT 1 FROM user_mcp_preferences p
+              WHERE p.user_id = $1::uuid AND p.server_id = s.id AND p.enabled = true
+            )
+          )
+        "#,
+    )
+    .bind(user_id)
+    .bind(tool_id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row)
+}
+
+/// Check if a user has access to a specific server.
+///
+/// A user has access if:
+/// - The server is visible and user hasn't explicitly disabled it, OR
+/// - The user has explicitly enabled it (including user-owned servers).
+pub async fn user_has_server_access(
+    pool: &PgPool,
+    user_id: &str,
+    server_id: &str,
+) -> Result<bool, McpError> {
+    let has_access = sqlx::query_scalar::<_, bool>(
+        r#"
+        SELECT EXISTS(
+            SELECT 1 FROM mcp_servers s
+            WHERE s.id = $2::uuid
+              AND s.enabled = true
+              AND (
+                (s.visibility = 'visible' AND NOT EXISTS (
+                  SELECT 1 FROM user_mcp_preferences p
+                  WHERE p.user_id = $1::uuid AND p.server_id = s.id AND p.enabled = false
+                ))
+                OR EXISTS (
+                  SELECT 1 FROM user_mcp_preferences p
+                  WHERE p.user_id = $1::uuid AND p.server_id = s.id AND p.enabled = true
+                )
+              )
+        )
+        "#,
+    )
+    .bind(user_id)
+    .bind(server_id)
+    .fetch_one(pool)
+    .await?;
+    Ok(has_access)
 }

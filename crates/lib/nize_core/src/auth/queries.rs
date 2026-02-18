@@ -4,6 +4,7 @@ use sqlx::PgPool;
 
 use super::AuthError;
 use crate::models::auth::User;
+use crate::uuid::uuidv7;
 
 /// Fetch a user by email, returning (id, name, password_hash).
 pub async fn find_user_by_email(
@@ -94,8 +95,9 @@ pub async fn store_refresh_token(
     expires_at: chrono::DateTime<chrono::Utc>,
 ) -> Result<(), AuthError> {
     sqlx::query(
-        "INSERT INTO refresh_tokens (token_hash, user_id, expires_at) VALUES ($1, $2::uuid, $3)",
+        "INSERT INTO refresh_tokens (id, token_hash, user_id, expires_at) VALUES ($1, $2, $3::uuid, $4)",
     )
+    .bind(uuidv7())
     .bind(token_hash)
     .bind(user_id)
     .bind(expires_at)

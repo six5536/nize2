@@ -9,6 +9,7 @@ use sqlx::PgPool;
 
 use super::AuthError;
 use crate::models::auth::{McpTokenRecord, User};
+use crate::uuid::uuidv7;
 
 /// Generate a random token (64 alphanumeric chars).
 fn generate_token() -> String {
@@ -36,10 +37,11 @@ pub async fn create_mcp_token(
     let token_hash = hash_token(&plaintext);
 
     let row = sqlx::query_as::<_, (String, chrono::DateTime<chrono::Utc>)>(
-        "INSERT INTO mcp_tokens (user_id, token_hash, name) \
-         VALUES ($1::uuid, $2, $3) \
+        "INSERT INTO mcp_tokens (id, user_id, token_hash, name) \
+         VALUES ($1, $2::uuid, $3, $4) \
          RETURNING id::text, created_at",
     )
+    .bind(uuidv7())
     .bind(user_id)
     .bind(&token_hash)
     .bind(name)

@@ -95,7 +95,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state = nize_api::AppState {
         pool,
         config: config.clone(),
-        config_cache,
+        config_cache: config_cache.clone(),
     };
 
     let app = nize_api::router(state);
@@ -105,7 +105,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Build MCP server on a separate port.
     let mcp_ct = CancellationToken::new();
-    let mcp_app = nize_mcp::mcp_router(mcp_pool, mcp_ct.clone());
+    let mcp_app = nize_mcp::mcp_router(mcp_pool, config_cache, mcp_ct.clone(), config.mcp_encryption_key.clone());
     let mcp_bind = format!("127.0.0.1:{}", args.mcp_port);
     let mcp_listener = tokio::net::TcpListener::bind(&mcp_bind).await?;
     let mcp_addr = mcp_listener.local_addr()?;

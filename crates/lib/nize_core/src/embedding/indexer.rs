@@ -13,6 +13,7 @@ use tokio::sync::RwLock;
 
 use crate::config::cache::ConfigCache;
 use crate::mcp;
+use crate::uuid::uuidv7;
 
 use super::EmbeddingError;
 use super::config::EmbeddingConfig;
@@ -51,9 +52,10 @@ pub async fn embed_server_tools(
     pool: &PgPool,
     config_cache: &Arc<RwLock<ConfigCache>>,
     server_id: &str,
+    encryption_key: &str,
 ) -> Result<usize, EmbeddingError> {
     // Resolve embedding config
-    let config = EmbeddingConfig::resolve(pool, config_cache).await?;
+    let config = EmbeddingConfig::resolve(pool, config_cache, encryption_key).await?;
     let model_config = models::get_active_model(pool, &config).await?;
 
     // Fetch server info
@@ -100,8 +102,8 @@ pub async fn embed_server_tools(
 
         // Upsert into dynamic tool embedding table
         let query = format!(
-            r#"INSERT INTO "{}" (tool_id, server_id, domain, embedding)
-               VALUES ($1, $2, $3, $4::vector)
+            r#"INSERT INTO "{}" (id, tool_id, server_id, domain, embedding)
+               VALUES ($1, $2, $3, $4, $5::vector)
                ON CONFLICT (tool_id) DO UPDATE SET
                  embedding = EXCLUDED.embedding,
                  domain = EXCLUDED.domain"#,
@@ -109,6 +111,7 @@ pub async fn embed_server_tools(
         );
 
         sqlx::query(&query)
+            .bind(uuidv7())
             .bind(tool.id)
             .bind(server.id)
             .bind(&server.domain)

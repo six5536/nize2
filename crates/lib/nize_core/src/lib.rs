@@ -5,12 +5,14 @@
 pub mod auth;
 pub mod bun_sidecar;
 pub mod config;
+pub mod conversations;
 pub mod db;
 pub mod embedding;
 pub mod hello;
 pub mod mcp;
 pub mod migrate;
 pub mod models;
+pub mod uuid;
 
 /// Returns the crate version.
 pub fn version() -> &'static str {

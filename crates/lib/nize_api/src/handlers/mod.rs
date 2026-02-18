@@ -1,6 +1,7 @@
 //! Request handlers.
 
 pub mod admin_permissions;
+pub mod ai_proxy;
 pub mod auth;
 pub mod chat;
 pub mod config;

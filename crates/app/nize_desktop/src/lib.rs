@@ -113,7 +113,11 @@ struct AppServices {
 }
 
 /// Spawns the `nize_desktop_server` binary and reads the port from its JSON stdout line.
-fn start_api_sidecar(database_url: &str, max_connections: u32) -> Result<ApiSidecar, String> {
+fn start_api_sidecar(
+    database_url: &str,
+    max_connections: u32,
+    manifest_path: Option<&Path>,
+) -> Result<ApiSidecar, String> {
     let exe = std::env::current_exe().map_err(|e| format!("current_exe: {e}"))?;
     let sidecar_path = exe
         .parent()
@@ -132,8 +136,8 @@ fn start_api_sidecar(database_url: &str, max_connections: u32) -> Result<ApiSide
     #[cfg(not(debug_assertions))]
     let api_port_val = "0".to_string();
 
-    let mut child = Command::new(&sidecar_path)
-        .arg("--port")
+    let mut cmd = Command::new(&sidecar_path);
+    cmd.arg("--port")
         .arg(&api_port_val)
         .arg("--mcp-port")
         .arg(&mcp_port_arg)
@@ -141,7 +145,14 @@ fn start_api_sidecar(database_url: &str, max_connections: u32) -> Result<ApiSide
         .arg(database_url)
         .arg("--max-connections")
         .arg(max_connections.to_string())
-        .arg("--sidecar")
+        .arg("--sidecar");
+
+    // @zen-impl: PLAN-025 Phase 5.1 — pass manifest path to sidecar for stdio PID tracking
+    if let Some(manifest) = manifest_path {
+        cmd.arg("--terminator-manifest").arg(manifest);
+    }
+
+    let mut child = cmd
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
@@ -394,7 +405,7 @@ pub fn run() {
     if let Ok(db_url) = std::env::var("DATABASE_URL") {
         info!(url = %db_url, "Using DATABASE_URL from environment");
 
-        let sidecar = match start_api_sidecar(&db_url, 5) {
+        let sidecar = match start_api_sidecar(&db_url, 5, Some(&manifest_path)) {
             Ok(s) => Some(s),
             Err(e) => {
                 error!("Failed to start API sidecar: {e}");
@@ -499,7 +510,7 @@ pub fn run() {
         let db_url = pglite.connection_url();
         info!(url = %db_url, "PGlite started");
 
-        let sidecar = match start_api_sidecar(&db_url, 1) {
+        let sidecar = match start_api_sidecar(&db_url, 1, Some(&manifest_path)) {
             Ok(s) => Some(s),
             Err(e) => {
                 error!("Failed to start API sidecar: {e}");

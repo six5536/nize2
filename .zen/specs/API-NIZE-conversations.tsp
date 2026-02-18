@@ -86,6 +86,12 @@ model UpdateConversationRequest {
   title: string;
 }
 
+/** Bulk save messages request (AI SDK UIMessage format) */
+model BulkSaveMessagesRequest {
+  @doc("Messages to save (AI SDK UIMessage format)")
+  messages: NizeApi.Chat.UIMessage[];
+}
+
 // ============================================================================
 // Conversations Routes
 // ============================================================================
@@ -144,4 +150,20 @@ interface ConversationsRoutes {
   delete(@path id: NizeApi.UUID): {
     @statusCode statusCode: 204;
   } | NizeApi.NotFoundError | NizeApi.UnauthorizedError;
+
+  /**
+   * Bulk save messages for a conversation.
+   * Replaces existing messages with the provided set.
+   * Called by the chat backend after stream completion.
+   */
+  @put
+  @route("/{id}/messages")
+  @summary("Save conversation messages")
+  saveMessages(@path id: NizeApi.UUID, @body body: BulkSaveMessagesRequest):
+    | {
+        @statusCode statusCode: 204;
+      }
+    | NizeApi.NotFoundError
+    | NizeApi.ValidationError
+    | NizeApi.UnauthorizedError;
 }

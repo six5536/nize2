@@ -12,7 +12,9 @@ use sqlx::PgPool;
 use tokio::sync::RwLock;
 
 use crate::config::cache::ConfigCache;
+use crate::config::queries;
 use crate::config::resolver;
+use crate::mcp::secrets;
 
 use super::EmbeddingError;
 
@@ -35,9 +37,11 @@ impl EmbeddingConfig {
     /// Priority: admin config → env var → definition default.
     /// Auto-selects `"openai"` if `OPENAI_API_KEY` is set and no explicit
     /// provider was configured.
+    // @zen-impl: PLAN-028-4.1
     pub async fn resolve(
         pool: &PgPool,
         cache: &Arc<RwLock<ConfigCache>>,
+        encryption_key: &str,
     ) -> Result<Self, EmbeddingError> {
         let provider_val = resolver::get_system_value(pool, cache, "embedding.provider")
             .await
@@ -48,9 +52,12 @@ impl EmbeddingConfig {
         let ollama_base_url = resolver::get_system_value(pool, cache, "embedding.ollamaBaseUrl")
             .await
             .unwrap_or_else(|_| "http://localhost:11434".to_string());
-        let openai_api_key_val = resolver::get_system_value(pool, cache, "embedding.openaiApiKey")
-            .await
-            .unwrap_or_default();
+
+        // Read encrypted API key from new config key
+        let openai_api_key_val =
+            Self::resolve_secret_config(pool, "embedding.apiKey.openai", encryption_key)
+                .await
+                .unwrap_or_default();
 
         // Env var overrides when config value equals the definition default
         let provider_env = env::var("EMBEDDING_PROVIDER").ok();
@@ -99,6 +106,26 @@ impl EmbeddingConfig {
             ollama_base_url,
             openai_api_key,
         })
+    }
+
+    /// Decrypt a secret config value from the system scope.
+    ///
+    /// Returns the decrypted plaintext, or an empty string if the value is
+    /// empty or the key doesn't exist.
+    async fn resolve_secret_config(
+        pool: &PgPool,
+        key: &str,
+        encryption_key: &str,
+    ) -> Option<String> {
+        use crate::models::config::ConfigScope;
+        let val = queries::get_value(pool, key, &ConfigScope::System, None)
+            .await
+            .ok()
+            .flatten()?;
+        if val.value.is_empty() {
+            return None;
+        }
+        secrets::decrypt(&val.value, encryption_key).ok()
     }
 
     /// Simpler constructor for tests/CLI — env vars only, no DB.
