@@ -182,8 +182,8 @@ export async function processChat(request: ChatRequest, config: ChatConfig, apiB
     messages: [...systemMessages, ...modelMessages],
     temperature: config.temperature,
     ...(tools ? { tools, stopWhen: stepCountIs(config.toolsMaxSteps) } : {}),
-    onStepFinish: ({ stepType, toolCalls }) => {
-      console.log(`[mcp] Step finished: type=${stepType}, toolCalls=${toolCalls?.length ?? 0}`);
+    onStepFinish: ({ finishReason, toolCalls }) => {
+      console.log(`[mcp] Step finished: reason=${finishReason}, toolCalls=${toolCalls?.length ?? 0}`);
     },
     onError: (error) => {
       console.error("Chat stream error:", error);
@@ -198,20 +198,22 @@ export async function processChat(request: ChatRequest, config: ChatConfig, apiB
       result.toUIMessageStreamResponse({
         originalMessages: allMessages,
         onFinish: async ({ messages: finalMessages }) => {
-          // Close MCP client after stream completes
+          // Persist all messages via Rust API — do this BEFORE closing the
+          // MCP client so the database is still healthy. Closing the MCP
+          // session can trigger PGlite instability, so treat it as best-effort.
+          try {
+            await persistMessages(apiBaseUrl, cookie, conversation.id, finalMessages);
+          } catch (err) {
+            console.error("Failed to persist messages:", err);
+          }
+
+          // Close MCP client after messages are persisted
           if (mcpClient) {
             try {
               await mcpClient.close();
             } catch (err) {
               console.error("Failed to close MCP client:", err);
             }
-          }
-
-          // Persist all messages via Rust API
-          try {
-            await persistMessages(apiBaseUrl, cookie, conversation.id, finalMessages);
-          } catch (err) {
-            console.error("Failed to persist messages:", err);
           }
 
           // Generate title asynchronously for first message

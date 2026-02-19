@@ -113,14 +113,22 @@ export default function ConversationChatPage() {
         }
         const data = (await res.json()) as { messages?: UIMessage[] };
         if (Array.isArray(data.messages)) {
-          setMessages(data.messages);
+          // Deduplicate by message id — multi-step tool calling can produce
+          // messages with the same id when persisted via onFinish.
+          const seen = new Set<string>();
+          const unique = data.messages.filter((m) => {
+            if (seen.has(m.id)) return false;
+            seen.add(m.id);
+            return true;
+          });
+          setMessages(unique);
         }
       } catch {
         // Ignore history load errors
       }
     };
     loadHistory();
-  }, [user?.id, conversationId, isAuthenticated, authLoading, setMessages, router, authFetch]);
+  }, [conversationId, isAuthenticated, authLoading, setMessages, router, authFetch]);
 
   // @zen-impl: AUTH-3_AC-1
   const handleLogout = useCallback(async () => {

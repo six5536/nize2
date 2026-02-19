@@ -395,6 +395,49 @@ pub async fn test_connection_handler(
         oauth_token.as_deref(),
     )
     .await;
+
+    // When test succeeds and we know which server, persist discovered tools + embeddings
+    if result.success && !result.tools.is_empty() {
+        if let Some(ref server_id) = body.server_id {
+            if let Err(e) =
+                mcp_config::store_tools_from_test(&state.pool, server_id, &result.tools).await
+            {
+                tracing::warn!("Failed to store tools from test for server {server_id}: {e}");
+            }
+
+            // Mark server as available after successful connection
+            if let Err(e) = nize_core::mcp::queries::update_server(
+                &state.pool,
+                server_id,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some(true),
+                None,
+            )
+            .await
+            {
+                tracing::warn!("Failed to set server available: {e}");
+            }
+
+            // Generate embeddings for the discovered tools
+            if let Err(e) = nize_core::embedding::indexer::embed_server_tools(
+                &state.pool,
+                &state.config_cache,
+                server_id,
+                &state.config.mcp_encryption_key,
+            )
+            .await
+            {
+                tracing::warn!("Failed to embed tools for server {server_id}: {e}");
+            }
+        }
+    }
+
     Ok(Json(serde_json::to_value(result).unwrap()))
 }
 

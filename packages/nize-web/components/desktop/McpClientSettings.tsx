@@ -38,7 +38,7 @@ export function McpClientSettings() {
       const res = await authFetch("/auth/mcp-tokens", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, overwrite: true }),
       });
       if (!res.ok) throw new Error(`Failed to create MCP token: ${res.statusText}`);
       return res.json();
