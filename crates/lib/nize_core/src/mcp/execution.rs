@@ -25,7 +25,10 @@ use rmcp::transport::StreamableHttpClientTransport;
 use rmcp::transport::TokioChildProcess;
 use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
 
-use crate::models::mcp::{AuthType, ServerConfig, StdioServerConfig, TransportType};
+use crate::models::mcp::{
+    AuthType, HttpServerConfig, McpToolSummary, ServerConfig, StdioServerConfig,
+    TestConnectionResult, TransportType,
+};
 
 use super::McpError;
 use super::queries;
@@ -343,12 +346,11 @@ impl ClientPool {
         })?;
 
         // @zen-impl: PLAN-025 Phase 5.2 — write PID to terminator manifest
-        if let Some(ref manifest) = self.manifest_path {
-            if let Some(pid) = transport.id() {
-                if let Err(e) = append_manifest(manifest, pid) {
-                    warn!("Failed to write stdio PID {pid} to manifest: {e}");
-                }
-            }
+        if let Some(ref manifest) = self.manifest_path
+            && let Some(pid) = transport.id()
+            && let Err(e) = append_manifest(manifest, pid)
+        {
+            warn!("Failed to write stdio PID {pid} to manifest: {e}");
         }
 
         // @zen-impl: PLAN-025 Phase 4.2 — startup timeout for stdio servers
@@ -472,6 +474,256 @@ fn append_manifest(manifest: &Path, pid: u32) -> Result<(), String> {
     Ok(())
 }
 
+// =============================================================================
+// HTTP connection testing via rmcp
+// =============================================================================
+
+/// Test an HTTP MCP server connection using the same rmcp transport as real
+/// tool execution. Performs a full `initialize` handshake and `tools/list`,
+/// handling session IDs and protocol negotiation correctly.
+pub async fn test_http_connection(
+    config: &HttpServerConfig,
+    api_key: Option<&str>,
+    oauth_token: Option<&str>,
+) -> TestConnectionResult {
+    let server_url = &config.url;
+    if server_url.is_empty() {
+        return TestConnectionResult {
+            success: false,
+            error: Some("URL is required for HTTP transport".into()),
+            ..Default::default()
+        };
+    }
+
+    // Build the rmcp StreamableHttp transport (same path as connect_http)
+    let mut transport_config = StreamableHttpClientTransportConfig::with_uri(server_url.as_str());
+
+    let mut header_map = reqwest::header::HeaderMap::new();
+
+    // Configure auth
+    if config.auth_type == "api-key" {
+        if let Some(key) = api_key {
+            let header_name = config.api_key_header.as_deref().unwrap_or("X-API-Key");
+            if let (Ok(name), Ok(val)) = (
+                reqwest::header::HeaderName::from_bytes(header_name.as_bytes()),
+                reqwest::header::HeaderValue::from_str(key),
+            ) {
+                header_map.insert(name, val);
+            }
+        }
+    } else if config.auth_type == "oauth"
+        && let Some(token) = oauth_token
+    {
+        transport_config.auth_header = Some(token.to_string());
+    }
+
+    // Add custom headers from config
+    add_custom_headers(&mut header_map, &config.headers);
+
+    let client = match reqwest::Client::builder()
+        .default_headers(header_map)
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            return TestConnectionResult {
+                success: false,
+                error: Some(format!("Failed to create HTTP client: {e}")),
+                ..Default::default()
+            };
+        }
+    };
+    let transport = StreamableHttpClientTransport::with_client(client, transport_config);
+
+    // Connect via rmcp (performs initialize handshake + sends initialized notification)
+    let service: RunningService<RoleClient, ()> = match ().serve(transport).await {
+        Ok(s) => s,
+        Err(e) => {
+            let error = format!("{e}");
+            let (error_msg, error_details) = if error.contains("timed out") {
+                ("Connection timed out (15s)".to_string(), None)
+            } else if error.contains("refused") {
+                ("Connection refused".to_string(), None)
+            } else {
+                ("Connection failed".to_string(), Some(error))
+            };
+            return TestConnectionResult {
+                success: false,
+                error: Some(error_msg),
+                error_details,
+                ..Default::default()
+            };
+        }
+    };
+
+    // Extract server info from the initialize result
+    let (server_name, server_version, protocol_version) = match service.peer_info() {
+        Some(info) => (
+            Some(info.server_info.name.clone()),
+            Some(info.server_info.version.clone()),
+            Some(info.protocol_version.to_string()),
+        ),
+        None => (None, None, None),
+    };
+
+    // List all tools (handles pagination automatically)
+    let tools: Vec<McpToolSummary> = match service.peer().list_all_tools().await {
+        Ok(rmcp_tools) => rmcp_tools
+            .into_iter()
+            .map(|t| McpToolSummary {
+                name: t.name.to_string(),
+                description: t.description.as_deref().unwrap_or("").to_string(),
+            })
+            .collect(),
+        Err(e) => {
+            warn!("tools/list failed during connection test: {e}");
+            vec![]
+        }
+    };
+
+    let tool_count = tools.len() as i64;
+
+    TestConnectionResult {
+        success: true,
+        server_name,
+        server_version,
+        protocol_version,
+        tool_count: Some(tool_count),
+        error: None,
+        error_details: None,
+        tools,
+    }
+}
+
+// =============================================================================
+// Stdio connection testing via rmcp
+// =============================================================================
+
+/// Test a stdio MCP server connection by spawning the process and performing
+/// an MCP handshake via rmcp's `TokioChildProcess` transport.
+///
+/// Returns server info and discovered tools on success.
+pub async fn test_stdio_connection(config: &StdioServerConfig) -> TestConnectionResult {
+    if config.command.is_empty() {
+        return TestConnectionResult {
+            success: false,
+            error: Some("Command is required for stdio transport".into()),
+            ..Default::default()
+        };
+    }
+
+    let args = config.args.as_deref().unwrap_or_default();
+
+    let mut cmd = tokio::process::Command::new(&config.command);
+    cmd.args(args)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    // Set environment variables if provided
+    if let Some(env) = &config.env {
+        for (k, v) in env {
+            cmd.env(k, v);
+        }
+    }
+
+    let transport = match TokioChildProcess::new(cmd) {
+        Ok(t) => t,
+        Err(e) => {
+            return TestConnectionResult {
+                success: false,
+                error: Some(format!("Failed to spawn process '{}': {e}", config.command)),
+                ..Default::default()
+            };
+        }
+    };
+
+    // Connect via rmcp with a timeout (performs initialize + initialized notification)
+    let service: RunningService<RoleClient, ()> =
+        match tokio::time::timeout(STDIO_CONNECT_TIMEOUT, ().serve(transport)).await {
+            Ok(Ok(s)) => s,
+            Ok(Err(e)) => {
+                let error = format!("{e}");
+                return TestConnectionResult {
+                    success: false,
+                    error: Some("Stdio communication error".to_string()),
+                    error_details: Some(error),
+                    ..Default::default()
+                };
+            }
+            Err(_) => {
+                return TestConnectionResult {
+                    success: false,
+                    error: Some(format!(
+                        "Connection timed out ({}s)",
+                        STDIO_CONNECT_TIMEOUT.as_secs()
+                    )),
+                    ..Default::default()
+                };
+            }
+        };
+
+    // Extract server info from the initialize result
+    let (server_name, server_version, protocol_version) = match service.peer_info() {
+        Some(info) => (
+            Some(info.server_info.name.clone()),
+            Some(info.server_info.version.clone()),
+            Some(info.protocol_version.to_string()),
+        ),
+        None => (None, None, None),
+    };
+
+    // List all tools (handles pagination automatically)
+    let tools: Vec<McpToolSummary> = match service.peer().list_all_tools().await {
+        Ok(rmcp_tools) => rmcp_tools
+            .into_iter()
+            .map(|t| McpToolSummary {
+                name: t.name.to_string(),
+                description: t.description.as_deref().unwrap_or("").to_string(),
+            })
+            .collect(),
+        Err(e) => {
+            warn!("tools/list failed during stdio connection test: {e}");
+            vec![]
+        }
+    };
+
+    let tool_count = tools.len() as i64;
+
+    TestConnectionResult {
+        success: true,
+        server_name,
+        server_version,
+        protocol_version,
+        tool_count: Some(tool_count),
+        error: None,
+        error_details: None,
+        tools,
+    }
+}
+
+/// Add custom headers from JSON config to a reqwest HeaderMap.
+fn add_custom_headers(
+    header_map: &mut reqwest::header::HeaderMap,
+    headers: &Option<serde_json::Value>,
+) {
+    if let Some(hdrs) = headers
+        && let Some(map) = hdrs.as_object()
+    {
+        for (k, v) in map {
+            if let Some(val) = v.as_str()
+                && let (Ok(name), Ok(value)) = (
+                    reqwest::header::HeaderName::from_bytes(k.as_bytes()),
+                    reqwest::header::HeaderValue::from_str(val),
+                )
+            {
+                header_map.insert(name, value);
+            }
+        }
+    }
+}
+
 /// Resolve OAuth headers for a server, refreshing tokens if needed.
 /// Returns `None` if the server does not use OAuth auth.
 // @zen-impl: PLAN-031 Phase 7.3 — token refresh before connection
@@ -491,14 +743,13 @@ async fn resolve_oauth_headers(
     }
 
     // Load token row
-    let token_row =
-        queries::get_oauth_token(pool, user_id, &server_id.to_string())
-            .await?
-            .ok_or_else(|| {
-                McpError::ConnectionFailed(
-                    "No OAuth tokens found — please authorize this server first".into(),
-                )
-            })?;
+    let token_row = queries::get_oauth_token(pool, user_id, &server_id.to_string())
+        .await?
+        .ok_or_else(|| {
+            McpError::ConnectionFailed(
+                "No OAuth tokens found — please authorize this server first".into(),
+            )
+        })?;
 
     // Check if tokens need refresh
     let needs_refresh = super::oauth::should_refresh(&token_row.expires_at);
@@ -521,11 +772,14 @@ async fn resolve_oauth_headers(
         let client_secret = super::secrets::decrypt(&encrypted_secret, encryption_key)?;
 
         let refresh_token_encrypted =
-            token_row.refresh_token_encrypted.as_deref().ok_or_else(|| {
-                McpError::ConnectionFailed(
-                    "No refresh token — please re-authorize this server".into(),
-                )
-            })?;
+            token_row
+                .refresh_token_encrypted
+                .as_deref()
+                .ok_or_else(|| {
+                    McpError::ConnectionFailed(
+                        "No refresh token — please re-authorize this server".into(),
+                    )
+                })?;
         let refresh_token = super::secrets::decrypt(refresh_token_encrypted, encryption_key)?;
 
         // Refresh tokens
@@ -542,8 +796,7 @@ async fn resolve_oauth_headers(
             Some(t) => Some(super::secrets::encrypt(t, encryption_key)?),
             None => None,
         };
-        let access_token_encrypted =
-            super::secrets::encrypt(&resp.access_token, encryption_key)?;
+        let access_token_encrypted = super::secrets::encrypt(&resp.access_token, encryption_key)?;
         let expires_at = chrono::Utc::now() + chrono::Duration::seconds(resp.expires_in);
         let scope_vec: Vec<String> = resp
             .scope
@@ -582,8 +835,7 @@ async fn resolve_oauth_headers(
     })?;
     let id_token = super::secrets::decrypt(id_token_encrypted, encryption_key)?;
 
-    let access_token_encrypted =
-        &token_row.access_token_encrypted;
+    let access_token_encrypted = &token_row.access_token_encrypted;
     let access_token = super::secrets::decrypt(access_token_encrypted, encryption_key)?;
 
     Ok(Some(OAuthHeaders {

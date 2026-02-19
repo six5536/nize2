@@ -353,30 +353,28 @@ pub async fn decrypt_secret_config_value(
     // Try user-override first
     if let Some(v) =
         queries::get_value(pool, key, &ConfigScope::UserOverride, Some(user_id)).await?
+        && !v.value.is_empty()
     {
-        if !v.value.is_empty() {
-            let decrypted = secrets::decrypt(&v.value, encryption_key)
-                .map_err(|e| AppError::Internal(format!("Decryption failed: {e}")))?;
-            return Ok(Some(decrypted));
-        }
+        let decrypted = secrets::decrypt(&v.value, encryption_key)
+            .map_err(|e| AppError::Internal(format!("Decryption failed: {e}")))?;
+        return Ok(Some(decrypted));
     }
 
     // Try system scope
-    if let Some(v) = queries::get_value(pool, key, &ConfigScope::System, None).await? {
-        if !v.value.is_empty() {
-            let decrypted = secrets::decrypt(&v.value, encryption_key)
-                .map_err(|e| AppError::Internal(format!("Decryption failed: {e}")))?;
-            return Ok(Some(decrypted));
-        }
+    if let Some(v) = queries::get_value(pool, key, &ConfigScope::System, None).await?
+        && !v.value.is_empty()
+    {
+        let decrypted = secrets::decrypt(&v.value, encryption_key)
+            .map_err(|e| AppError::Internal(format!("Decryption failed: {e}")))?;
+        return Ok(Some(decrypted));
     }
 
     // Env var fallback
-    if let Some(env_var) = env_fallback {
-        if let Ok(val) = std::env::var(env_var) {
-            if !val.is_empty() {
-                return Ok(Some(val));
-            }
-        }
+    if let Some(env_var) = env_fallback
+        && let Ok(val) = std::env::var(env_var)
+        && !val.is_empty()
+    {
+        return Ok(Some(val));
     }
 
     Ok(None)

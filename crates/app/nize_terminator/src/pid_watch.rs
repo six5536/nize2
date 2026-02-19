@@ -141,7 +141,7 @@ fn pidfd_wait(pid: u32) -> bool {
 fn windows_wait(pid: u32) {
     use windows_sys::Win32::Foundation::{CloseHandle, WAIT_OBJECT_0};
     use windows_sys::Win32::System::Threading::{
-        OpenProcess, WaitForSingleObject, INFINITE, SYNCHRONIZE,
+        INFINITE, OpenProcess, SYNCHRONIZE, WaitForSingleObject,
     };
 
     // SAFETY: OpenProcess + WaitForSingleObject are standard Win32 APIs.

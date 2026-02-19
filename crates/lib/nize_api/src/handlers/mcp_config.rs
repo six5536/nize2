@@ -482,29 +482,27 @@ pub async fn admin_update_server_handler(
         Some(ServerConfig::Http(http)) => http.auth_type == "oauth",
         _ => false,
     };
-    if let Some(config) = &body.config {
-        if !is_oauth {
-            let test_result =
-                mcp_config::test_connection(config, body.api_key.as_deref(), None).await;
-            if !test_result.tools.is_empty() {
-                if let Err(e) =
-                    mcp_config::store_tools_from_test(&state.pool, &server.id, &test_result.tools)
-                        .await
-                {
-                    tracing::warn!("Failed to store tools for server {}: {e}", server.id);
-                }
+    if let Some(config) = &body.config
+        && !is_oauth
+    {
+        let test_result = mcp_config::test_connection(config, body.api_key.as_deref(), None).await;
+        if !test_result.tools.is_empty() {
+            if let Err(e) =
+                mcp_config::store_tools_from_test(&state.pool, &server.id, &test_result.tools).await
+            {
+                tracing::warn!("Failed to store tools for server {}: {e}", server.id);
+            }
 
-                // Generate embeddings for the newly stored tools
-                if let Err(e) = nize_core::embedding::indexer::embed_server_tools(
-                    &state.pool,
-                    &state.config_cache,
-                    &server.id,
-                    &state.config.mcp_encryption_key,
-                )
-                .await
-                {
-                    tracing::warn!("Failed to embed tools for server {}: {e}", server.id);
-                }
+            // Generate embeddings for the newly stored tools
+            if let Err(e) = nize_core::embedding::indexer::embed_server_tools(
+                &state.pool,
+                &state.config_cache,
+                &server.id,
+                &state.config.mcp_encryption_key,
+            )
+            .await
+            {
+                tracing::warn!("Failed to embed tools for server {}: {e}", server.id);
             }
         }
     }

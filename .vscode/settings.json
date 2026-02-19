@@ -24,7 +24,8 @@
     "bun": true,
     "npx vitest": true,
     "cargo search": true,
-    "cargo info": true
+    "cargo info": true,
+    "tee": true
   },
   "search.exclude": {
     "**/target": true

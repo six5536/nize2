@@ -109,9 +109,7 @@ pub async fn logout_handler(
 }
 
 /// `POST /auth/logout/all` — revoke all refresh tokens for the user (demo).
-pub async fn logout_all_handler(
-    jar: CookieJar,
-) -> AppResult<(CookieJar, Json<serde_json::Value>)> {
+pub async fn logout_all_handler(jar: CookieJar) -> AppResult<(CookieJar, Json<serde_json::Value>)> {
     let jar = jar
         .add(cookies::clear_access_cookie())
         .add(cookies::clear_refresh_cookie());

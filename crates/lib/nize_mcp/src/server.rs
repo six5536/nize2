@@ -19,7 +19,9 @@ use crate::tools::discovery::{
     BrowseToolDomainRequest, DiscoverToolsRequest, ExecuteToolRequest, GetToolSchemaRequest,
 };
 use crate::tools::hello::HelloRequest;
-use crate::tools::types::{DiscoveredTool, DiscoveryResult, ServerInfo as ToolServerInfo, ToolDomain};
+use crate::tools::types::{
+    DiscoveredTool, DiscoveryResult, ServerInfo as ToolServerInfo, ToolDomain,
+};
 
 use nize_core::config::cache::ConfigCache;
 use nize_core::mcp::execution::ClientPool;
@@ -46,24 +48,19 @@ pub struct NizeMcpServer {
 /// The auth middleware inserts `McpUser` into HTTP request extensions;
 /// rmcp injects `http::request::Parts` into tool handler context.
 fn extract_user(parts: &http::request::Parts) -> Result<McpUser, ErrorData> {
-    parts
-        .extensions
-        .get::<McpUser>()
-        .cloned()
-        .ok_or_else(|| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                "Missing user context — authentication may have failed".to_string(),
-                None,
-            )
-        })
+    parts.extensions.get::<McpUser>().cloned().ok_or_else(|| {
+        ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            "Missing user context — authentication may have failed".to_string(),
+            None,
+        )
+    })
 }
 
 /// Helper to serialize a value to a pretty JSON CallToolResult.
 fn json_result<T: serde::Serialize>(value: &T) -> Result<CallToolResult, ErrorData> {
-    let json = serde_json::to_string_pretty(value).map_err(|e| {
-        ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None)
-    })?;
+    let json = serde_json::to_string_pretty(value)
+        .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
     Ok(CallToolResult::success(vec![Content::text(json)]))
 }
 
@@ -177,7 +174,9 @@ impl NizeMcpServer {
             .collect();
 
         let suggestion = if tools.is_empty() {
-            Some("No tools matched your query. Try broader terms or list domains first.".to_string())
+            Some(
+                "No tools matched your query. Try broader terms or list domains first.".to_string(),
+            )
         } else {
             None
         };
@@ -188,7 +187,8 @@ impl NizeMcpServer {
             suggestion,
         };
 
-        let mut outcome = ToolCallOutcome::Success(serde_json::to_value(&result).unwrap_or_default());
+        let mut outcome =
+            ToolCallOutcome::Success(serde_json::to_value(&result).unwrap_or_default());
         let _ = self.hook_pipeline.run_after(&ctx, &mut outcome).await;
 
         json_result(&result)
@@ -246,7 +246,11 @@ impl NizeMcpServer {
         let user = extract_user(&parts)?;
 
         let tool_uuid = uuid::Uuid::parse_str(&tool_id).map_err(|e| {
-            ErrorData::new(ErrorCode::INVALID_PARAMS, format!("Invalid tool_id: {e}"), None)
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("Invalid tool_id: {e}"),
+                None,
+            )
         })?;
 
         let mut hook_params = serde_json::json!({
@@ -324,7 +328,8 @@ impl NizeMcpServer {
             })
             .collect();
 
-        let mut outcome = ToolCallOutcome::Success(serde_json::to_value(&domains).unwrap_or_default());
+        let mut outcome =
+            ToolCallOutcome::Success(serde_json::to_value(&domains).unwrap_or_default());
         let _ = self.hook_pipeline.run_after(&ctx, &mut outcome).await;
 
         json_result(&domains)
@@ -347,9 +352,10 @@ impl NizeMcpServer {
             .await
             .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
-        let tool_rows = nize_core::mcp::queries::browse_tool_domain(&self.pool, &user.id, &domain_id)
-            .await
-            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
+        let tool_rows =
+            nize_core::mcp::queries::browse_tool_domain(&self.pool, &user.id, &domain_id)
+                .await
+                .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
         let mut servers = std::collections::HashMap::new();
         let tools: Vec<DiscoveredTool> = tool_rows
@@ -387,7 +393,8 @@ impl NizeMcpServer {
             suggestion,
         };
 
-        let mut outcome = ToolCallOutcome::Success(serde_json::to_value(&result).unwrap_or_default());
+        let mut outcome =
+            ToolCallOutcome::Success(serde_json::to_value(&result).unwrap_or_default());
         let _ = self.hook_pipeline.run_after(&ctx, &mut outcome).await;
 
         json_result(&result)

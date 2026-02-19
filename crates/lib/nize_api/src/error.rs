@@ -42,12 +42,16 @@ impl IntoResponse for AppError {
         let (status, error, message) = match &self {
             AppError::Validation(m) => (StatusCode::BAD_REQUEST, "validation_error", m.as_str()),
             AppError::NotFound(m) => (StatusCode::NOT_FOUND, "not_found", m.as_str()),
-            AppError::DbUnavailable(m) => {
-                (StatusCode::SERVICE_UNAVAILABLE, "db_unavailable", m.as_str())
-            }
-            AppError::SidecarUnavailable(m) => {
-                (StatusCode::SERVICE_UNAVAILABLE, "sidecar_unavailable", m.as_str())
-            }
+            AppError::DbUnavailable(m) => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "db_unavailable",
+                m.as_str(),
+            ),
+            AppError::SidecarUnavailable(m) => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "sidecar_unavailable",
+                m.as_str(),
+            ),
             AppError::Unauthorized(m) => (StatusCode::UNAUTHORIZED, "unauthorized", m.as_str()),
             AppError::Forbidden(m) => (StatusCode::FORBIDDEN, "forbidden", m.as_str()),
             AppError::Internal(_) => (

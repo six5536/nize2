@@ -25,8 +25,7 @@ impl ApiConfig {
     /// | `JWT_SECRET` / `AUTH_SECRET` | generated & persisted to file        |
     pub fn from_env() -> Self {
         Self {
-            bind_addr: std::env::var("BIND_ADDR")
-                .unwrap_or_else(|_| "127.0.0.1:3100".into()),
+            bind_addr: std::env::var("BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:3100".into()),
             pg_connection_url: std::env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "postgres://localhost:5432/nize".into()),
             jwt_secret: resolve_jwt_secret(),

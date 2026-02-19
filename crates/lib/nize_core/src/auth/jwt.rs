@@ -51,15 +51,15 @@ pub fn verify_access_token(token: &str, secret: &[u8]) -> Option<TokenClaims> {
 
 /// Resolve the JWT secret: env var `JWT_SECRET` → `AUTH_SECRET` → persisted file.
 pub fn resolve_jwt_secret() -> String {
-    if let Ok(secret) = std::env::var("JWT_SECRET") {
-        if !secret.is_empty() {
-            return secret;
-        }
+    if let Ok(secret) = std::env::var("JWT_SECRET")
+        && !secret.is_empty()
+    {
+        return secret;
     }
-    if let Ok(secret) = std::env::var("AUTH_SECRET") {
-        if !secret.is_empty() {
-            return secret;
-        }
+    if let Ok(secret) = std::env::var("AUTH_SECRET")
+        && !secret.is_empty()
+    {
+        return secret;
     }
     // Generate and persist
     let secret_path = jwt_secret_path();

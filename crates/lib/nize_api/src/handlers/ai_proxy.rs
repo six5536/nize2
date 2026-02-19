@@ -121,10 +121,9 @@ pub async fn ai_proxy_handler(
         if matches!(
             name_str.as_str(),
             "content-type" | "accept" | "anthropic-version" | "anthropic-beta"
-        ) {
-            if let Ok(v) = value.to_str() {
-                req_builder = req_builder.header(name.as_str(), v);
-            }
+        ) && let Ok(v) = value.to_str()
+        {
+            req_builder = req_builder.header(name.as_str(), v);
         }
     }
 
@@ -156,10 +155,9 @@ pub async fn ai_proxy_handler(
         if matches!(
             name_str.as_str(),
             "content-type" | "transfer-encoding" | "x-request-id"
-        ) {
-            if let Ok(v) = value.to_str() {
-                response_builder = response_builder.header(name.as_str(), v);
-            }
+        ) && let Ok(v) = value.to_str()
+        {
+            response_builder = response_builder.header(name.as_str(), v);
         }
     }
 

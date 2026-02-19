@@ -34,7 +34,7 @@ pub async fn get_definition(
     .fetch_optional(pool)
     .await?;
 
-    Ok(row.map(|r| parse_definition_row(r)))
+    Ok(row.map(parse_definition_row))
 }
 
 /// Fetch all config definitions.
@@ -60,7 +60,7 @@ pub async fn get_all_definitions(pool: &PgPool) -> Result<Vec<ConfigDefinition>,
     .fetch_all(pool)
     .await?;
 
-    Ok(rows.into_iter().map(|r| parse_definition_row(r)).collect())
+    Ok(rows.into_iter().map(parse_definition_row).collect())
 }
 
 /// Fetch a config value by key and scope (and optional user_id).
@@ -92,7 +92,7 @@ pub async fn get_value(
     .fetch_optional(pool)
     .await?;
 
-    Ok(row.map(|r| parse_value_row(r)))
+    Ok(row.map(parse_value_row))
 }
 
 /// Fetch all config values for a given user (user-override scope).
@@ -119,7 +119,7 @@ pub async fn get_user_values(
     .fetch_all(pool)
     .await?;
 
-    Ok(rows.into_iter().map(|r| parse_value_row(r)).collect())
+    Ok(rows.into_iter().map(parse_value_row).collect())
 }
 
 /// Fetch all config values for system scope.
@@ -142,7 +142,7 @@ pub async fn get_system_values(pool: &PgPool) -> Result<Vec<ConfigValue>, Config
     .fetch_all(pool)
     .await?;
 
-    Ok(rows.into_iter().map(|r| parse_value_row(r)).collect())
+    Ok(rows.into_iter().map(parse_value_row).collect())
 }
 
 /// Fetch all config values (optionally filtered by scope, user_id, category).
@@ -207,7 +207,7 @@ pub async fn get_all_values(
     }
 
     let rows = query.fetch_all(pool).await?;
-    Ok(rows.into_iter().map(|r| parse_value_row(r)).collect())
+    Ok(rows.into_iter().map(parse_value_row).collect())
 }
 
 /// Upsert a config value.
@@ -277,6 +277,7 @@ fn parse_scope(s: &str) -> ConfigScope {
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn parse_definition_row(
     r: (
         String,

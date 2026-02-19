@@ -40,10 +40,9 @@ async fn embed_one(
     text: &str,
     model_config: &EmbeddingModelConfig,
 ) -> Result<Vec<f32>, EmbeddingError> {
-    let api_key = config
-        .openai_api_key
-        .as_deref()
-        .ok_or_else(|| EmbeddingError::Config("OPENAI_API_KEY is required for openai provider".to_string()))?;
+    let api_key = config.openai_api_key.as_deref().ok_or_else(|| {
+        EmbeddingError::Config("OPENAI_API_KEY is required for openai provider".to_string())
+    })?;
 
     let mut last_error = None;
 
@@ -80,9 +79,7 @@ async fn embed_one(
                         .into_iter()
                         .next()
                         .ok_or_else(|| {
-                            EmbeddingError::Provider(
-                                "OpenAI returned empty data array".to_string(),
-                            )
+                            EmbeddingError::Provider("OpenAI returned empty data array".to_string())
                         })?
                         .embedding
                         .into_iter()

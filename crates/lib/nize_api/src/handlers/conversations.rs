@@ -67,8 +67,7 @@ pub async fn create_conversation_handler(
     let user_id = parse_user_id(&user.0.sub)?;
     let title = body.title.as_deref().unwrap_or("New Chat");
 
-    let row =
-        nize_core::conversations::create_conversation(&state.pool, &user_id, title).await?;
+    let row = nize_core::conversations::create_conversation(&state.pool, &user_id, title).await?;
 
     Ok((
         StatusCode::CREATED,
@@ -90,16 +89,12 @@ pub async fn get_conversation_handler(
     let user_id = parse_user_id(&user.0.sub)?;
     let conv_id = parse_uuid(&id)?;
 
-    let row =
-        nize_core::conversations::get_conversation(&state.pool, &user_id, &conv_id).await?;
+    let row = nize_core::conversations::get_conversation(&state.pool, &user_id, &conv_id).await?;
 
-    let message_rows =
-        nize_core::conversations::get_messages(&state.pool, &conv_id).await?;
+    let message_rows = nize_core::conversations::get_messages(&state.pool, &conv_id).await?;
 
-    let messages: Vec<serde_json::Value> = message_rows
-        .into_iter()
-        .map(|m| m.message_data)
-        .collect();
+    let messages: Vec<serde_json::Value> =
+        message_rows.into_iter().map(|m| m.message_data).collect();
 
     Ok(Json(serde_json::json!({
         "id": row.id,
@@ -125,9 +120,8 @@ pub async fn update_conversation_handler(
         .and_then(|v| v.as_str())
         .ok_or_else(|| AppError::Validation("title is required".into()))?;
 
-    let row =
-        nize_core::conversations::update_conversation(&state.pool, &user_id, &conv_id, title)
-            .await?;
+    let row = nize_core::conversations::update_conversation(&state.pool, &user_id, &conv_id, title)
+        .await?;
 
     Ok(Json(serde_json::json!({
         "id": row.id,

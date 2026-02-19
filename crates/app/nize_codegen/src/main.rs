@@ -9,9 +9,7 @@ fn workspace_root() -> PathBuf {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
     let mut dir = PathBuf::from(manifest_dir);
     // Walk up from crates/app/nize_codegen to workspace root
-    while !dir.join("Cargo.toml").exists()
-        || !dir.join("crates").exists()
-    {
+    while !dir.join("Cargo.toml").exists() || !dir.join("crates").exists() {
         if !dir.pop() {
             panic!("Cannot find workspace root");
         }

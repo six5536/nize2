@@ -26,33 +26,32 @@ pub fn validate_value(value: &str, validators: &[ConfigValidator]) -> Vec<String
                     if let Ok(num) = value.parse::<f64>() {
                         if num < min_val {
                             errors.push(
-                                validator.message.clone().unwrap_or_else(|| {
-                                    format!("Value must be at least {min_val}")
-                                }),
+                                validator
+                                    .message
+                                    .clone()
+                                    .unwrap_or_else(|| format!("Value must be at least {min_val}")),
                             );
                         }
                     }
                     // If value is a string, check length
                     else if (value.len() as f64) < min_val {
-                        errors.push(
-                            validator.message.clone().unwrap_or_else(|| {
-                                format!("Value must be at least {min_val} characters")
-                            }),
-                        );
+                        errors.push(validator.message.clone().unwrap_or_else(|| {
+                            format!("Value must be at least {min_val} characters")
+                        }));
                     }
                 }
             }
             "max" => {
-                if let Some(max_val) = validator.value.as_ref().and_then(|v| v.as_f64()) {
-                    if let Ok(num) = value.parse::<f64>() {
-                        if num > max_val {
-                            errors.push(
-                                validator.message.clone().unwrap_or_else(|| {
-                                    format!("Value must be at most {max_val}")
-                                }),
-                            );
-                        }
-                    }
+                if let Some(max_val) = validator.value.as_ref().and_then(|v| v.as_f64())
+                    && let Ok(num) = value.parse::<f64>()
+                    && num > max_val
+                {
+                    errors.push(
+                        validator
+                            .message
+                            .clone()
+                            .unwrap_or_else(|| format!("Value must be at most {max_val}")),
+                    );
                 }
             }
             "regex" => {
@@ -80,7 +79,11 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    fn make_validator(vtype: &str, value: Option<serde_json::Value>, message: Option<&str>) -> ConfigValidator {
+    fn make_validator(
+        vtype: &str,
+        value: Option<serde_json::Value>,
+        message: Option<&str>,
+    ) -> ConfigValidator {
         ConfigValidator {
             validator_type: vtype.to_string(),
             value,

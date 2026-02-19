@@ -2,12 +2,12 @@
 //
 //! Authentication middleware — dual auth: cookie first, Bearer fallback.
 
+use axum::http::header::AUTHORIZATION;
 use axum::{
     extract::{Request, State},
     middleware::Next,
     response::Response,
 };
-use axum::http::header::AUTHORIZATION;
 use axum_extra::extract::CookieJar;
 
 use crate::AppState;

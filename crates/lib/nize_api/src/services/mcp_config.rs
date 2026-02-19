@@ -10,8 +10,8 @@ use nize_core::mcp::McpError;
 use nize_core::mcp::queries;
 use nize_core::models::mcp::{
     AdminServerView, AuthType, DeleteResult, HttpServerConfig, McpServerRow, McpToolSummary,
-    OAuthConfig, ServerConfig, ServerStatus, StdioServerConfig, TestConnectionResult,
-    TransportType, UserServerView, VisibilityTier,
+    OAuthConfig, ServerConfig, ServerStatus, TestConnectionResult, TransportType, UserServerView,
+    VisibilityTier,
 };
 
 /// Maximum number of user-owned servers.
@@ -35,9 +35,9 @@ fn validate_http_config(url: &str, auth_type_str: &str) -> Result<(), McpError> 
     let parsed = url::Url::parse(url)
         .map_err(|_| McpError::InvalidTransport(format!("Invalid URL format: {url}")))?;
 
-    let is_localhost = parsed.host_str().map_or(false, |h| {
-        h == "localhost" || h == "127.0.0.1" || h == "::1"
-    });
+    let is_localhost = parsed
+        .host_str()
+        .is_some_and(|h| h == "localhost" || h == "127.0.0.1" || h == "::1");
 
     if parsed.scheme() != "https" && !is_localhost {
         return Err(McpError::InvalidTransport(
@@ -173,6 +173,7 @@ pub async fn get_servers_for_user(
 }
 
 /// Create a new user MCP server.
+#[allow(clippy::too_many_arguments)]
 pub async fn create_user_server(
     pool: &PgPool,
     user_id: &str,
@@ -242,7 +243,7 @@ pub async fn create_user_server(
 
     // Serialize oauth_config if provided
     let oauth_config_json = oauth_config
-        .map(|c| serde_json::to_value(c))
+        .map(serde_json::to_value)
         .transpose()
         .map_err(|e| McpError::Validation(format!("Failed to serialize oauth_config: {e}")))?;
 
@@ -261,25 +262,20 @@ pub async fn create_user_server(
     let server_id = server.id.to_string();
 
     // Store encrypted API key if provided
-    if let Some(key) = api_key {
-        if auth_type_str == "api-key" {
-            let encrypted = nize_core::mcp::secrets::encrypt(key, encryption_key)?;
-            queries::store_api_key(pool, &server_id, &encrypted, DEFAULT_ENCRYPTION_KEY_ID).await?;
-        }
+    if let Some(key) = api_key
+        && auth_type_str == "api-key"
+    {
+        let encrypted = nize_core::mcp::secrets::encrypt(key, encryption_key)?;
+        queries::store_api_key(pool, &server_id, &encrypted, DEFAULT_ENCRYPTION_KEY_ID).await?;
     }
 
     // Store encrypted OAuth client secret if provided
-    if let Some(secret) = client_secret {
-        if auth_type_str == "oauth" {
-            let encrypted = nize_core::mcp::secrets::encrypt(secret, encryption_key)?;
-            queries::store_oauth_client_secret(
-                pool,
-                &server_id,
-                &encrypted,
-                DEFAULT_ENCRYPTION_KEY_ID,
-            )
+    if let Some(secret) = client_secret
+        && auth_type_str == "oauth"
+    {
+        let encrypted = nize_core::mcp::secrets::encrypt(secret, encryption_key)?;
+        queries::store_oauth_client_secret(pool, &server_id, &encrypted, DEFAULT_ENCRYPTION_KEY_ID)
             .await?;
-        }
     }
 
     // Log audit
@@ -307,6 +303,7 @@ pub async fn create_user_server(
 }
 
 /// Update a user MCP server.
+#[allow(clippy::too_many_arguments)]
 pub async fn update_user_server(
     pool: &PgPool,
     user_id: &str,
@@ -502,6 +499,7 @@ pub async fn get_all_servers(pool: &PgPool) -> Result<Vec<AdminServerView>, McpE
 }
 
 /// Create a built-in server (admin).
+#[allow(clippy::too_many_arguments)]
 pub async fn create_built_in_server(
     pool: &PgPool,
     admin_id: &str,
@@ -539,7 +537,7 @@ pub async fn create_built_in_server(
 
     // Serialize oauth_config if provided
     let oauth_config_json = oauth_config
-        .map(|c| serde_json::to_value(c))
+        .map(serde_json::to_value)
         .transpose()
         .map_err(|e| McpError::Validation(format!("Failed to serialize oauth_config: {e}")))?;
 
@@ -607,6 +605,7 @@ pub async fn create_built_in_server(
 }
 
 /// Update a built-in server (admin).
+#[allow(clippy::too_many_arguments)]
 pub async fn update_built_in_server(
     pool: &PgPool,
     admin_id: &str,
@@ -652,7 +651,7 @@ pub async fn update_built_in_server(
 
     // Serialize oauth_config if provided
     let oauth_config_json = oauth_config
-        .map(|c| serde_json::to_value(c))
+        .map(serde_json::to_value)
         .transpose()
         .map_err(|e| McpError::Validation(format!("Failed to serialize oauth_config: {e}")))?;
 
@@ -752,7 +751,7 @@ pub async fn delete_built_in_server(
 
 /// Test connection to an MCP server.
 ///
-/// For HTTP transport: sends an MCP `initialize` JSON-RPC request.
+/// For HTTP transport: connects via rmcp StreamableHttp transport.
 /// For Stdio transport: spawns the process and performs a JSON-RPC handshake.
 /// Returns server info and tool count on success.
 pub async fn test_connection(
@@ -761,376 +760,11 @@ pub async fn test_connection(
     oauth_token: Option<&str>,
 ) -> TestConnectionResult {
     match config {
-        ServerConfig::Http(http) => test_connection_http(http, api_key, oauth_token).await,
-        ServerConfig::Stdio(stdio) => test_connection_stdio(stdio).await,
+        ServerConfig::Http(http) => {
+            nize_core::mcp::execution::test_http_connection(http, api_key, oauth_token).await
+        }
+        ServerConfig::Stdio(stdio) => nize_core::mcp::execution::test_stdio_connection(stdio).await,
     }
-}
-
-/// Test an HTTP MCP server connection.
-async fn test_connection_http(
-    config: &HttpServerConfig,
-    api_key: Option<&str>,
-    oauth_token: Option<&str>,
-) -> TestConnectionResult {
-    let server_url = &config.url;
-    if server_url.is_empty() {
-        return TestConnectionResult {
-            success: false,
-            error: Some("URL is required for HTTP transport".into()),
-            ..Default::default()
-        };
-    }
-
-    // Build HTTP client request
-    let client = match reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-    {
-        Ok(c) => c,
-        Err(e) => {
-            return TestConnectionResult {
-                success: false,
-                error: Some(format!("Failed to create HTTP client: {e}")),
-                ..Default::default()
-            };
-        }
-    };
-
-    // MCP initialize request (JSON-RPC 2.0)
-    let init_request = serde_json::json!({
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "initialize",
-        "params": {
-            "protocolVersion": "2024-11-05",
-            "capabilities": {},
-            "clientInfo": {
-                "name": "nize-mcp",
-                "version": nize_core::version()
-            }
-        }
-    });
-
-    let mut req_builder = client.post(server_url).json(&init_request);
-
-    // Add auth header if needed
-    if config.auth_type == "api-key" {
-        if let Some(key) = api_key {
-            let header_name = config.api_key_header.as_deref().unwrap_or("X-API-Key");
-            req_builder = req_builder.header(header_name, key);
-        }
-    } else if config.auth_type == "oauth" {
-        if let Some(token) = oauth_token {
-            req_builder = req_builder.header("Authorization", format!("Bearer {token}"));
-        }
-    }
-
-    // Add custom headers
-    if let Some(hdrs) = &config.headers {
-        if let Some(map) = hdrs.as_object() {
-            for (k, v) in map {
-                if let Some(val) = v.as_str() {
-                    req_builder = req_builder.header(k.as_str(), val);
-                }
-            }
-        }
-    }
-
-    match req_builder.send().await {
-        Ok(resp) => {
-            if !resp.status().is_success() {
-                return TestConnectionResult {
-                    success: false,
-                    error: Some(format!("Server returned HTTP {}", resp.status())),
-                    error_details: resp.text().await.ok(),
-                    ..Default::default()
-                };
-            }
-
-            // Capture MCP session ID for Streamable HTTP transport
-            let session_id = resp
-                .headers()
-                .get("mcp-session-id")
-                .and_then(|v| v.to_str().ok())
-                .map(|s| s.to_string());
-
-            match resp.json::<serde_json::Value>().await {
-                Ok(body) => {
-                    // Parse MCP initialize response
-                    let result = body.get("result");
-                    let server_info = result.and_then(|r| r.get("serverInfo"));
-                    let server_name = server_info
-                        .and_then(|s| s.get("name"))
-                        .and_then(|n| n.as_str())
-                        .map(|s| s.to_string());
-                    let server_version = server_info
-                        .and_then(|s| s.get("version"))
-                        .and_then(|v| v.as_str())
-                        .map(|s| s.to_string());
-                    let protocol_version = result
-                        .and_then(|r| r.get("protocolVersion"))
-                        .and_then(|v| v.as_str())
-                        .map(|s| s.to_string());
-
-                    // Now try to list tools
-                    let tools_request = serde_json::json!({
-                        "jsonrpc": "2.0",
-                        "id": 2,
-                        "method": "tools/list",
-                        "params": {}
-                    });
-
-                    let mut tools_req = client.post(server_url).json(&tools_request);
-
-                    // Forward MCP session ID if the server uses Streamable HTTP
-                    if let Some(sid) = &session_id {
-                        tools_req = tools_req.header("Mcp-Session-Id", sid);
-                    }
-
-                    if config.auth_type == "api-key" {
-                        if let Some(key) = api_key {
-                            let header_name =
-                                config.api_key_header.as_deref().unwrap_or("X-API-Key");
-                            tools_req = tools_req.header(header_name, key);
-                        }
-                    } else if config.auth_type == "oauth" {
-                        if let Some(token) = oauth_token {
-                            tools_req =
-                                tools_req.header("Authorization", format!("Bearer {token}"));
-                        }
-                    }
-                    if let Some(hdrs) = &config.headers {
-                        if let Some(map) = hdrs.as_object() {
-                            for (k, v) in map {
-                                if let Some(val) = v.as_str() {
-                                    tools_req = tools_req.header(k.as_str(), val);
-                                }
-                            }
-                        }
-                    }
-
-                    let tools = match tools_req.send().await {
-                        Ok(tools_resp) => {
-                            if let Ok(tools_body) = tools_resp.json::<serde_json::Value>().await {
-                                parse_tools_response(&tools_body)
-                            } else {
-                                vec![]
-                            }
-                        }
-                        Err(_) => vec![],
-                    };
-
-                    let tool_count = tools.len() as i64;
-
-                    TestConnectionResult {
-                        success: true,
-                        server_name,
-                        server_version,
-                        protocol_version,
-                        tool_count: Some(tool_count),
-                        error: None,
-                        error_details: None,
-                        tools,
-                    }
-                }
-                Err(e) => TestConnectionResult {
-                    success: false,
-                    error: Some(format!("Invalid JSON response: {e}")),
-                    ..Default::default()
-                },
-            }
-        }
-        Err(e) => {
-            let error = if e.is_timeout() {
-                "Connection timed out (10s)".to_string()
-            } else if e.is_connect() {
-                "Connection refused".to_string()
-            } else {
-                format!("Connection failed: {e}")
-            };
-            TestConnectionResult {
-                success: false,
-                error: Some(error),
-                ..Default::default()
-            }
-        }
-    }
-}
-
-/// Test a stdio MCP server connection by spawning the process and
-/// performing an MCP JSON-RPC handshake over stdin/stdout.
-async fn test_connection_stdio(config: &StdioServerConfig) -> TestConnectionResult {
-    use std::process::Stdio;
-    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-    use tokio::process::Command;
-
-    if config.command.is_empty() {
-        return TestConnectionResult {
-            success: false,
-            error: Some("Command is required for stdio transport".into()),
-            ..Default::default()
-        };
-    }
-
-    let args = config.args.as_deref().unwrap_or_default();
-
-    let mut cmd = Command::new(&config.command);
-    cmd.args(args)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    // Set environment variables if provided
-    if let Some(env) = &config.env {
-        for (k, v) in env {
-            cmd.env(k, v);
-        }
-    }
-
-    let mut child = match cmd.spawn() {
-        Ok(c) => c,
-        Err(e) => {
-            return TestConnectionResult {
-                success: false,
-                error: Some(format!("Failed to spawn process '{}': {e}", config.command)),
-                ..Default::default()
-            };
-        }
-    };
-
-    let stdin = child.stdin.take().unwrap();
-    let stdout = child.stdout.take().unwrap();
-
-    // MCP initialize request (JSON-RPC 2.0)
-    let init_request = serde_json::json!({
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "initialize",
-        "params": {
-            "protocolVersion": "2024-11-05",
-            "capabilities": {},
-            "clientInfo": {
-                "name": "nize-mcp",
-                "version": nize_core::version()
-            }
-        }
-    });
-
-    let result = tokio::time::timeout(std::time::Duration::from_secs(15), async {
-        let mut writer = stdin;
-        let mut reader = BufReader::new(stdout);
-
-        // Send initialize
-        let msg = serde_json::to_string(&init_request).unwrap();
-        writer.write_all(msg.as_bytes()).await?;
-        writer.write_all(b"\n").await?;
-        writer.flush().await?;
-
-        // Read initialize response
-        let mut line = String::new();
-        reader.read_line(&mut line).await?;
-        let init_resp: serde_json::Value = serde_json::from_str(line.trim())
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-
-        // Send initialized notification
-        let initialized = serde_json::json!({
-            "jsonrpc": "2.0",
-            "method": "notifications/initialized",
-            "params": {}
-        });
-        let msg = serde_json::to_string(&initialized).unwrap();
-        writer.write_all(msg.as_bytes()).await?;
-        writer.write_all(b"\n").await?;
-        writer.flush().await?;
-
-        // Send tools/list
-        let tools_request = serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 2,
-            "method": "tools/list",
-            "params": {}
-        });
-        let msg = serde_json::to_string(&tools_request).unwrap();
-        writer.write_all(msg.as_bytes()).await?;
-        writer.write_all(b"\n").await?;
-        writer.flush().await?;
-
-        // Read tools/list response
-        let mut tools_line = String::new();
-        reader.read_line(&mut tools_line).await?;
-        let tools_resp: serde_json::Value = serde_json::from_str(tools_line.trim())
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-
-        Ok::<_, std::io::Error>((init_resp, tools_resp))
-    })
-    .await;
-
-    // Kill the child process
-    let _ = child.kill().await;
-
-    match result {
-        Ok(Ok((init_resp, tools_resp))) => {
-            let result_val = init_resp.get("result");
-            let server_info = result_val.and_then(|r| r.get("serverInfo"));
-            let server_name = server_info
-                .and_then(|s| s.get("name"))
-                .and_then(|n| n.as_str())
-                .map(|s| s.to_string());
-            let server_version = server_info
-                .and_then(|s| s.get("version"))
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
-            let protocol_version = result_val
-                .and_then(|r| r.get("protocolVersion"))
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
-
-            let tools = parse_tools_response(&tools_resp);
-            let tool_count = tools.len() as i64;
-
-            TestConnectionResult {
-                success: true,
-                server_name,
-                server_version,
-                protocol_version,
-                tool_count: Some(tool_count),
-                error: None,
-                error_details: None,
-                tools,
-            }
-        }
-        Ok(Err(e)) => TestConnectionResult {
-            success: false,
-            error: Some(format!("Stdio communication error: {e}")),
-            ..Default::default()
-        },
-        Err(_) => TestConnectionResult {
-            success: false,
-            error: Some("Connection timed out (15s)".into()),
-            ..Default::default()
-        },
-    }
-}
-
-/// Parse tools from an MCP tools/list response.
-fn parse_tools_response(body: &serde_json::Value) -> Vec<McpToolSummary> {
-    body.get("result")
-        .and_then(|r| r.get("tools"))
-        .and_then(|t| t.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|tool| {
-                    let name = tool.get("name")?.as_str()?.to_string();
-                    let description = tool
-                        .get("description")
-                        .and_then(|d| d.as_str())
-                        .unwrap_or("")
-                        .to_string();
-                    Some(McpToolSummary { name, description })
-                })
-                .collect()
-        })
-        .unwrap_or_default()
 }
 
 /// Store tools from a test connection result for a server.

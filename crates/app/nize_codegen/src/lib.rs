@@ -40,7 +40,11 @@ pub fn generate(spec_path: &Path, output_dir: &Path) -> Result<bool, String> {
         .map_err(|e| format!("Failed to create {}: {e}", output_dir.display()))?;
 
     // Generate model structs
-    generate_file(output_dir, "models.rs", &gen_models::generate(&doc.components.schemas))?;
+    generate_file(
+        output_dir,
+        "models.rs",
+        &gen_models::generate(&doc.components.schemas),
+    )?;
 
     // Generate route constants
     generate_file(output_dir, "routes.rs", &gen_routes::generate(&doc.paths))?;

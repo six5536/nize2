@@ -161,10 +161,7 @@ pub async fn revoke_all_refresh_tokens(pool: &PgPool, user_id: &str) -> Result<(
 }
 
 /// Fetch user email and name by user ID.
-pub async fn get_user_by_id(
-    pool: &PgPool,
-    user_id: &str,
-) -> Result<Option<User>, AuthError> {
+pub async fn get_user_by_id(pool: &PgPool, user_id: &str) -> Result<Option<User>, AuthError> {
     let row = sqlx::query_as::<_, (String, Option<String>)>(
         "SELECT email, name FROM users WHERE id = $1::uuid",
     )

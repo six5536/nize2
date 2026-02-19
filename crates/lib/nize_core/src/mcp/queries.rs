@@ -109,6 +109,7 @@ pub async fn user_has_server_named(
 }
 
 /// Insert a new user server (visibility=user).
+#[allow(clippy::too_many_arguments)]
 pub async fn insert_user_server(
     pool: &PgPool,
     user_id: &str,
@@ -148,6 +149,7 @@ pub async fn insert_user_server(
 }
 
 /// Insert a built-in server (admin).
+#[allow(clippy::too_many_arguments)]
 pub async fn insert_built_in_server(
     pool: &PgPool,
     name: &str,
@@ -186,6 +188,7 @@ pub async fn insert_built_in_server(
 }
 
 /// Update a server's fields. Only non-None fields are updated.
+#[allow(clippy::too_many_arguments)]
 pub async fn update_server(
     pool: &PgPool,
     server_id: &str,
@@ -396,6 +399,7 @@ pub async fn has_valid_oauth_token(
 }
 
 /// Store or update OAuth tokens for a user+server pair.
+#[allow(clippy::too_many_arguments)]
 pub async fn store_oauth_token(
     pool: &PgPool,
     user_id: &str,
