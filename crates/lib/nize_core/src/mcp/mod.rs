@@ -8,6 +8,7 @@ pub mod execution;
 pub mod oauth;
 pub mod queries;
 pub mod secrets;
+pub mod sse_transport;
 
 use thiserror::Error;
 

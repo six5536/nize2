@@ -22,10 +22,41 @@ pub enum VisibilityTier {
 /// Transport type for MCP servers.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "transport_type", rename_all = "lowercase")]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "kebab-case")]
 pub enum TransportType {
     Stdio,
     Http,
+    Sse,
+    #[sqlx(rename = "managed-sse")]
+    #[serde(rename = "managed-sse")]
+    ManagedSse,
+    #[sqlx(rename = "managed-http")]
+    #[serde(rename = "managed-http")]
+    ManagedHttp,
+}
+
+impl TransportType {
+    /// Whether this transport type spawns a managed child process.
+    pub fn is_managed(&self) -> bool {
+        matches!(self, Self::Stdio | Self::ManagedSse | Self::ManagedHttp)
+    }
+
+    /// The protocol used for communication.
+    pub fn protocol(&self) -> TransportProtocol {
+        match self {
+            Self::Stdio => TransportProtocol::Stdio,
+            Self::Http | Self::ManagedHttp => TransportProtocol::StreamableHttp,
+            Self::Sse | Self::ManagedSse => TransportProtocol::Sse,
+        }
+    }
+}
+
+/// Communication protocol used by a transport.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TransportProtocol {
+    Stdio,
+    StreamableHttp,
+    Sse,
 }
 
 /// Authentication type for MCP servers.
@@ -207,6 +238,35 @@ pub struct HttpServerConfig {
     pub api_key_header: Option<String>,
 }
 
+/// External SSE MCP server configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SseServerConfig {
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub headers: Option<serde_json::Value>,
+    pub auth_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_key_header: Option<String>,
+}
+
+/// Managed HTTP/SSE MCP server configuration.
+/// Server is spawned as a child process, then connected via HTTP or SSE.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedHttpServerConfig {
+    pub command: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub args: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub env: Option<std::collections::HashMap<String, String>>,
+    pub port: u16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ready_timeout_secs: Option<u32>,
+}
+
 /// Discriminated union for MCP server transport configuration.
 /// Uses `transport` as the tag field, following idiomatic MCP conventions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -216,14 +276,22 @@ pub enum ServerConfig {
     Stdio(StdioServerConfig),
     #[serde(rename = "http")]
     Http(HttpServerConfig),
+    #[serde(rename = "sse")]
+    Sse(SseServerConfig),
+    #[serde(rename = "managed-sse")]
+    ManagedSse(ManagedHttpServerConfig),
+    #[serde(rename = "managed-http")]
+    ManagedHttp(ManagedHttpServerConfig),
 }
 
 impl ServerConfig {
-    /// Get the endpoint string (URL for HTTP, command for stdio).
+    /// Get the endpoint string (URL for HTTP/SSE, command for stdio/managed).
     pub fn endpoint(&self) -> &str {
         match self {
             Self::Http(c) => &c.url,
+            Self::Sse(c) => &c.url,
             Self::Stdio(c) => &c.command,
+            Self::ManagedSse(c) | Self::ManagedHttp(c) => &c.command,
         }
     }
 
@@ -232,6 +300,9 @@ impl ServerConfig {
         match self {
             Self::Http(_) => TransportType::Http,
             Self::Stdio(_) => TransportType::Stdio,
+            Self::Sse(_) => TransportType::Sse,
+            Self::ManagedSse(_) => TransportType::ManagedSse,
+            Self::ManagedHttp(_) => TransportType::ManagedHttp,
         }
     }
 }

@@ -219,11 +219,13 @@ export default function UserToolsPage() {
 
   const handleCreateServer = async (payload: { name: string; description: string; domain: string; visibility: "hidden" | "visible"; config: ServerConfig; oauthConfig?: { clientId: string; authorizationUrl: string; tokenUrl: string; scopes: string[] }; clientSecret?: string }): Promise<string> => {
     // Flatten config for user API
-    const httpConfig = payload.config as { transport: "http"; url: string; authType: string; apiKey?: string };
+    const httpConfig = payload.config as { transport: "http" | "sse"; url: string; authType: string; apiKey?: string };
     const body: Record<string, unknown> = {
       name: payload.name,
       description: payload.description,
       domain: payload.domain,
+      // @zen-impl: XMCP-5_AC-1 — send transport type to user API
+      transport: httpConfig.transport,
       url: httpConfig.url,
       authType: httpConfig.authType,
     };
@@ -263,7 +265,8 @@ export default function UserToolsPage() {
     if (updates.description !== undefined) body.description = updates.description;
     if (updates.domain !== undefined) body.domain = updates.domain;
     if (updates.config) {
-      const httpConfig = updates.config as { transport: "http"; url: string; authType: string; apiKey?: string };
+      const httpConfig = updates.config as { transport: "http" | "sse"; url: string; authType: string; apiKey?: string };
+      if (httpConfig.transport) body.transport = httpConfig.transport;
       if (httpConfig.url) body.url = httpConfig.url;
       if (httpConfig.authType) body.authType = httpConfig.authType;
       if (httpConfig.apiKey) body.apiKey = httpConfig.apiKey;
@@ -319,6 +322,8 @@ export default function UserToolsPage() {
         <div className="mb-6">
           <ServerForm
             mode="create"
+            showTransport
+            transportOptions={["http", "sse"]}
             authFetch={authFetch}
             onTestConnection={handleTestConnection}
             onCreateServer={handleCreateServer}
@@ -349,6 +354,8 @@ export default function UserToolsPage() {
                   transport: "http",
                   authType: "none",
                 }}
+                showTransport
+                transportOptions={["http", "sse"]}
                 authFetch={authFetch}
                 onTestConnection={handleTestConnection}
                 onUpdateServer={handleUpdateServer}

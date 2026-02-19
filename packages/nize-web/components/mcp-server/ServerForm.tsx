@@ -16,7 +16,7 @@
 "use client";
 
 import { useState } from "react";
-import type { ServerConfig, ServerFormValues, TestConnectionResult } from "./types";
+import type { ServerConfig, ServerFormValues, TestConnectionResult, TransportType } from "./types";
 import { useServerForm } from "./useServerForm";
 import { useOAuthFlow } from "./useOAuthFlow";
 import { HttpConfigFields } from "./HttpConfigFields";
@@ -29,6 +29,9 @@ interface ServerFormProps {
   initialValues?: ServerFormValues;
   /** Show transport selector (admin). */
   showTransport?: boolean;
+  // @zen-impl: XMCP-5_AC-1 — restrict transport options shown in the dropdown
+  /** Restrict transport options shown in the dropdown. Defaults to all. */
+  transportOptions?: TransportType[];
   /** Show visibility selector (admin). */
   showVisibility?: boolean;
   /** Authenticated fetch function. */
@@ -62,7 +65,16 @@ interface ServerFormProps {
 
 // @zen-impl: PLAN-032 Step 7
 // @zen-impl: PLAN-032 Step 8
-export function ServerForm({ mode, initialValues, showTransport = false, showVisibility = false, authFetch, onTestConnection, onCreateServer, onUpdateServer, onDeleteServer, onCancel, onSuccess }: ServerFormProps) {
+// @zen-impl: XMCP-5_AC-1
+const ALL_TRANSPORT_OPTIONS: { value: TransportType; label: string }[] = [
+  { value: "http", label: "HTTP (Remote)" },
+  { value: "stdio", label: "Stdio (Local)" },
+  { value: "sse", label: "SSE (Remote)" },
+  { value: "managed-sse", label: "Managed SSE (Local)" },
+  { value: "managed-http", label: "Managed HTTP (Local)" },
+];
+
+export function ServerForm({ mode, initialValues, showTransport = false, transportOptions, showVisibility = false, authFetch, onTestConnection, onCreateServer, onUpdateServer, onDeleteServer, onCancel, onSuccess }: ServerFormProps) {
   const form = useServerForm(initialValues, { mode });
   const { inProgress: oauthInProgress, startOAuthFlow } = useOAuthFlow();
 
@@ -265,9 +277,12 @@ export function ServerForm({ mode, initialValues, showTransport = false, showVis
           {showTransport && (
             <div>
               <label className="block text-sm font-medium text-gray-700">Transport</label>
-              <select value={form.transport} onChange={(e) => form.setTransport(e.target.value as "stdio" | "http")} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-                <option value="http">HTTP (Remote)</option>
-                <option value="stdio">Stdio (Local)</option>
+              <select value={form.transport} onChange={(e) => form.setTransport(e.target.value as TransportType)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                {(transportOptions ? ALL_TRANSPORT_OPTIONS.filter((o) => transportOptions.includes(o.value)) : ALL_TRANSPORT_OPTIONS).map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </select>
             </div>
           )}
@@ -275,7 +290,7 @@ export function ServerForm({ mode, initialValues, showTransport = false, showVis
       )}
 
       {/* Transport-specific fields */}
-      {form.transport === "http" ? (
+      {form.transport === "http" || form.transport === "sse" ? (
         <>
           <HttpConfigFields url={form.url} authType={form.authType} apiKey={form.apiKey} onUrlChange={form.setUrl} onAuthTypeChange={form.setAuthType} onApiKeyChange={form.setApiKey} apiKeyPlaceholder={mode === "edit" ? "Enter new API key (leave blank to keep existing)" : "Enter API key"} />
           {form.authType === "oauth" && (
@@ -291,6 +306,24 @@ export function ServerForm({ mode, initialValues, showTransport = false, showVis
               <OAuthConfigFields clientId={form.clientId} clientSecret={form.clientSecret} oauthScopes={form.oauthScopes} authorizationUrl={form.authorizationUrl} tokenUrl={form.tokenUrl} onClientIdChange={form.setClientId} onClientSecretChange={form.setClientSecret} onOauthScopesChange={form.setOauthScopes} onAuthorizationUrlChange={form.setAuthorizationUrl} onTokenUrlChange={form.setTokenUrl} clientSecretPlaceholder={mode === "edit" ? "Leave blank to keep existing" : "Google OAuth Client Secret"} clientSecretRequired={mode === "create"} />
             </>
           )}
+        </>
+      ) : form.transport === "managed-sse" || form.transport === "managed-http" ? (
+        <>
+          <StdioConfigFields command={form.command} args={form.args} envPairs={form.envPairs} onCommandChange={form.setCommand} onArgsChange={form.setArgs} onEnvPairsChange={form.setEnvPairs} />
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Port</label>
+              <input type="number" value={form.port} onChange={(e) => form.setPort(parseInt(e.target.value) || 0)} min={1} max={65535} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Path (optional)</label>
+              <input type="text" value={form.path} onChange={(e) => form.setPath(e.target.value)} placeholder="/mcp" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Ready timeout (s)</label>
+              <input type="number" value={form.readyTimeoutSecs} onChange={(e) => form.setReadyTimeoutSecs(parseInt(e.target.value) || 30)} min={1} max={300} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
+            </div>
+          </div>
         </>
       ) : (
         <StdioConfigFields command={form.command} args={form.args} envPairs={form.envPairs} onCommandChange={form.setCommand} onArgsChange={form.setArgs} onEnvPairsChange={form.setEnvPairs} />

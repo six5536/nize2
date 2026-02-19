@@ -10,7 +10,7 @@ use crate::AppState;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
 use crate::services::mcp_config;
-use nize_core::models::mcp::{OAuthConfig, ServerConfig};
+use nize_core::models::mcp::{OAuthConfig, ServerConfig, TransportType};
 
 // ---------------------------------------------------------------------------
 // Request / response DTOs
@@ -23,6 +23,9 @@ pub struct CreateUserServerRequest {
     pub description: Option<String>,
     pub domain: Option<String>,
     pub url: String,
+    // @zen-impl: XMCP-5_AC-1 — transport selector for user servers (http or sse only)
+    #[serde(default = "default_transport")]
+    pub transport: TransportType,
     #[serde(default = "default_auth_type")]
     pub auth_type: String,
     pub api_key: Option<String>,
@@ -30,6 +33,10 @@ pub struct CreateUserServerRequest {
     pub headers: Option<serde_json::Value>,
     pub oauth_config: Option<OAuthConfig>,
     pub client_secret: Option<String>,
+}
+
+fn default_transport() -> TransportType {
+    TransportType::Http
 }
 
 fn default_auth_type() -> String {
@@ -127,6 +134,7 @@ pub async fn add_server_handler(
         body.description.as_deref().unwrap_or(""),
         body.domain.as_deref().unwrap_or("general"),
         &body.url,
+        &body.transport,
         &body.auth_type,
         body.api_key.as_deref(),
         body.api_key_header.as_deref(),

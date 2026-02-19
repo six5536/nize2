@@ -7,7 +7,7 @@
  * to enable a unified ServerForm component.
  */
 
-export type TransportType = "stdio" | "http";
+export type TransportType = "stdio" | "http" | "sse" | "managed-sse" | "managed-http";
 export type AuthType = "none" | "api-key" | "oauth";
 export type VisibilityTier = "hidden" | "visible" | "user";
 
@@ -37,7 +37,27 @@ export interface HttpConfig {
   apiKey?: string;
 }
 
-export type ServerConfig = StdioConfig | HttpConfig;
+// @zen-impl: PLAN-033 T-XMCP-090 — SSE config type
+export interface SseConfig {
+  transport: "sse";
+  url: string;
+  headers?: Record<string, string>;
+  authType: AuthType;
+  apiKeyHeader?: string;
+}
+
+// @zen-impl: PLAN-033 T-XMCP-091 — Managed HTTP/SSE config type
+export interface ManagedHttpConfig {
+  transport: "managed-sse" | "managed-http";
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+  port: number;
+  path?: string;
+  readyTimeoutSecs?: number;
+}
+
+export type ServerConfig = StdioConfig | HttpConfig | SseConfig | ManagedHttpConfig;
 
 export interface TestConnectionResult {
   success: boolean;

@@ -3,7 +3,7 @@
 //! Execution proxy — connects to external MCP servers and executes tools.
 //!
 //! Maintains a pool of `RunningService` connections keyed by server ID.
-//! Supports both HTTP (Streamable HTTP) and stdio (child process) transports.
+//! Supports HTTP (Streamable HTTP), SSE (legacy), stdio, and managed transports.
 
 use std::borrow::Cow;
 use std::collections::HashSet;
@@ -26,8 +26,8 @@ use rmcp::transport::TokioChildProcess;
 use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
 
 use crate::models::mcp::{
-    AuthType, HttpServerConfig, McpToolSummary, ServerConfig, StdioServerConfig,
-    TestConnectionResult, TransportType,
+    AuthType, HttpServerConfig, ManagedHttpServerConfig, McpToolSummary, ServerConfig,
+    SseServerConfig, StdioServerConfig, TestConnectionResult, TransportType,
 };
 
 use super::McpError;
@@ -39,11 +39,14 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 /// Default timeout for stdio server connection/initialization (30 seconds).
 const STDIO_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// Default maximum number of concurrent stdio processes.
-const DEFAULT_MAX_STDIO_PROCESSES: usize = 50;
+/// Default maximum number of concurrent managed processes.
+const DEFAULT_MAX_MANAGED_PROCESSES: usize = 50;
 
-/// Default idle timeout for stdio connections (5 minutes).
+/// Default idle timeout for managed connections (5 minutes).
 const DEFAULT_IDLE_TIMEOUT: Duration = Duration::from_secs(300);
+
+/// Interval between readiness probe retries.
+const READY_RETRY_INTERVAL: Duration = Duration::from_millis(500);
 
 /// OAuth credentials to pass when connecting to an authenticated MCP server.
 #[derive(Debug, Clone)]
@@ -80,6 +83,9 @@ struct PoolEntry {
     /// When the entry was created.
     #[allow(dead_code)]
     created_at: Instant,
+    /// Child process handle for managed transports (stdio, managed-sse, managed-http).
+    /// Killed when the pool entry is removed/evicted.
+    child_process: Option<tokio::process::Child>,
 }
 
 impl PoolEntry {
@@ -101,15 +107,15 @@ impl PoolEntry {
 ///
 /// Keyed by server ID. Connections are lazily created and kept alive.
 /// On error, the connection is removed and a retry is attempted.
-/// Supports both HTTP and stdio transports.
+/// Supports HTTP, SSE, stdio, and managed transports.
 pub struct ClientPool {
     connections: Arc<DashMap<Uuid, PoolEntry>>,
     /// Guard set to prevent duplicate concurrent spawns for the same server.
     connecting: Arc<Mutex<HashSet<Uuid>>>,
-    /// Path to the terminator manifest file for stdio process PID registration.
+    /// Path to the terminator manifest file for managed process PID registration.
     manifest_path: Option<PathBuf>,
-    /// Maximum number of concurrent stdio processes.
-    max_stdio_processes: usize,
+    /// Maximum number of concurrent managed processes.
+    max_managed_processes: usize,
     /// Idle timeout for stdio connections before eviction.
     idle_timeout: Duration,
     /// Reference point for atomic last-accessed timestamps.
@@ -122,7 +128,7 @@ impl ClientPool {
             connections: Arc::new(DashMap::new()),
             connecting: Arc::new(Mutex::new(HashSet::new())),
             manifest_path: None,
-            max_stdio_processes: DEFAULT_MAX_STDIO_PROCESSES,
+            max_managed_processes: DEFAULT_MAX_MANAGED_PROCESSES,
             idle_timeout: DEFAULT_IDLE_TIMEOUT,
             epoch: Instant::now(),
         }
@@ -136,9 +142,9 @@ impl ClientPool {
         }
     }
 
-    /// Set the maximum number of concurrent stdio processes.
-    pub fn set_max_stdio_processes(&mut self, max: usize) {
-        self.max_stdio_processes = max;
+    /// Set the maximum number of concurrent managed processes.
+    pub fn set_max_managed_processes(&mut self, max: usize) {
+        self.max_managed_processes = max;
     }
 
     /// Set the idle timeout for stdio connections.
@@ -151,11 +157,11 @@ impl ClientPool {
         self.idle_timeout
     }
 
-    /// Count current stdio connections.
-    fn stdio_count(&self) -> usize {
+    /// Count current managed connections (stdio + managed-sse + managed-http).
+    fn managed_count(&self) -> usize {
         self.connections
             .iter()
-            .filter(|entry| entry.value().transport == TransportType::Stdio)
+            .filter(|entry| entry.value().transport.is_managed())
             .count()
     }
 
@@ -215,9 +221,15 @@ impl ClientPool {
         let transport_type = server.transport.clone();
 
         // @zen-impl: PLAN-025 Phase 2.2 — match on transport type
+        // @zen-impl: PLAN-033 T-XMCP-044 — dispatch all 5 transport types
         match transport_type {
             TransportType::Http => self.connect_http(&server, oauth_headers).await?,
             TransportType::Stdio => self.connect_stdio(&server, server_id).await?,
+            TransportType::Sse => self.connect_sse(&server, oauth_headers).await?,
+            TransportType::ManagedSse | TransportType::ManagedHttp => {
+                self.connect_managed(&server, server_id, transport_type)
+                    .await?
+            }
         }
 
         Ok(())
@@ -292,6 +304,7 @@ impl ClientPool {
                 transport: TransportType::Http,
                 last_accessed: AtomicU64::new(self.epoch.elapsed().as_millis() as u64),
                 created_at: Instant::now(),
+                child_process: None,
             },
         );
         Ok(())
@@ -306,10 +319,11 @@ impl ClientPool {
     ) -> Result<(), McpError> {
         // @zen-impl: PLAN-025 Phase 2.3 — enforce max stdio process limit
         // @zen-impl: PLAN-030 Phase 3.2 — LRU eviction before ResourceExhausted
-        if self.stdio_count() >= self.max_stdio_processes && !self.evict_lru_stdio() {
+        // @zen-impl: PLAN-033 T-XMCP-052 — use is_managed() for managed process limit
+        if self.managed_count() >= self.max_managed_processes && !self.evict_lru_managed() {
             return Err(McpError::ResourceExhausted(format!(
-                "Maximum stdio process limit ({}) reached",
-                self.max_stdio_processes
+                "Maximum managed process limit ({}) reached",
+                self.max_managed_processes
             )));
         }
 
@@ -384,39 +398,276 @@ impl ClientPool {
                 transport: TransportType::Stdio,
                 last_accessed: AtomicU64::new(self.epoch.elapsed().as_millis() as u64),
                 created_at: Instant::now(),
+                child_process: None, // TokioChildProcess manages its own child
             },
         );
         Ok(())
     }
 
-    /// Remove a stale connection.
+    // @zen-impl: PLAN-033 T-XMCP-040 — connect to external SSE server
+    /// Connect to an external SSE MCP server via the legacy SSE transport.
+    async fn connect_sse(
+        &self,
+        server: &crate::models::mcp::McpServerRow,
+        oauth_headers: Option<&OAuthHeaders>,
+    ) -> Result<(), McpError> {
+        let config: SseServerConfig = server
+            .config
+            .as_ref()
+            .and_then(|c| {
+                // Try parsing as ServerConfig first (has transport tag)
+                if let Ok(sc) = serde_json::from_value::<ServerConfig>(c.clone()) {
+                    if let ServerConfig::Sse(sse) = sc {
+                        return Some(sse);
+                    }
+                }
+                // Fallback: parse directly as SseServerConfig
+                serde_json::from_value(c.clone()).ok()
+            })
+            .ok_or_else(|| {
+                McpError::Validation(format!(
+                    "Server \"{}\" has no valid SSE configuration",
+                    server.name
+                ))
+            })?;
+
+        let mut extra_headers = reqwest::header::HeaderMap::new();
+
+        // Configure auth
+        let auth_type = queries::extract_auth_type(&server.config);
+        if auth_type == AuthType::OAuth {
+            if let Some(headers) = oauth_headers {
+                if let Ok(val) =
+                    reqwest::header::HeaderValue::from_str(&format!("Bearer {}", headers.id_token))
+                {
+                    extra_headers.insert(reqwest::header::AUTHORIZATION, val);
+                }
+                if let Ok(val) = reqwest::header::HeaderValue::from_str(&headers.access_token) {
+                    extra_headers.insert(
+                        reqwest::header::HeaderName::from_static("x-google-access-token"),
+                        val,
+                    );
+                }
+            }
+        }
+
+        // Add custom headers from config
+        add_custom_headers(&mut extra_headers, &config.headers);
+
+        let transport = super::sse_transport::SseClientTransport::with_client(
+            self.build_sse_client(&extra_headers)?,
+            &config.url,
+            extra_headers,
+        );
+
+        let service: RunningService<RoleClient, ()> = ().serve(transport).await.map_err(|e| {
+            McpError::ConnectionFailed(format!(
+                "Failed to connect to SSE MCP server {}: {e}",
+                server.name
+            ))
+        })?;
+
+        self.connections.insert(
+            server.id,
+            PoolEntry {
+                service,
+                transport: TransportType::Sse,
+                last_accessed: AtomicU64::new(self.epoch.elapsed().as_millis() as u64),
+                created_at: Instant::now(),
+                child_process: None,
+            },
+        );
+        Ok(())
+    }
+
+    /// Build a reqwest client for SSE connections.
+    fn build_sse_client(
+        &self,
+        headers: &reqwest::header::HeaderMap,
+    ) -> Result<reqwest::Client, McpError> {
+        reqwest::Client::builder()
+            .default_headers(headers.clone())
+            .build()
+            .map_err(|e| McpError::ConnectionFailed(format!("Failed to build SSE client: {e}")))
+    }
+
+    // @zen-impl: PLAN-033 T-XMCP-043 — connect managed HTTP/SSE server
+    /// Connect to a managed HTTP/SSE MCP server by spawning a child process
+    /// and then connecting via the appropriate protocol.
+    async fn connect_managed(
+        &self,
+        server: &crate::models::mcp::McpServerRow,
+        server_id: Uuid,
+        transport_type: TransportType,
+    ) -> Result<(), McpError> {
+        // Enforce managed process limit
+        if self.managed_count() >= self.max_managed_processes && !self.evict_lru_managed() {
+            return Err(McpError::ResourceExhausted(format!(
+                "Maximum managed process limit ({}) reached",
+                self.max_managed_processes
+            )));
+        }
+
+        let config: ManagedHttpServerConfig = server
+            .config
+            .as_ref()
+            .and_then(|c| {
+                if let Ok(sc) = serde_json::from_value::<ServerConfig>(c.clone()) {
+                    match sc {
+                        ServerConfig::ManagedSse(m) | ServerConfig::ManagedHttp(m) => {
+                            return Some(m);
+                        }
+                        _ => {}
+                    }
+                }
+                serde_json::from_value(c.clone()).ok()
+            })
+            .ok_or_else(|| {
+                McpError::Validation(format!(
+                    "Server \"{}\" has no valid managed HTTP configuration",
+                    server.name
+                ))
+            })?;
+
+        // Spawn the child process
+        let mut child = spawn_managed_process(&config).map_err(|e| {
+            McpError::ConnectionFailed(format!(
+                "Failed to spawn managed process '{}': {e}",
+                config.command
+            ))
+        })?;
+
+        // Write PID to terminator manifest
+        if let Some(ref manifest) = self.manifest_path {
+            if let Some(pid) = child.id() {
+                if let Err(e) = append_manifest(manifest, pid) {
+                    warn!("Failed to write managed PID {pid} to manifest: {e}");
+                }
+            }
+        }
+
+        // Determine the URL and path
+        let default_path = match transport_type {
+            TransportType::ManagedSse => "/sse",
+            TransportType::ManagedHttp => "/mcp",
+            _ => "/mcp",
+        };
+        let path = config.path.as_deref().unwrap_or(default_path);
+        let url = format!("http://localhost:{}{}", config.port, path);
+
+        // Wait for the server to become ready
+        let timeout_secs = config.ready_timeout_secs.unwrap_or(30);
+        let timeout = Duration::from_secs(timeout_secs as u64);
+        wait_for_ready(&url, timeout).await.map_err(|e| {
+            // Kill the child process on failure
+            let _ = child.start_kill();
+            McpError::ConnectionFailed(format!(
+                "Managed server '{}' did not become ready within {timeout_secs}s: {e}",
+                server.name
+            ))
+        })?;
+
+        // Connect via the appropriate protocol
+        let service: RunningService<RoleClient, ()> = match transport_type {
+            TransportType::ManagedSse => {
+                let transport = super::sse_transport::SseClientTransport::new(&url);
+                tokio::time::timeout(STDIO_CONNECT_TIMEOUT, ().serve(transport))
+                    .await
+                    .map_err(|_| {
+                        let _ = child.start_kill();
+                        McpError::ConnectionFailed(format!(
+                            "Managed SSE server '{}' did not respond within {}s",
+                            server.name,
+                            STDIO_CONNECT_TIMEOUT.as_secs()
+                        ))
+                    })?
+                    .map_err(|e| {
+                        let _ = child.start_kill();
+                        McpError::ConnectionFailed(format!(
+                            "Failed to initialize managed SSE server {}: {e}",
+                            server.name
+                        ))
+                    })?
+            }
+            TransportType::ManagedHttp => {
+                let config = StreamableHttpClientTransportConfig::with_uri(&*url);
+                let transport = StreamableHttpClientTransport::from_config(config);
+                tokio::time::timeout(STDIO_CONNECT_TIMEOUT, ().serve(transport))
+                    .await
+                    .map_err(|_| {
+                        let _ = child.start_kill();
+                        McpError::ConnectionFailed(format!(
+                            "Managed HTTP server '{}' did not respond within {}s",
+                            server.name,
+                            STDIO_CONNECT_TIMEOUT.as_secs()
+                        ))
+                    })?
+                    .map_err(|e| {
+                        let _ = child.start_kill();
+                        McpError::ConnectionFailed(format!(
+                            "Failed to initialize managed HTTP server {}: {e}",
+                            server.name
+                        ))
+                    })?
+            }
+            _ => unreachable!("connect_managed called with non-managed transport type"),
+        };
+
+        info!(
+            server_name = %server.name,
+            server_id = %server_id,
+            transport = ?transport_type,
+            "Managed MCP server connected"
+        );
+
+        self.connections.insert(
+            server_id,
+            PoolEntry {
+                service,
+                transport: transport_type,
+                last_accessed: AtomicU64::new(self.epoch.elapsed().as_millis() as u64),
+                created_at: Instant::now(),
+                child_process: Some(child),
+            },
+        );
+        Ok(())
+    }
+
+    // @zen-impl: PLAN-033 T-XMCP-062 — kill child process on removal
+    /// Remove a stale connection, killing any child process.
     fn remove(&self, server_id: &Uuid) {
-        if let Some((_, entry)) = self.connections.remove(server_id) {
+        if let Some((_, mut entry)) = self.connections.remove(server_id) {
             let ct = entry.service.cancellation_token();
             ct.cancel();
+            if let Some(ref mut child) = entry.child_process {
+                let _ = child.start_kill();
+            }
         }
     }
 
-    // @zen-impl: PLAN-030 Phase 2.1 — evict idle stdio connections
-    /// Evict all stdio connections that have been idle longer than `timeout`.
+    // @zen-impl: PLAN-030 Phase 2.1 — evict idle managed connections
+    // @zen-impl: PLAN-033 T-XMCP-052 — evict all managed transports, not just stdio
+    /// Evict all managed connections that have been idle longer than `timeout`.
     fn evict_idle(&self, timeout: Duration) {
         let mut evicted = Vec::new();
         self.connections.retain(|id, entry| {
-            if entry.transport == TransportType::Stdio && entry.idle_duration(&self.epoch) > timeout
-            {
+            if entry.transport.is_managed() && entry.idle_duration(&self.epoch) > timeout {
                 evicted.push(*id);
+                if let Some(ref mut child) = entry.child_process {
+                    let _ = child.start_kill();
+                }
                 false
             } else {
                 true
             }
         });
         for id in &evicted {
-            info!(server_id = %id, "Evicted idle stdio connection");
+            info!(server_id = %id, "Evicted idle managed connection");
         }
     }
 
     // @zen-impl: PLAN-030 Phase 2.2 — spawn background reaper
-    /// Spawn a background reaper task that evicts idle stdio connections.
+    /// Spawn a background reaper task that evicts idle managed connections.
     /// Returns a `JoinHandle` — the task runs until the Tokio runtime shuts down.
     pub fn spawn_reaper(self: &Arc<Self>, idle_timeout: Duration) -> tokio::task::JoinHandle<()> {
         let pool = Arc::clone(self);
@@ -430,19 +681,20 @@ impl ClientPool {
     }
 
     // @zen-impl: PLAN-030 Phase 3.1 — LRU eviction for capacity management
-    /// Evict the single least-recently-used stdio connection.
+    // @zen-impl: PLAN-033 T-XMCP-052 — evict LRU across all managed transports
+    /// Evict the single least-recently-used managed connection.
     /// Returns `true` if an entry was evicted.
-    fn evict_lru_stdio(&self) -> bool {
+    fn evict_lru_managed(&self) -> bool {
         let oldest = self
             .connections
             .iter()
-            .filter(|e| e.value().transport == TransportType::Stdio)
+            .filter(|e| e.value().transport.is_managed())
             .min_by_key(|e| e.value().last_accessed.load(Ordering::Relaxed))
             .map(|e| *e.key());
 
         if let Some(id) = oldest {
             self.remove(&id);
-            info!(server_id = %id, "LRU-evicted stdio connection to make room");
+            info!(server_id = %id, "LRU-evicted managed connection to make room");
             true
         } else {
             false
@@ -472,6 +724,59 @@ fn append_manifest(manifest: &Path, pid: u32) -> Result<(), String> {
         .map_err(|e| format!("fsync manifest: {e}"))?;
 
     Ok(())
+}
+
+// =============================================================================
+// Managed process helpers
+// =============================================================================
+
+// @zen-impl: PLAN-033 T-XMCP-041 — spawn managed child process
+/// Spawn a managed child process with piped stdin for lifecycle coupling.
+fn spawn_managed_process(
+    config: &ManagedHttpServerConfig,
+) -> Result<tokio::process::Child, String> {
+    let args = config.args.as_deref().unwrap_or_default();
+
+    let mut cmd = tokio::process::Command::new(&config.command);
+    cmd.args(args)
+        .stdin(std::process::Stdio::piped()) // lifecycle coupling
+        .stderr(std::process::Stdio::inherit());
+
+    // Set environment variables if provided
+    if let Some(env) = &config.env {
+        for (k, v) in env {
+            cmd.env(k, v);
+        }
+    }
+
+    cmd.spawn()
+        .map_err(|e| format!("spawn '{}': {e}", config.command))
+}
+
+// @zen-impl: PLAN-033 T-XMCP-042 — wait for managed server readiness
+/// Retry HTTP GET to the given URL until it succeeds or timeout elapses.
+async fn wait_for_ready(url: &str, timeout: Duration) -> Result<(), String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(2))
+        .build()
+        .map_err(|e| format!("build readiness client: {e}"))?;
+
+    let deadline = tokio::time::Instant::now() + timeout;
+    loop {
+        // Try a simple GET — we just need the server to accept connections
+        match client.get(url).send().await {
+            Ok(_) => return Ok(()),
+            Err(_) if tokio::time::Instant::now() < deadline => {
+                tokio::time::sleep(READY_RETRY_INTERVAL).await;
+            }
+            Err(e) => {
+                return Err(format!(
+                    "server not ready after {}s: {e}",
+                    timeout.as_secs()
+                ));
+            }
+        }
+    }
 }
 
 // =============================================================================
@@ -686,6 +991,286 @@ pub async fn test_stdio_connection(config: &StdioServerConfig) -> TestConnection
             .collect(),
         Err(e) => {
             warn!("tools/list failed during stdio connection test: {e}");
+            vec![]
+        }
+    };
+
+    let tool_count = tools.len() as i64;
+
+    TestConnectionResult {
+        success: true,
+        server_name,
+        server_version,
+        protocol_version,
+        tool_count: Some(tool_count),
+        error: None,
+        error_details: None,
+        auth_required: None,
+        tools,
+    }
+}
+
+// =============================================================================
+// SSE connection testing via rmcp
+// =============================================================================
+
+// @zen-impl: PLAN-033 T-XMCP-070 — test SSE connection
+/// Test a legacy SSE MCP server connection by connecting to the SSE endpoint
+/// and performing an MCP handshake.
+pub async fn test_sse_connection(
+    config: &SseServerConfig,
+    api_key: Option<&str>,
+    oauth_token: Option<&str>,
+) -> TestConnectionResult {
+    if config.url.is_empty() {
+        return TestConnectionResult {
+            success: false,
+            error: Some("URL is required for SSE transport".into()),
+            ..Default::default()
+        };
+    }
+
+    let mut extra_headers = reqwest::header::HeaderMap::new();
+
+    // Configure auth
+    if config.auth_type == "api-key" {
+        if let Some(key) = api_key {
+            let header_name = config.api_key_header.as_deref().unwrap_or("X-API-Key");
+            if let (Ok(name), Ok(val)) = (
+                reqwest::header::HeaderName::from_bytes(header_name.as_bytes()),
+                reqwest::header::HeaderValue::from_str(key),
+            ) {
+                extra_headers.insert(name, val);
+            }
+        }
+    } else if config.auth_type == "oauth" {
+        if let Some(token) = oauth_token {
+            if let Ok(val) = reqwest::header::HeaderValue::from_str(&format!("Bearer {token}")) {
+                extra_headers.insert(reqwest::header::AUTHORIZATION, val);
+            }
+        }
+    }
+
+    // Add custom headers from config
+    add_custom_headers(&mut extra_headers, &config.headers);
+
+    let client = match reqwest::Client::builder()
+        .default_headers(extra_headers.clone())
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            return TestConnectionResult {
+                success: false,
+                error: Some(format!("Failed to create SSE client: {e}")),
+                ..Default::default()
+            };
+        }
+    };
+
+    let transport =
+        super::sse_transport::SseClientTransport::with_client(client, &config.url, extra_headers);
+
+    // Connect via rmcp (performs initialize handshake)
+    let service: RunningService<RoleClient, ()> = match ().serve(transport).await {
+        Ok(s) => s,
+        Err(e) => {
+            let error = format!("{e}");
+            let (error_msg, error_details) = if error.contains("timed out") {
+                ("Connection timed out (15s)".to_string(), None)
+            } else if error.contains("refused") {
+                ("Connection refused".to_string(), None)
+            } else {
+                ("Connection failed".to_string(), Some(error))
+            };
+            return TestConnectionResult {
+                success: false,
+                error: Some(error_msg),
+                error_details,
+                ..Default::default()
+            };
+        }
+    };
+
+    // Extract server info
+    let (server_name, server_version, protocol_version) = match service.peer_info() {
+        Some(info) => (
+            Some(info.server_info.name.clone()),
+            Some(info.server_info.version.clone()),
+            Some(info.protocol_version.to_string()),
+        ),
+        None => (None, None, None),
+    };
+
+    // List all tools
+    let tools: Vec<McpToolSummary> = match service.peer().list_all_tools().await {
+        Ok(rmcp_tools) => rmcp_tools
+            .into_iter()
+            .map(|t| McpToolSummary {
+                name: t.name.to_string(),
+                description: t.description.as_deref().unwrap_or("").to_string(),
+            })
+            .collect(),
+        Err(e) => {
+            warn!("tools/list failed during SSE connection test: {e}");
+            vec![]
+        }
+    };
+
+    let tool_count = tools.len() as i64;
+
+    TestConnectionResult {
+        success: true,
+        server_name,
+        server_version,
+        protocol_version,
+        tool_count: Some(tool_count),
+        error: None,
+        error_details: None,
+        auth_required: None,
+        tools,
+    }
+}
+
+// =============================================================================
+// Managed connection testing (spawn → connect → test → kill)
+// =============================================================================
+
+// @zen-impl: PLAN-033 T-XMCP-072 — test managed transport connection
+/// Test a managed MCP server by spawning a temporary child process, waiting for
+/// it to become ready, connecting via the appropriate protocol (SSE or
+/// StreamableHttp), then performing an MCP handshake and tool discovery.
+/// The child process is killed after the test.
+pub async fn test_managed_connection(
+    config: &ManagedHttpServerConfig,
+    transport_type: &TransportType,
+) -> TestConnectionResult {
+    if config.command.is_empty() {
+        return TestConnectionResult {
+            success: false,
+            error: Some("Command is required for managed transport".into()),
+            ..Default::default()
+        };
+    }
+    if config.port == 0 {
+        return TestConnectionResult {
+            success: false,
+            error: Some("Port is required for managed transport".into()),
+            ..Default::default()
+        };
+    }
+
+    // Spawn temporary child process
+    let mut child = match spawn_managed_process(config) {
+        Ok(c) => c,
+        Err(e) => {
+            return TestConnectionResult {
+                success: false,
+                error: Some(format!("Failed to spawn process: {e}")),
+                ..Default::default()
+            };
+        }
+    };
+
+    let path = config.path.as_deref().unwrap_or("/sse");
+    let url = format!("http://127.0.0.1:{}{path}", config.port);
+    let ready_timeout = Duration::from_secs(config.ready_timeout_secs.unwrap_or(30) as u64);
+
+    // Wait for the server to become ready
+    if let Err(e) = wait_for_ready(&url, ready_timeout).await {
+        let _ = child.start_kill();
+        return TestConnectionResult {
+            success: false,
+            error: Some(format!("Server not ready: {e}")),
+            ..Default::default()
+        };
+    }
+
+    // Connect via the appropriate protocol
+    let result = match transport_type {
+        TransportType::ManagedSse => {
+            let transport = super::sse_transport::SseClientTransport::new(&url);
+            match tokio::time::timeout(STDIO_CONNECT_TIMEOUT, ().serve(transport)).await {
+                Ok(Ok(service)) => extract_test_result(&service, "managed SSE").await,
+                Ok(Err(e)) => TestConnectionResult {
+                    success: false,
+                    error: Some("Managed SSE communication error".to_string()),
+                    error_details: Some(format!("{e}")),
+                    ..Default::default()
+                },
+                Err(_) => TestConnectionResult {
+                    success: false,
+                    error: Some(format!(
+                        "Managed SSE connection timed out ({}s)",
+                        STDIO_CONNECT_TIMEOUT.as_secs()
+                    )),
+                    ..Default::default()
+                },
+            }
+        }
+        TransportType::ManagedHttp => {
+            let http_path = config.path.as_deref().unwrap_or("/mcp");
+            let http_url = format!("http://127.0.0.1:{}{http_path}", config.port);
+            let cfg = StreamableHttpClientTransportConfig::with_uri(&*http_url);
+            let transport = StreamableHttpClientTransport::from_config(cfg);
+            match tokio::time::timeout(STDIO_CONNECT_TIMEOUT, ().serve(transport)).await {
+                Ok(Ok(service)) => extract_test_result(&service, "managed HTTP").await,
+                Ok(Err(e)) => TestConnectionResult {
+                    success: false,
+                    error: Some("Managed HTTP communication error".to_string()),
+                    error_details: Some(format!("{e}")),
+                    ..Default::default()
+                },
+                Err(_) => TestConnectionResult {
+                    success: false,
+                    error: Some(format!(
+                        "Managed HTTP connection timed out ({}s)",
+                        STDIO_CONNECT_TIMEOUT.as_secs()
+                    )),
+                    ..Default::default()
+                },
+            }
+        }
+        _ => TestConnectionResult {
+            success: false,
+            error: Some(format!(
+                "Unexpected transport type for managed test: {transport_type:?}"
+            )),
+            ..Default::default()
+        },
+    };
+
+    // Kill the temporary child process
+    let _ = child.start_kill();
+
+    result
+}
+
+/// Extract server info and tools from a connected RunningService (shared by test functions).
+async fn extract_test_result(
+    service: &RunningService<RoleClient, ()>,
+    label: &str,
+) -> TestConnectionResult {
+    let (server_name, server_version, protocol_version) = match service.peer_info() {
+        Some(info) => (
+            Some(info.server_info.name.clone()),
+            Some(info.server_info.version.clone()),
+            Some(info.protocol_version.to_string()),
+        ),
+        None => (None, None, None),
+    };
+
+    let tools: Vec<McpToolSummary> = match service.peer().list_all_tools().await {
+        Ok(rmcp_tools) => rmcp_tools
+            .into_iter()
+            .map(|t| McpToolSummary {
+                name: t.name.to_string(),
+                description: t.description.as_deref().unwrap_or("").to_string(),
+            })
+            .collect(),
+        Err(e) => {
+            warn!("tools/list failed during {label} connection test: {e}");
             vec![]
         }
     };
@@ -1035,7 +1620,7 @@ mod tests {
         let pool = ClientPool::new();
         assert_eq!(pool.connections.len(), 0);
         assert!(pool.manifest_path.is_none());
-        assert_eq!(pool.max_stdio_processes, DEFAULT_MAX_STDIO_PROCESSES);
+        assert_eq!(pool.max_managed_processes, DEFAULT_MAX_MANAGED_PROCESSES);
     }
 
     // @zen-test: PLAN-025 Phase 5.4 — ClientPool with manifest
@@ -1046,19 +1631,19 @@ mod tests {
         assert_eq!(pool.manifest_path, Some(path));
     }
 
-    // @zen-test: PLAN-025 Phase 2.3 — max stdio processes configuration
+    // @zen-test: PLAN-025 Phase 2.3 — max managed processes configuration
     #[test]
-    fn client_pool_set_max_stdio_processes() {
+    fn client_pool_set_max_managed_processes() {
         let mut pool = ClientPool::new();
-        pool.set_max_stdio_processes(10);
-        assert_eq!(pool.max_stdio_processes, 10);
+        pool.set_max_managed_processes(10);
+        assert_eq!(pool.max_managed_processes, 10);
     }
 
-    // @zen-test: PLAN-025 Phase 2.3 — stdio count tracking
+    // @zen-test: PLAN-025 Phase 2.3 — managed count tracking
     #[test]
-    fn client_pool_stdio_count_tracks_transport_type() {
+    fn client_pool_managed_count_tracks_transport_type() {
         let pool = ClientPool::new();
-        assert_eq!(pool.stdio_count(), 0);
+        assert_eq!(pool.managed_count(), 0);
     }
 
     // @zen-test: PLAN-025 Phase 2 — Default implementation
@@ -1067,7 +1652,7 @@ mod tests {
         let pool = ClientPool::default();
         assert_eq!(pool.connections.len(), 0);
         assert!(pool.manifest_path.is_none());
-        assert_eq!(pool.max_stdio_processes, DEFAULT_MAX_STDIO_PROCESSES);
+        assert_eq!(pool.max_managed_processes, DEFAULT_MAX_MANAGED_PROCESSES);
     }
 
     // @zen-test: PLAN-025 Phase 5.2 — manifest PID append
@@ -1165,11 +1750,11 @@ mod tests {
         assert!(pool.epoch <= after);
     }
 
-    // @zen-test: PLAN-030 Phase 3.1 — evict_lru_stdio returns false on empty pool
+    // @zen-test: PLAN-030 Phase 3.1 — evict_lru_managed returns false on empty pool
     #[test]
-    fn evict_lru_stdio_returns_false_on_empty_pool() {
+    fn evict_lru_managed_returns_false_on_empty_pool() {
         let pool = ClientPool::new();
-        assert!(!pool.evict_lru_stdio());
+        assert!(!pool.evict_lru_managed());
     }
 
     // @zen-test: PLAN-030 Phase 2.1 — evict_idle is no-op on empty pool

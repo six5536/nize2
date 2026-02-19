@@ -10,8 +10,8 @@ use nize_core::mcp::McpError;
 use nize_core::mcp::queries;
 use nize_core::models::mcp::{
     AdminServerView, AuthType, DeleteResult, HttpServerConfig, McpServerRow, McpToolSummary,
-    OAuthConfig, ServerConfig, ServerStatus, TestConnectionResult, TransportType, UserServerView,
-    VisibilityTier,
+    OAuthConfig, ServerConfig, ServerStatus, SseServerConfig, TestConnectionResult, TransportType,
+    UserServerView, VisibilityTier,
 };
 
 /// Maximum number of user-owned servers.
@@ -49,6 +49,58 @@ fn validate_http_config(url: &str, auth_type_str: &str) -> Result<(), McpError> 
         return Err(McpError::InvalidTransport(format!(
             "Invalid authType: {auth_type_str}"
         )));
+    }
+
+    Ok(())
+}
+
+// @zen-impl: PLAN-033 T-XMCP-080 — SSE config validation
+/// Validate an SSE server config.
+fn validate_sse_config(sse: &SseServerConfig) -> Result<(), McpError> {
+    if sse.url.trim().is_empty() {
+        return Err(McpError::InvalidTransport(
+            "SSE config requires a non-empty URL".into(),
+        ));
+    }
+
+    let parsed = url::Url::parse(&sse.url)
+        .map_err(|_| McpError::InvalidTransport(format!("Invalid SSE URL format: {}", sse.url)))?;
+
+    let is_localhost = parsed
+        .host_str()
+        .is_some_and(|h| h == "localhost" || h == "127.0.0.1" || h == "::1");
+
+    if parsed.scheme() != "https" && !is_localhost {
+        return Err(McpError::InvalidTransport(
+            "SSE URL must use HTTPS (HTTP only allowed for localhost)".into(),
+        ));
+    }
+
+    if !["none", "api-key", "oauth"].contains(&sse.auth_type.as_str()) {
+        return Err(McpError::InvalidTransport(format!(
+            "Invalid SSE authType: {}",
+            sse.auth_type
+        )));
+    }
+
+    Ok(())
+}
+
+// @zen-impl: PLAN-033 T-XMCP-081 — managed config validation
+/// Validate a managed (managed-sse / managed-http) server config.
+fn validate_managed_config(
+    config: &nize_core::models::mcp::ManagedHttpServerConfig,
+) -> Result<(), McpError> {
+    if config.command.trim().is_empty() {
+        return Err(McpError::InvalidTransport(
+            "Managed config requires a non-empty command".into(),
+        ));
+    }
+
+    if config.port == 0 {
+        return Err(McpError::InvalidTransport(
+            "Managed config requires a non-zero port".into(),
+        ));
     }
 
     Ok(())
@@ -181,6 +233,7 @@ pub async fn create_user_server(
     description: &str,
     domain: &str,
     url: &str,
+    transport: &TransportType,
     auth_type_str: &str,
     api_key: Option<&str>,
     api_key_header: Option<&str>,
@@ -189,8 +242,27 @@ pub async fn create_user_server(
     client_secret: Option<&str>,
     encryption_key: &str,
 ) -> Result<UserServerView, McpError> {
-    // Validate HTTP config
+    // @zen-impl: XMCP-5_AC-1 — users may only create Http or Sse servers
+    match transport {
+        TransportType::Http | TransportType::Sse => {}
+        _ => {
+            return Err(McpError::Validation(
+                "Users can only create http or sse servers; managed transports require admin privileges".into(),
+            ));
+        }
+    }
+
+    // Validate URL-based config
     validate_http_config(url, auth_type_str)?;
+    if *transport == TransportType::Sse {
+        let sse_cfg = SseServerConfig {
+            url: url.to_string(),
+            headers: headers.cloned(),
+            auth_type: auth_type_str.to_string(),
+            api_key_header: api_key_header.map(|s| s.to_string()),
+        };
+        validate_sse_config(&sse_cfg)?;
+    }
 
     // Validate OAuth fields when auth_type is "oauth"
     if auth_type_str == "oauth" {
@@ -230,13 +302,22 @@ pub async fn create_user_server(
         return Err(McpError::DuplicateServer(name.to_string()));
     }
 
-    // Build config
-    let config = ServerConfig::Http(HttpServerConfig {
-        url: url.to_string(),
-        headers: headers.cloned(),
-        auth_type: auth_type_str.to_string(),
-        api_key_header: api_key_header.map(|s| s.to_string()),
-    });
+    // Build config based on transport type
+    let config = match transport {
+        TransportType::Sse => ServerConfig::Sse(SseServerConfig {
+            url: url.to_string(),
+            headers: headers.cloned(),
+            auth_type: auth_type_str.to_string(),
+            api_key_header: api_key_header.map(|s| s.to_string()),
+        }),
+        // Http (only remaining possibility after the guard above)
+        _ => ServerConfig::Http(HttpServerConfig {
+            url: url.to_string(),
+            headers: headers.cloned(),
+            auth_type: auth_type_str.to_string(),
+            api_key_header: api_key_header.map(|s| s.to_string()),
+        }),
+    };
 
     // Determine availability (OAuth servers need auth first)
     let available = auth_type_str != "oauth";
@@ -530,6 +611,12 @@ pub async fn create_built_in_server(
     if let ServerConfig::Http(http) = config {
         validate_http_config(&http.url, &http.auth_type)?;
     }
+    if let ServerConfig::Sse(sse) = config {
+        validate_sse_config(sse)?;
+    }
+    if let ServerConfig::ManagedSse(m) | ServerConfig::ManagedHttp(m) = config {
+        validate_managed_config(m)?;
+    }
 
     // Serialize config to JSON (includes transport tag)
     let config_json = serde_json::to_value(config)
@@ -542,10 +629,10 @@ pub async fn create_built_in_server(
         .map_err(|e| McpError::Validation(format!("Failed to serialize oauth_config: {e}")))?;
 
     // OAuth servers start as unavailable until user authorizes
-    let auth_type_str = if let ServerConfig::Http(http) = config {
-        http.auth_type.as_str()
-    } else {
-        "none"
+    let auth_type_str = match config {
+        ServerConfig::Http(http) => http.auth_type.as_str(),
+        ServerConfig::Sse(sse) => sse.auth_type.as_str(),
+        _ => "none",
     };
     let available = auth_type_str != "oauth";
 
@@ -581,6 +668,9 @@ pub async fn create_built_in_server(
     let transport_str = match &tp {
         TransportType::Http => "http",
         TransportType::Stdio => "stdio",
+        TransportType::Sse => "sse",
+        TransportType::ManagedSse => "managed-sse",
+        TransportType::ManagedHttp => "managed-http",
     };
     let details = serde_json::json!({
         "visibility": visibility,
@@ -640,9 +730,15 @@ pub async fn update_built_in_server(
         })
         .transpose()?;
 
-    // Validate HTTP config if provided
+    // Validate config if provided
     if let Some(ServerConfig::Http(http)) = config {
         validate_http_config(&http.url, &http.auth_type)?;
+    }
+    if let Some(ServerConfig::Sse(sse)) = config {
+        validate_sse_config(sse)?;
+    }
+    if let Some(ServerConfig::ManagedSse(m) | ServerConfig::ManagedHttp(m)) = config {
+        validate_managed_config(m)?;
     }
 
     // Build config JSON from provided config or leave unchanged
@@ -782,6 +878,24 @@ pub async fn test_connection(
             nize_core::mcp::execution::test_http_connection(http, api_key, oauth_token).await
         }
         ServerConfig::Stdio(stdio) => nize_core::mcp::execution::test_stdio_connection(stdio).await,
+        ServerConfig::Sse(sse) => {
+            nize_core::mcp::execution::test_sse_connection(sse, api_key, oauth_token).await
+        }
+        // @zen-impl: PLAN-033 T-XMCP-072 — managed transports spawn temporary process for testing
+        ServerConfig::ManagedSse(managed) => {
+            nize_core::mcp::execution::test_managed_connection(
+                managed,
+                &nize_core::models::mcp::TransportType::ManagedSse,
+            )
+            .await
+        }
+        ServerConfig::ManagedHttp(managed) => {
+            nize_core::mcp::execution::test_managed_connection(
+                managed,
+                &nize_core::models::mcp::TransportType::ManagedHttp,
+            )
+            .await
+        }
     }
 }
 

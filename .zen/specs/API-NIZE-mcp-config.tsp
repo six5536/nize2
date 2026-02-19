@@ -26,6 +26,9 @@ enum ServerVisibility {
 enum ServerTransport {
   stdio,
   http,
+  sse,
+  managedSse: "managed-sse",
+  managedHttp: "managed-http",
 }
 
 enum AuthType {

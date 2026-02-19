@@ -19,7 +19,7 @@ import { ServerForm, type ServerConfig, type TestConnectionResult } from "@/comp
 
 type ServerStatus = "enabled" | "disabled" | "unavailable" | "unauthorized";
 type VisibilityTier = "hidden" | "visible" | "user";
-type TransportType = "stdio" | "http";
+type TransportType = "stdio" | "http" | "sse" | "managed-sse" | "managed-http";
 type AuthType = "none" | "api-key" | "oauth";
 
 interface AdminServerView {
@@ -65,10 +65,13 @@ function AdminServerList({ servers, groupBy, onEdit, onDelete, onToggleEnabled }
   const transportLabels: Record<TransportType, string> = {
     stdio: "Stdio (Local)",
     http: "HTTP (Remote)",
+    sse: "SSE (Remote)",
+    "managed-sse": "Managed SSE (Local)",
+    "managed-http": "Managed HTTP (Local)",
   };
 
   const labels = groupBy === "visibility" ? visibilityLabels : transportLabels;
-  const order = groupBy === "visibility" ? ["hidden", "visible", "user"] : ["stdio", "http"];
+  const order = groupBy === "visibility" ? ["hidden", "visible", "user"] : ["stdio", "http", "sse", "managed-sse", "managed-http"];
 
   return (
     <div className="space-y-8">

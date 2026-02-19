@@ -49,13 +49,21 @@ interface UseServerFormReturn {
   tokenUrl: string;
   setTokenUrl: (v: string) => void;
 
-  // Stdio fields
+  // Stdio / managed fields
   command: string;
   setCommand: (v: string) => void;
   args: string;
   setArgs: (v: string) => void;
   envPairs: EnvPair[];
   setEnvPairs: (v: EnvPair[]) => void;
+
+  // Managed transport fields
+  port: number;
+  setPort: (v: number) => void;
+  path: string;
+  setPath: (v: string) => void;
+  readyTimeoutSecs: number;
+  setReadyTimeoutSecs: (v: number) => void;
 
   // Computed
   isValid: boolean;
@@ -90,7 +98,7 @@ export function useServerForm(initialValues?: ServerFormValues, options?: { mode
   const [authorizationUrl, setAuthorizationUrl] = useState(initialValues?.oauthConfig?.authorizationUrl || "https://accounts.google.com/o/oauth2/v2/auth");
   const [tokenUrl, setTokenUrl] = useState(initialValues?.oauthConfig?.tokenUrl || "https://oauth2.googleapis.com/token");
 
-  // Stdio fields
+  // Stdio / managed fields
   const [command, setCommand] = useState((cfg.command as string) || "");
   const [args, setArgs] = useState(Array.isArray(cfg.args) ? (cfg.args as string[]).join(" ") : "");
   const [envPairs, setEnvPairs] = useState<EnvPair[]>(() => {
@@ -101,15 +109,29 @@ export function useServerForm(initialValues?: ServerFormValues, options?: { mode
     return [];
   });
 
+  // Managed transport fields
+  const [port, setPort] = useState<number>((cfg.port as number) || 3100);
+  const [path, setPath] = useState((cfg.path as string) || "");
+  const [readyTimeoutSecs, setReadyTimeoutSecs] = useState<number>((cfg.readyTimeoutSecs as number) || 30);
+
   const isValid = useMemo(() => {
     if (!name || !domain) return false;
     if (transport === "stdio") return command.length > 0;
+    if (transport === "sse") {
+      if (mode === "create" && !url) return false;
+      if (authType === "api-key" && !apiKey) return false;
+      if (authType === "oauth" && !clientId) return false;
+      return true;
+    }
+    if (transport === "managed-sse" || transport === "managed-http") {
+      return command.length > 0 && port > 0;
+    }
     // HTTP — in edit mode, URL is optional (keep existing)
     if (mode === "create" && !url) return false;
     if (authType === "api-key" && !apiKey) return false;
     if (authType === "oauth" && !clientId) return false;
     return true;
-  }, [name, domain, transport, command, url, authType, apiKey, clientId, mode]);
+  }, [name, domain, transport, command, url, authType, apiKey, clientId, mode, port]);
 
   const buildConfig = (): ServerConfig => {
     if (transport === "stdio") {
@@ -122,6 +144,29 @@ export function useServerForm(initialValues?: ServerFormValues, options?: { mode
         command,
         args: args ? args.split(/\s+/) : undefined,
         env: Object.keys(env).length > 0 ? env : undefined,
+      };
+    }
+    if (transport === "sse") {
+      return {
+        transport: "sse",
+        url,
+        authType,
+        apiKeyHeader: undefined,
+      };
+    }
+    if (transport === "managed-sse" || transport === "managed-http") {
+      const env: Record<string, string> = {};
+      for (const pair of envPairs) {
+        if (pair.key) env[pair.key] = pair.value;
+      }
+      return {
+        transport,
+        command,
+        args: args ? args.split(/\s+/) : undefined,
+        env: Object.keys(env).length > 0 ? env : undefined,
+        port,
+        path: path || undefined,
+        readyTimeoutSecs: readyTimeoutSecs !== 30 ? readyTimeoutSecs : undefined,
       };
     }
     return {
@@ -181,6 +226,12 @@ export function useServerForm(initialValues?: ServerFormValues, options?: { mode
     setArgs,
     envPairs,
     setEnvPairs,
+    port,
+    setPort,
+    path,
+    setPath,
+    readyTimeoutSecs,
+    setReadyTimeoutSecs,
     isValid,
     buildConfig,
     buildOAuthConfig,

@@ -33,5 +33,8 @@ uuid = { workspace = true }
 reqwest = { workspace = true }
 rmcp = { workspace = true }
 dashmap = { workspace = true }
+sse-stream = { workspace = true }
+futures-util = { workspace = true }
+tokio-util = { workspace = true }
 
 [dev-dependencies]
