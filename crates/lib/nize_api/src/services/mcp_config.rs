@@ -10,8 +10,8 @@ use nize_core::mcp::McpError;
 use nize_core::mcp::queries;
 use nize_core::models::mcp::{
     AdminServerView, AuthType, DeleteResult, HttpServerConfig, McpServerRow, McpToolSummary,
-    ServerConfig, ServerStatus, StdioServerConfig, TestConnectionResult, TransportType,
-    UserServerView, VisibilityTier,
+    OAuthConfig, ServerConfig, ServerStatus, StdioServerConfig, TestConnectionResult,
+    TransportType, UserServerView, VisibilityTier,
 };
 
 /// Maximum number of user-owned servers.
@@ -141,6 +141,7 @@ async fn to_admin_view(pool: &PgPool, server: &McpServerRow) -> Result<AdminServ
         enabled: server.enabled,
         available: server.available,
         config: server.config.clone(),
+        oauth_config: server.oauth_config.clone(),
         created_at: server.created_at.to_rfc3339(),
         updated_at: server.updated_at.to_rfc3339(),
     })
@@ -183,10 +184,39 @@ pub async fn create_user_server(
     api_key: Option<&str>,
     api_key_header: Option<&str>,
     headers: Option<&serde_json::Value>,
+    oauth_config: Option<&OAuthConfig>,
+    client_secret: Option<&str>,
     encryption_key: &str,
 ) -> Result<UserServerView, McpError> {
     // Validate HTTP config
     validate_http_config(url, auth_type_str)?;
+
+    // Validate OAuth fields when auth_type is "oauth"
+    if auth_type_str == "oauth" {
+        if oauth_config.is_none() {
+            return Err(McpError::Validation(
+                "oauthConfig is required when authType is 'oauth'".into(),
+            ));
+        }
+        if client_secret.is_none() {
+            return Err(McpError::Validation(
+                "clientSecret is required when authType is 'oauth'".into(),
+            ));
+        }
+        // Validate scopes include required openid + email
+        if let Some(cfg) = oauth_config {
+            if !cfg.scopes.iter().any(|s| s == "openid") {
+                return Err(McpError::Validation(
+                    "OAuth scopes must include 'openid'".into(),
+                ));
+            }
+            if !cfg.scopes.iter().any(|s| s == "email") {
+                return Err(McpError::Validation(
+                    "OAuth scopes must include 'email'".into(),
+                ));
+            }
+        }
+    }
 
     // Check server limit
     let count = queries::count_user_servers(pool, user_id).await?;
@@ -210,10 +240,24 @@ pub async fn create_user_server(
     // Determine availability (OAuth servers need auth first)
     let available = auth_type_str != "oauth";
 
+    // Serialize oauth_config if provided
+    let oauth_config_json = oauth_config
+        .map(|c| serde_json::to_value(c))
+        .transpose()
+        .map_err(|e| McpError::Validation(format!("Failed to serialize oauth_config: {e}")))?;
+
     // Insert server
-    let server =
-        queries::insert_user_server(pool, user_id, name, description, domain, &config, available)
-            .await?;
+    let server = queries::insert_user_server(
+        pool,
+        user_id,
+        name,
+        description,
+        domain,
+        &config,
+        oauth_config_json.as_ref(),
+        available,
+    )
+    .await?;
     let server_id = server.id.to_string();
 
     // Store encrypted API key if provided
@@ -221,6 +265,20 @@ pub async fn create_user_server(
         if auth_type_str == "api-key" {
             let encrypted = nize_core::mcp::secrets::encrypt(key, encryption_key)?;
             queries::store_api_key(pool, &server_id, &encrypted, DEFAULT_ENCRYPTION_KEY_ID).await?;
+        }
+    }
+
+    // Store encrypted OAuth client secret if provided
+    if let Some(secret) = client_secret {
+        if auth_type_str == "oauth" {
+            let encrypted = nize_core::mcp::secrets::encrypt(secret, encryption_key)?;
+            queries::store_oauth_client_secret(
+                pool,
+                &server_id,
+                &encrypted,
+                DEFAULT_ENCRYPTION_KEY_ID,
+            )
+            .await?;
         }
     }
 
@@ -326,6 +384,7 @@ pub async fn update_user_server(
         domain,
         url,
         config_json.as_ref(),
+        None,
         None,
         None,
         None,
@@ -452,6 +511,8 @@ pub async fn create_built_in_server(
     visibility: &str,
     config: &ServerConfig,
     api_key: Option<&str>,
+    oauth_config: Option<&OAuthConfig>,
+    client_secret: Option<&str>,
     encryption_key: &str,
 ) -> Result<AdminServerView, McpError> {
     let vis = match visibility {
@@ -476,6 +537,20 @@ pub async fn create_built_in_server(
     let config_json = serde_json::to_value(config)
         .map_err(|e| McpError::Validation(format!("Failed to serialize config: {e}")))?;
 
+    // Serialize oauth_config if provided
+    let oauth_config_json = oauth_config
+        .map(|c| serde_json::to_value(c))
+        .transpose()
+        .map_err(|e| McpError::Validation(format!("Failed to serialize oauth_config: {e}")))?;
+
+    // OAuth servers start as unavailable until user authorizes
+    let auth_type_str = if let ServerConfig::Http(http) = config {
+        http.auth_type.as_str()
+    } else {
+        "none"
+    };
+    let available = auth_type_str != "oauth";
+
     let server = queries::insert_built_in_server(
         pool,
         name,
@@ -485,8 +560,8 @@ pub async fn create_built_in_server(
         &vis,
         &tp,
         Some(&config_json),
-        None, // OAuth config
-        true, // available
+        oauth_config_json.as_ref(),
+        available,
     )
     .await?;
     let server_id = server.id.to_string();
@@ -495,6 +570,13 @@ pub async fn create_built_in_server(
     if let Some(key) = api_key {
         let encrypted = nize_core::mcp::secrets::encrypt(key, encryption_key)?;
         queries::store_api_key(pool, &server_id, &encrypted, DEFAULT_ENCRYPTION_KEY_ID).await?;
+    }
+
+    // Store encrypted OAuth client secret if provided
+    if let Some(secret) = client_secret {
+        let encrypted = nize_core::mcp::secrets::encrypt(secret, encryption_key)?;
+        queries::store_oauth_client_secret(pool, &server_id, &encrypted, DEFAULT_ENCRYPTION_KEY_ID)
+            .await?;
     }
 
     // Audit
@@ -536,6 +618,8 @@ pub async fn update_built_in_server(
     enabled: Option<bool>,
     config: Option<&ServerConfig>,
     api_key: Option<&str>,
+    oauth_config: Option<&OAuthConfig>,
+    client_secret: Option<&str>,
     encryption_key: &str,
 ) -> Result<AdminServerView, McpError> {
     // Verify server exists and is not user-owned
@@ -566,6 +650,12 @@ pub async fn update_built_in_server(
     let config_json = config.map(|c| serde_json::to_value(c).unwrap());
     let endpoint = config.map(|c| c.endpoint());
 
+    // Serialize oauth_config if provided
+    let oauth_config_json = oauth_config
+        .map(|c| serde_json::to_value(c))
+        .transpose()
+        .map_err(|e| McpError::Validation(format!("Failed to serialize oauth_config: {e}")))?;
+
     let server = queries::update_server(
         pool,
         server_id,
@@ -577,6 +667,7 @@ pub async fn update_built_in_server(
         enabled,
         vis.as_ref(),
         None,
+        oauth_config_json.as_ref(),
     )
     .await?;
 
@@ -584,6 +675,13 @@ pub async fn update_built_in_server(
     if let Some(key) = api_key {
         let encrypted = nize_core::mcp::secrets::encrypt(key, encryption_key)?;
         queries::store_api_key(pool, server_id, &encrypted, DEFAULT_ENCRYPTION_KEY_ID).await?;
+    }
+
+    // Store encrypted OAuth client secret if provided
+    if let Some(secret) = client_secret {
+        let encrypted = nize_core::mcp::secrets::encrypt(secret, encryption_key)?;
+        queries::store_oauth_client_secret(pool, server_id, &encrypted, DEFAULT_ENCRYPTION_KEY_ID)
+            .await?;
     }
 
     // Audit
@@ -657,9 +755,13 @@ pub async fn delete_built_in_server(
 /// For HTTP transport: sends an MCP `initialize` JSON-RPC request.
 /// For Stdio transport: spawns the process and performs a JSON-RPC handshake.
 /// Returns server info and tool count on success.
-pub async fn test_connection(config: &ServerConfig, api_key: Option<&str>) -> TestConnectionResult {
+pub async fn test_connection(
+    config: &ServerConfig,
+    api_key: Option<&str>,
+    oauth_token: Option<&str>,
+) -> TestConnectionResult {
     match config {
-        ServerConfig::Http(http) => test_connection_http(http, api_key).await,
+        ServerConfig::Http(http) => test_connection_http(http, api_key, oauth_token).await,
         ServerConfig::Stdio(stdio) => test_connection_stdio(stdio).await,
     }
 }
@@ -668,6 +770,7 @@ pub async fn test_connection(config: &ServerConfig, api_key: Option<&str>) -> Te
 async fn test_connection_http(
     config: &HttpServerConfig,
     api_key: Option<&str>,
+    oauth_token: Option<&str>,
 ) -> TestConnectionResult {
     let server_url = &config.url;
     if server_url.is_empty() {
@@ -716,6 +819,10 @@ async fn test_connection_http(
             let header_name = config.api_key_header.as_deref().unwrap_or("X-API-Key");
             req_builder = req_builder.header(header_name, key);
         }
+    } else if config.auth_type == "oauth" {
+        if let Some(token) = oauth_token {
+            req_builder = req_builder.header("Authorization", format!("Bearer {token}"));
+        }
     }
 
     // Add custom headers
@@ -739,6 +846,13 @@ async fn test_connection_http(
                     ..Default::default()
                 };
             }
+
+            // Capture MCP session ID for Streamable HTTP transport
+            let session_id = resp
+                .headers()
+                .get("mcp-session-id")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.to_string());
 
             match resp.json::<serde_json::Value>().await {
                 Ok(body) => {
@@ -768,11 +882,21 @@ async fn test_connection_http(
 
                     let mut tools_req = client.post(server_url).json(&tools_request);
 
+                    // Forward MCP session ID if the server uses Streamable HTTP
+                    if let Some(sid) = &session_id {
+                        tools_req = tools_req.header("Mcp-Session-Id", sid);
+                    }
+
                     if config.auth_type == "api-key" {
                         if let Some(key) = api_key {
                             let header_name =
                                 config.api_key_header.as_deref().unwrap_or("X-API-Key");
                             tools_req = tools_req.header(header_name, key);
+                        }
+                    } else if config.auth_type == "oauth" {
+                        if let Some(token) = oauth_token {
+                            tools_req =
+                                tools_req.header("Authorization", format!("Bearer {token}"));
                         }
                     }
                     if let Some(hdrs) = &config.headers {

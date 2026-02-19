@@ -10,7 +10,7 @@ use crate::AppState;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
 use crate::services::mcp_config;
-use nize_core::models::mcp::ServerConfig;
+use nize_core::models::mcp::{OAuthConfig, ServerConfig};
 
 // ---------------------------------------------------------------------------
 // Request / response DTOs
@@ -28,6 +28,8 @@ pub struct CreateUserServerRequest {
     pub api_key: Option<String>,
     pub api_key_header: Option<String>,
     pub headers: Option<serde_json::Value>,
+    pub oauth_config: Option<OAuthConfig>,
+    pub client_secret: Option<String>,
 }
 
 fn default_auth_type() -> String {
@@ -60,6 +62,8 @@ pub struct TestConnectionRequest {
     pub config: ServerConfig,
     /// API key for testing (stored separately from config).
     pub api_key: Option<String>,
+    /// Server ID — required for OAuth so the backend can look up stored tokens.
+    pub server_id: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -74,6 +78,8 @@ pub struct CreateAdminServerRequest {
     pub config: ServerConfig,
     /// API key (stored separately in secrets).
     pub api_key: Option<String>,
+    pub oauth_config: Option<OAuthConfig>,
+    pub client_secret: Option<String>,
 }
 
 fn default_visible() -> String {
@@ -91,6 +97,8 @@ pub struct UpdateAdminServerRequest {
     /// Updated transport configuration.
     pub config: Option<ServerConfig>,
     pub api_key: Option<String>,
+    pub oauth_config: Option<OAuthConfig>,
+    pub client_secret: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -123,6 +131,8 @@ pub async fn add_server_handler(
         body.api_key.as_deref(),
         body.api_key_header.as_deref(),
         body.headers.as_ref(),
+        body.oauth_config.as_ref(),
+        body.client_secret.as_deref(),
         &state.config.mcp_encryption_key,
     )
     .await?;
@@ -191,29 +201,146 @@ pub async fn list_server_tools_handler(
 // OAuth endpoints
 // ---------------------------------------------------------------------------
 
-/// `GET /mcp/servers/{serverId}/oauth/status` — get OAuth status (stub).
+/// `GET /mcp/servers/{serverId}/oauth/status` — get OAuth status.
+// @zen-impl: PLAN-031 Phase 5.3
 pub async fn oauth_status_handler(
-    Path(_server_id): Path<String>,
+    State(state): State<AppState>,
+    axum::Extension(user): axum::Extension<AuthenticatedUser>,
+    Path(server_id): Path<String>,
 ) -> AppResult<Json<serde_json::Value>> {
-    // OAuth flow implementation deferred
+    let has_token =
+        nize_core::mcp::queries::has_valid_oauth_token(&state.pool, &user.0.sub, &server_id)
+            .await
+            .unwrap_or(false);
+
+    // Check if token row exists (even if expired) — can refresh
+    let token_row =
+        nize_core::mcp::queries::get_oauth_token(&state.pool, &user.0.sub, &server_id).await?;
+
+    let (connected, expires_at) = match token_row {
+        Some(row) => {
+            let exp = row.expires_at.to_rfc3339();
+            (has_token, Some(exp))
+        }
+        None => (false, None),
+    };
+
     Ok(Json(serde_json::json!({
-        "connected": false
+        "connected": connected,
+        "expiresAt": expires_at,
     })))
 }
 
-/// `POST /mcp/servers/{serverId}/oauth/initiate` — initiate OAuth flow (stub).
+/// `POST /mcp/servers/{serverId}/oauth/initiate` — initiate OAuth flow.
+// @zen-impl: PLAN-031 Phase 5.1
 pub async fn oauth_initiate_handler(
-    Path(_server_id): Path<String>,
+    State(state): State<AppState>,
+    axum::Extension(user): axum::Extension<AuthenticatedUser>,
+    Path(server_id): Path<String>,
 ) -> AppResult<Json<serde_json::Value>> {
-    // OAuth flow implementation deferred
-    Err(AppError::Validation(
-        "OAuth flow not yet implemented".into(),
-    ))
+    use nize_core::mcp::oauth::{
+        OAuthPendingState, compute_code_challenge, generate_code_verifier, generate_state,
+    };
+
+    // Load server to get OAuth config
+    let server = nize_core::mcp::queries::get_server(&state.pool, &server_id)
+        .await?
+        .ok_or_else(|| AppError::Validation(format!("Server {server_id} not found")))?;
+
+    let oauth_config_json = server
+        .oauth_config
+        .ok_or_else(|| AppError::Validation("Server has no OAuth configuration".into()))?;
+
+    let oauth_config: nize_core::models::mcp::OAuthConfig =
+        serde_json::from_value(oauth_config_json.clone())
+            .map_err(|e| AppError::Validation(format!("Invalid OAuth config: {e}")))?;
+
+    // Load and decrypt client_secret
+    let encrypted_secret =
+        nize_core::mcp::queries::get_oauth_client_secret_encrypted(&state.pool, &server_id)
+            .await?
+            .ok_or_else(|| {
+                AppError::Validation("No OAuth client secret stored for server".into())
+            })?;
+
+    let client_secret =
+        nize_core::mcp::secrets::decrypt(&encrypted_secret, &state.config.mcp_encryption_key)
+            .map_err(|e| AppError::Internal(format!("Failed to decrypt client secret: {e}")))?;
+
+    // Generate PKCE params
+    let code_verifier = generate_code_verifier();
+    let code_challenge = compute_code_challenge(&code_verifier);
+    let state_param = generate_state();
+
+    // Build redirect_uri from current API bind address
+    let redirect_uri = format!(
+        "http://{}{}{}",
+        state.config.bind_addr,
+        crate::API_PREFIX,
+        crate::generated::routes::GET_AUTH_OAUTH_MCP_CALLBACK,
+    );
+
+    // Store pending state
+    let pending = OAuthPendingState {
+        server_id: server_id.clone(),
+        user_id: user.0.sub.clone(),
+        pkce_verifier: code_verifier,
+        oauth_config_json,
+        client_secret,
+        redirect_uri: redirect_uri.clone(),
+        created_at: std::time::Instant::now(),
+    };
+    state.oauth_state.insert(state_param.clone(), pending);
+
+    // Build Google authorization URL
+    let mut auth_url = url::Url::parse(&oauth_config.authorization_url)
+        .map_err(|e| AppError::Validation(format!("Invalid authorization URL: {e}")))?;
+    auth_url
+        .query_pairs_mut()
+        .append_pair("client_id", &oauth_config.client_id)
+        .append_pair("redirect_uri", &redirect_uri)
+        .append_pair("response_type", "code")
+        .append_pair("scope", &oauth_config.scopes.join(" "))
+        .append_pair("access_type", "offline")
+        .append_pair("prompt", "consent")
+        .append_pair("state", &state_param)
+        .append_pair("code_challenge", &code_challenge)
+        .append_pair("code_challenge_method", "S256");
+
+    Ok(Json(serde_json::json!({
+        "authUrl": auth_url.as_str(),
+    })))
 }
 
-/// `POST /mcp/servers/{serverId}/oauth/revoke` — revoke OAuth token (stub).
-pub async fn oauth_revoke_handler(Path(_server_id): Path<String>) -> StatusCode {
-    StatusCode::NO_CONTENT
+/// `POST /mcp/servers/{serverId}/oauth/revoke` — revoke OAuth token.
+// @zen-impl: PLAN-031 Phase 5.4
+pub async fn oauth_revoke_handler(
+    State(state): State<AppState>,
+    axum::Extension(user): axum::Extension<AuthenticatedUser>,
+    Path(server_id): Path<String>,
+) -> AppResult<StatusCode> {
+    // Load token for optional Google revocation
+    let token_row =
+        nize_core::mcp::queries::get_oauth_token(&state.pool, &user.0.sub, &server_id).await?;
+
+    if let Some(row) = token_row {
+        // Best-effort revoke at Google
+        if let Ok(access_token) = nize_core::mcp::secrets::decrypt(
+            &row.access_token_encrypted,
+            &state.config.mcp_encryption_key,
+        ) {
+            let _ = reqwest::Client::new()
+                .post("https://oauth2.googleapis.com/revoke")
+                .form(&[("token", &access_token)])
+                .send()
+                .await;
+        }
+    }
+
+    // Delete from DB
+    nize_core::mcp::queries::delete_oauth_token(&state.pool, &user.0.sub, &server_id).await?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // ---------------------------------------------------------------------------
@@ -222,9 +349,38 @@ pub async fn oauth_revoke_handler(Path(_server_id): Path<String>) -> StatusCode 
 
 /// `POST /mcp/test-connection` — test MCP server connection.
 pub async fn test_connection_handler(
+    State(state): State<AppState>,
+    axum::Extension(user): axum::Extension<AuthenticatedUser>,
     Json(body): Json<TestConnectionRequest>,
 ) -> AppResult<Json<serde_json::Value>> {
-    let result = mcp_config::test_connection(&body.config, body.api_key.as_deref()).await;
+    // For OAuth servers, look up the stored access token
+    let oauth_token = match (&body.config, &body.server_id) {
+        (ServerConfig::Http(http), Some(sid)) if http.auth_type == "oauth" => {
+            match nize_core::mcp::queries::get_oauth_token(&state.pool, &user.0.sub, sid).await {
+                Ok(Some(row)) => {
+                    match nize_core::mcp::secrets::decrypt(
+                        &row.access_token_encrypted,
+                        &state.config.mcp_encryption_key,
+                    ) {
+                        Ok(token) => Some(token),
+                        Err(e) => {
+                            tracing::warn!("Failed to decrypt OAuth token for test: {e}");
+                            None
+                        }
+                    }
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    };
+
+    let result = mcp_config::test_connection(
+        &body.config,
+        body.api_key.as_deref(),
+        oauth_token.as_deref(),
+    )
+    .await;
     Ok(Json(serde_json::to_value(result).unwrap()))
 }
 
@@ -255,12 +411,22 @@ pub async fn admin_create_server_handler(
         &body.visibility,
         &body.config,
         body.api_key.as_deref(),
+        body.oauth_config.as_ref(),
+        body.client_secret.as_deref(),
         &state.config.mcp_encryption_key,
     )
     .await?;
 
-    // Discover and store tools from the server
-    let test_result = mcp_config::test_connection(&body.config, body.api_key.as_deref()).await;
+    // Discover and store tools from the server (skip for OAuth — no tokens yet)
+    let is_oauth = match &body.config {
+        ServerConfig::Http(http) => http.auth_type == "oauth",
+        _ => false,
+    };
+    let test_result = if is_oauth {
+        Default::default()
+    } else {
+        mcp_config::test_connection(&body.config, body.api_key.as_deref(), None).await
+    };
     if !test_result.tools.is_empty() {
         if let Err(e) =
             mcp_config::store_tools_from_test(&state.pool, &server.id, &test_result.tools).await
@@ -305,30 +471,40 @@ pub async fn admin_update_server_handler(
         body.enabled,
         body.config.as_ref(),
         body.api_key.as_deref(),
+        body.oauth_config.as_ref(),
+        body.client_secret.as_deref(),
         &state.config.mcp_encryption_key,
     )
     .await?;
 
-    // Re-discover and store tools when config changes
+    // Re-discover and store tools when config changes (skip for OAuth — requires token flow)
+    let is_oauth = match &body.config {
+        Some(ServerConfig::Http(http)) => http.auth_type == "oauth",
+        _ => false,
+    };
     if let Some(config) = &body.config {
-        let test_result = mcp_config::test_connection(config, body.api_key.as_deref()).await;
-        if !test_result.tools.is_empty() {
-            if let Err(e) =
-                mcp_config::store_tools_from_test(&state.pool, &server.id, &test_result.tools).await
-            {
-                tracing::warn!("Failed to store tools for server {}: {e}", server.id);
-            }
+        if !is_oauth {
+            let test_result =
+                mcp_config::test_connection(config, body.api_key.as_deref(), None).await;
+            if !test_result.tools.is_empty() {
+                if let Err(e) =
+                    mcp_config::store_tools_from_test(&state.pool, &server.id, &test_result.tools)
+                        .await
+                {
+                    tracing::warn!("Failed to store tools for server {}: {e}", server.id);
+                }
 
-            // Generate embeddings for the newly stored tools
-            if let Err(e) = nize_core::embedding::indexer::embed_server_tools(
-                &state.pool,
-                &state.config_cache,
-                &server.id,
-                &state.config.mcp_encryption_key,
-            )
-            .await
-            {
-                tracing::warn!("Failed to embed tools for server {}: {e}", server.id);
+                // Generate embeddings for the newly stored tools
+                if let Err(e) = nize_core::embedding::indexer::embed_server_tools(
+                    &state.pool,
+                    &state.config_cache,
+                    &server.id,
+                    &state.config.mcp_encryption_key,
+                )
+                .await
+                {
+                    tracing::warn!("Failed to embed tools for server {}: {e}", server.id);
+                }
             }
         }
     }

@@ -103,6 +103,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         pool,
         config: config.clone(),
         config_cache: config_cache.clone(),
+        oauth_state: std::sync::Arc::new(nize_core::mcp::oauth::OAuthStateStore::new()),
     };
 
     let app = nize_api::router(state);

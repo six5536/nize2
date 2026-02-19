@@ -1,6 +1,7 @@
 [tools]
 java = "temurin-21.0.10+7.0.LTS"
 bun = '1.3'
+go = '1.23'
 
 # Use rustup
 #rust = 'latest'

@@ -116,6 +116,7 @@ pub struct McpServerSecretRow {
 pub struct McpOauthTokenRow {
     pub user_id: sqlx::types::Uuid,
     pub server_id: sqlx::types::Uuid,
+    pub id_token_encrypted: Option<String>,
     pub access_token_encrypted: String,
     pub refresh_token_encrypted: Option<String>,
     pub expires_at: chrono::DateTime<chrono::Utc>,
@@ -164,6 +165,8 @@ pub struct AdminServerView {
     pub available: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub config: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oauth_config: Option<serde_json::Value>,
     pub created_at: String,
     pub updated_at: String,
 }

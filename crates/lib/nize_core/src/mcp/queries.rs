@@ -6,8 +6,8 @@ use sqlx::PgPool;
 
 use super::McpError;
 use crate::models::mcp::{
-    AuthType, McpServerRow, McpServerToolRow, McpToolSummary, ServerConfig, TransportType,
-    UserMcpPreferenceRow, VisibilityTier,
+    AuthType, McpOauthTokenRow, McpServerRow, McpServerToolRow, McpToolSummary, ServerConfig,
+    TransportType, UserMcpPreferenceRow, VisibilityTier,
 };
 use crate::uuid::uuidv7;
 
@@ -116,6 +116,7 @@ pub async fn insert_user_server(
     description: &str,
     domain: &str,
     config: &ServerConfig,
+    oauth_config: Option<&serde_json::Value>,
     available: bool,
 ) -> Result<McpServerRow, McpError> {
     let config_json = serde_json::to_value(config)
@@ -123,8 +124,8 @@ pub async fn insert_user_server(
 
     let row = sqlx::query_as::<_, McpServerRow>(
         r#"
-        INSERT INTO mcp_servers (id, name, description, domain, endpoint, visibility, transport, config, owner_id, enabled, available)
-        VALUES ($1, $2, $3, $4, $5, 'user', $6, $7, $8::uuid, true, $9)
+        INSERT INTO mcp_servers (id, name, description, domain, endpoint, visibility, transport, config, oauth_config, owner_id, enabled, available)
+        VALUES ($1, $2, $3, $4, $5, 'user', $6, $7, $8, $9::uuid, true, $10)
         RETURNING id, name, description, domain, endpoint,
                   visibility, transport, config, oauth_config,
                   default_response_size_limit, owner_id,
@@ -138,6 +139,7 @@ pub async fn insert_user_server(
     .bind(config.endpoint())
     .bind(config.transport_type())
     .bind(&config_json)
+    .bind(oauth_config)
     .bind(user_id)
     .bind(available)
     .fetch_one(pool)
@@ -195,6 +197,7 @@ pub async fn update_server(
     enabled: Option<bool>,
     visibility: Option<&VisibilityTier>,
     available: Option<bool>,
+    oauth_config: Option<&serde_json::Value>,
 ) -> Result<McpServerRow, McpError> {
     // Build dynamic update using COALESCE pattern
     let row = sqlx::query_as::<_, McpServerRow>(
@@ -208,6 +211,7 @@ pub async fn update_server(
             enabled = COALESCE($7, enabled),
             visibility = COALESCE($8, visibility),
             available = COALESCE($9, available),
+            oauth_config = COALESCE($10, oauth_config),
             updated_at = now()
         WHERE id = $1::uuid
         RETURNING id, name, description, domain, endpoint,
@@ -225,6 +229,7 @@ pub async fn update_server(
     .bind(enabled)
     .bind(visibility)
     .bind(available)
+    .bind(oauth_config)
     .fetch_optional(pool)
     .await?
     .ok_or_else(|| McpError::NotFound(format!("Server {server_id} not found")))?;
@@ -390,6 +395,79 @@ pub async fn has_valid_oauth_token(
     Ok(exists)
 }
 
+/// Store or update OAuth tokens for a user+server pair.
+pub async fn store_oauth_token(
+    pool: &PgPool,
+    user_id: &str,
+    server_id: &str,
+    id_token_encrypted: Option<&str>,
+    access_token_encrypted: &str,
+    refresh_token_encrypted: Option<&str>,
+    expires_at: chrono::DateTime<chrono::Utc>,
+    scopes: &[String],
+) -> Result<(), McpError> {
+    sqlx::query(
+        r#"
+        INSERT INTO mcp_oauth_tokens
+            (user_id, server_id, id_token_encrypted, access_token_encrypted,
+             refresh_token_encrypted, expires_at, scopes)
+        VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7)
+        ON CONFLICT (user_id, server_id)
+        DO UPDATE SET id_token_encrypted = EXCLUDED.id_token_encrypted,
+                      access_token_encrypted = EXCLUDED.access_token_encrypted,
+                      refresh_token_encrypted = COALESCE(EXCLUDED.refresh_token_encrypted, mcp_oauth_tokens.refresh_token_encrypted),
+                      expires_at = EXCLUDED.expires_at,
+                      scopes = EXCLUDED.scopes,
+                      updated_at = now()
+        "#,
+    )
+    .bind(user_id)
+    .bind(server_id)
+    .bind(id_token_encrypted)
+    .bind(access_token_encrypted)
+    .bind(refresh_token_encrypted)
+    .bind(expires_at)
+    .bind(scopes)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Get OAuth tokens for a user+server pair (regardless of expiry).
+pub async fn get_oauth_token(
+    pool: &PgPool,
+    user_id: &str,
+    server_id: &str,
+) -> Result<Option<McpOauthTokenRow>, McpError> {
+    let row = sqlx::query_as::<_, McpOauthTokenRow>(
+        r#"
+        SELECT user_id, server_id, id_token_encrypted, access_token_encrypted,
+               refresh_token_encrypted, expires_at, scopes, created_at, updated_at
+        FROM mcp_oauth_tokens
+        WHERE user_id = $1::uuid AND server_id = $2::uuid
+        "#,
+    )
+    .bind(user_id)
+    .bind(server_id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row)
+}
+
+/// Delete OAuth tokens for a user+server pair.
+pub async fn delete_oauth_token(
+    pool: &PgPool,
+    user_id: &str,
+    server_id: &str,
+) -> Result<(), McpError> {
+    sqlx::query("DELETE FROM mcp_oauth_tokens WHERE user_id = $1::uuid AND server_id = $2::uuid")
+        .bind(user_id)
+        .bind(server_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 // =============================================================================
 // Secret queries
 // =============================================================================
@@ -427,6 +505,46 @@ pub async fn get_api_key_encrypted(
 ) -> Result<Option<String>, McpError> {
     let row = sqlx::query_scalar::<_, Option<String>>(
         "SELECT api_key_encrypted FROM mcp_server_secrets WHERE server_id = $1::uuid",
+    )
+    .bind(server_id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.flatten())
+}
+
+/// Store or update an encrypted OAuth client secret for a server.
+pub async fn store_oauth_client_secret(
+    pool: &PgPool,
+    server_id: &str,
+    secret_encrypted: &str,
+    encryption_key_id: &str,
+) -> Result<(), McpError> {
+    sqlx::query(
+        r#"
+        INSERT INTO mcp_server_secrets (id, server_id, oauth_client_secret_encrypted, encryption_key_id)
+        VALUES ($1, $2::uuid, $3, $4)
+        ON CONFLICT (server_id)
+        DO UPDATE SET oauth_client_secret_encrypted = EXCLUDED.oauth_client_secret_encrypted,
+                      encryption_key_id = EXCLUDED.encryption_key_id,
+                      updated_at = now()
+        "#,
+    )
+    .bind(uuidv7())
+    .bind(server_id)
+    .bind(secret_encrypted)
+    .bind(encryption_key_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Get the encrypted OAuth client secret for a server.
+pub async fn get_oauth_client_secret_encrypted(
+    pool: &PgPool,
+    server_id: &str,
+) -> Result<Option<String>, McpError> {
+    let row = sqlx::query_scalar::<_, Option<String>>(
+        "SELECT oauth_client_secret_encrypted FROM mcp_server_secrets WHERE server_id = $1::uuid",
     )
     .bind(server_id)
     .fetch_optional(pool)

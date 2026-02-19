@@ -29,6 +29,10 @@ use crate::handlers::{
 
 use nize_core::config::cache::ConfigCache;
 
+/// Path prefix under which all API routes are nested.
+pub const API_PREFIX: &str = "/api";
+use nize_core::mcp::oauth::OAuthStateStore;
+
 /// Shared application state passed to all handlers.
 #[derive(Clone)]
 pub struct AppState {
@@ -38,6 +42,8 @@ pub struct AppState {
     pub config: ApiConfig,
     /// In-memory config cache.
     pub config_cache: Arc<RwLock<ConfigCache>>,
+    /// In-memory OAuth PKCE state store.
+    pub oauth_state: Arc<OAuthStateStore>,
 }
 
 /// Run embedded database migrations.
@@ -295,7 +301,7 @@ pub fn router(state: AppState) -> Router {
     let api = Router::new().merge(public).merge(protected).merge(admin);
 
     Router::new()
-        .nest("/api", api)
+        .nest(API_PREFIX, api)
         .layer(cors)
         .with_state(state)
 }

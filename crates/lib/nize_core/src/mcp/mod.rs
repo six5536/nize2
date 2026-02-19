@@ -5,6 +5,7 @@
 
 pub mod discovery;
 pub mod execution;
+pub mod oauth;
 pub mod queries;
 pub mod secrets;
 

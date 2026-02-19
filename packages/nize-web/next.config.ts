@@ -11,9 +11,7 @@ const nextConfig: NextConfig = {
   // In Tauri desktop, the API port is discovered via IPC;
   // in cloud, NEXT_PUBLIC_API_URL is used instead.
   async rewrites() {
-    return [
-      { source: "/api/:path*", destination: `http://127.0.0.1:${apiPort}/api/:path*` },
-    ];
+    return [{ source: "/api/:path*", destination: `http://127.0.0.1:${apiPort}/api/:path*` }];
   },
 };
 

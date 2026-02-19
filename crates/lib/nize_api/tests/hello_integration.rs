@@ -31,6 +31,7 @@ async fn hello_endpoint_returns_expected_shape() {
         config_cache: std::sync::Arc::new(tokio::sync::RwLock::new(
             nize_core::config::cache::ConfigCache::new(),
         )),
+        oauth_state: std::sync::Arc::new(nize_core::mcp::oauth::OAuthStateStore::new()),
     };
 
     let app = nize_api::router(state);

@@ -25,7 +25,7 @@ use rmcp::transport::StreamableHttpClientTransport;
 use rmcp::transport::TokioChildProcess;
 use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
 
-use crate::models::mcp::{ServerConfig, StdioServerConfig, TransportType};
+use crate::models::mcp::{AuthType, ServerConfig, StdioServerConfig, TransportType};
 
 use super::McpError;
 use super::queries;
@@ -41,6 +41,15 @@ const DEFAULT_MAX_STDIO_PROCESSES: usize = 50;
 
 /// Default idle timeout for stdio connections (5 minutes).
 const DEFAULT_IDLE_TIMEOUT: Duration = Duration::from_secs(300);
+
+/// OAuth credentials to pass when connecting to an authenticated MCP server.
+#[derive(Debug, Clone)]
+pub struct OAuthHeaders {
+    /// Google ID token — sent as `Authorization: Bearer <id_token>`.
+    pub id_token: String,
+    /// Google access token — sent as `X-Google-Access-Token` header.
+    pub access_token: String,
+}
 
 /// Request to execute a tool on an external MCP server.
 #[derive(Debug, Clone)]
@@ -149,7 +158,12 @@ impl ClientPool {
 
     // @zen-impl: PLAN-025 Phase 2.1 — atomic DashMap entry with connecting guard
     /// Get or create a connection to an MCP server.
-    async fn get_or_connect(&self, pool: &PgPool, server_id: Uuid) -> Result<(), McpError> {
+    async fn get_or_connect(
+        &self,
+        pool: &PgPool,
+        server_id: Uuid,
+        oauth_headers: Option<&OAuthHeaders>,
+    ) -> Result<(), McpError> {
         // Fast path: already connected.
         if let Some(entry) = self.connections.get(&server_id) {
             entry.touch(&self.epoch);
@@ -173,7 +187,7 @@ impl ClientPool {
             guard.insert(server_id);
         }
 
-        let result = self.connect(pool, server_id).await;
+        let result = self.connect(pool, server_id, oauth_headers).await;
 
         // Always remove from connecting guard.
         {
@@ -185,7 +199,12 @@ impl ClientPool {
     }
 
     /// Internal connect logic — called within the connecting guard.
-    async fn connect(&self, pool: &PgPool, server_id: Uuid) -> Result<(), McpError> {
+    async fn connect(
+        &self,
+        pool: &PgPool,
+        server_id: Uuid,
+        oauth_headers: Option<&OAuthHeaders>,
+    ) -> Result<(), McpError> {
         let server = queries::get_server(pool, &server_id.to_string())
             .await?
             .ok_or_else(|| McpError::NotFound(format!("Server {server_id}")))?;
@@ -194,7 +213,7 @@ impl ClientPool {
 
         // @zen-impl: PLAN-025 Phase 2.2 — match on transport type
         match transport_type {
-            TransportType::Http => self.connect_http(&server).await?,
+            TransportType::Http => self.connect_http(&server, oauth_headers).await?,
             TransportType::Stdio => self.connect_stdio(&server, server_id).await?,
         }
 
@@ -202,9 +221,11 @@ impl ClientPool {
     }
 
     /// Connect to an HTTP MCP server via Streamable HTTP transport.
+    // @zen-impl: PLAN-031 Phase 7.1 — OAuth header support
     async fn connect_http(
         &self,
         server: &crate::models::mcp::McpServerRow,
+        oauth_headers: Option<&OAuthHeaders>,
     ) -> Result<(), McpError> {
         // Parse the config to get the actual URL (endpoint column may be stale)
         let url = if let Some(ref config_json) = server.config {
@@ -217,9 +238,42 @@ impl ClientPool {
             server.endpoint.clone()
         };
 
-        // Build transport config with the HTTP URL
-        let config = StreamableHttpClientTransportConfig::with_uri(&*url);
-        let transport = StreamableHttpClientTransport::from_config(config);
+        // Build transport config
+        let mut config = StreamableHttpClientTransportConfig::with_uri(&*url);
+
+        // Determine auth type from server config
+        let auth_type = queries::extract_auth_type(&server.config);
+
+        let transport = if auth_type == AuthType::OAuth {
+            // For OAuth servers, inject auth headers via custom reqwest::Client
+            let headers = oauth_headers.ok_or_else(|| {
+                McpError::ConnectionFailed(
+                    "OAuth server requires authentication — please authorize first".into(),
+                )
+            })?;
+
+            // Set id_token as Bearer auth (rmcp auto-adds "Bearer " prefix)
+            config.auth_header = Some(headers.id_token.clone());
+
+            // Build custom reqwest client with X-Google-Access-Token header
+            let mut header_map = reqwest::header::HeaderMap::new();
+            header_map.insert(
+                reqwest::header::HeaderName::from_static("x-google-access-token"),
+                reqwest::header::HeaderValue::from_str(&headers.access_token).map_err(|e| {
+                    McpError::ConnectionFailed(format!("Invalid access token header value: {e}"))
+                })?,
+            );
+            let client = reqwest::Client::builder()
+                .default_headers(header_map)
+                .build()
+                .map_err(|e| {
+                    McpError::ConnectionFailed(format!("Failed to build HTTP client: {e}"))
+                })?;
+
+            StreamableHttpClientTransport::with_client(client, config)
+        } else {
+            StreamableHttpClientTransport::from_config(config)
+        };
 
         let service: RunningService<RoleClient, ()> = ().serve(transport).await.map_err(|e| {
             McpError::ConnectionFailed(format!(
@@ -418,6 +472,126 @@ fn append_manifest(manifest: &Path, pid: u32) -> Result<(), String> {
     Ok(())
 }
 
+/// Resolve OAuth headers for a server, refreshing tokens if needed.
+/// Returns `None` if the server does not use OAuth auth.
+// @zen-impl: PLAN-031 Phase 7.3 — token refresh before connection
+async fn resolve_oauth_headers(
+    pool: &PgPool,
+    user_id: &str,
+    server_id: Uuid,
+    encryption_key: &str,
+) -> Result<Option<OAuthHeaders>, McpError> {
+    let server = queries::get_server(pool, &server_id.to_string())
+        .await?
+        .ok_or_else(|| McpError::NotFound(format!("Server {server_id}")))?;
+
+    let auth_type = queries::extract_auth_type(&server.config);
+    if auth_type != AuthType::OAuth {
+        return Ok(None);
+    }
+
+    // Load token row
+    let token_row =
+        queries::get_oauth_token(pool, user_id, &server_id.to_string())
+            .await?
+            .ok_or_else(|| {
+                McpError::ConnectionFailed(
+                    "No OAuth tokens found — please authorize this server first".into(),
+                )
+            })?;
+
+    // Check if tokens need refresh
+    let needs_refresh = super::oauth::should_refresh(&token_row.expires_at);
+
+    if needs_refresh {
+        // Load OAuth config and client secret for refresh
+        let oauth_config_json = server.oauth_config.ok_or_else(|| {
+            McpError::ConnectionFailed("Server missing OAuth configuration".into())
+        })?;
+        let oauth_config: crate::models::mcp::OAuthConfig =
+            serde_json::from_value(oauth_config_json)
+                .map_err(|e| McpError::ConnectionFailed(format!("Invalid OAuth config: {e}")))?;
+
+        let encrypted_secret =
+            queries::get_oauth_client_secret_encrypted(pool, &server_id.to_string())
+                .await?
+                .ok_or_else(|| {
+                    McpError::ConnectionFailed("No OAuth client secret stored".into())
+                })?;
+        let client_secret = super::secrets::decrypt(&encrypted_secret, encryption_key)?;
+
+        let refresh_token_encrypted =
+            token_row.refresh_token_encrypted.as_deref().ok_or_else(|| {
+                McpError::ConnectionFailed(
+                    "No refresh token — please re-authorize this server".into(),
+                )
+            })?;
+        let refresh_token = super::secrets::decrypt(refresh_token_encrypted, encryption_key)?;
+
+        // Refresh tokens
+        let resp = super::oauth::refresh_google_tokens(
+            &oauth_config.token_url,
+            &oauth_config.client_id,
+            &client_secret,
+            &refresh_token,
+        )
+        .await?;
+
+        // Encrypt and store refreshed tokens
+        let id_token_encrypted = match &resp.id_token {
+            Some(t) => Some(super::secrets::encrypt(t, encryption_key)?),
+            None => None,
+        };
+        let access_token_encrypted =
+            super::secrets::encrypt(&resp.access_token, encryption_key)?;
+        let expires_at = chrono::Utc::now() + chrono::Duration::seconds(resp.expires_in);
+        let scope_vec: Vec<String> = resp
+            .scope
+            .as_deref()
+            .unwrap_or("")
+            .split_whitespace()
+            .map(String::from)
+            .collect();
+
+        queries::store_oauth_token(
+            pool,
+            user_id,
+            &server_id.to_string(),
+            id_token_encrypted.as_deref(),
+            &access_token_encrypted,
+            None, // refresh_token unchanged, COALESCE preserves it
+            expires_at,
+            &scope_vec,
+        )
+        .await?;
+
+        // Use the freshly refreshed tokens
+        let id_token = resp
+            .id_token
+            .ok_or_else(|| McpError::ConnectionFailed("No id_token in refresh response".into()))?;
+
+        return Ok(Some(OAuthHeaders {
+            id_token,
+            access_token: resp.access_token,
+        }));
+    }
+
+    // Tokens are still valid — decrypt and return
+    let id_token_encrypted = token_row.id_token_encrypted.as_deref().ok_or_else(|| {
+        McpError::ConnectionFailed("No id_token stored — please re-authorize".into())
+    })?;
+    let id_token = super::secrets::decrypt(id_token_encrypted, encryption_key)?;
+
+    let access_token_encrypted =
+        &token_row.access_token_encrypted;
+    let access_token = super::secrets::decrypt(access_token_encrypted, encryption_key)?;
+
+    Ok(Some(OAuthHeaders {
+        id_token,
+        access_token,
+    }))
+}
+
 /// Execute a tool on an external MCP server.
 ///
 /// 1. Validates the tool exists and the user has access.
@@ -425,10 +599,12 @@ fn append_manifest(manifest: &Path, pid: u32) -> Result<(), String> {
 /// 3. Calls the tool with the provided parameters.
 /// 4. Records an audit log entry.
 /// 5. Returns the result.
+// @zen-impl: PLAN-031 Phase 7.3 — OAuth token lifecycle during tool execution
 pub async fn execute_tool(
     pool: &PgPool,
     client_pool: &ClientPool,
     request: &ExecutionRequest,
+    encryption_key: &str,
 ) -> Result<ExecutionResult, McpError> {
     // Validate tool exists and user has access
     let tool = queries::get_tool_manifest(pool, &request.user_id, &request.tool_id.to_string())
@@ -442,6 +618,10 @@ pub async fn execute_tool(
 
     let server_id = tool.server_id;
 
+    // Resolve OAuth headers if the server uses OAuth auth
+    let oauth_headers =
+        resolve_oauth_headers(pool, &request.user_id, server_id, encryption_key).await?;
+
     // Convert params to JsonObject
     let arguments = request.params.clone();
 
@@ -454,7 +634,14 @@ pub async fn execute_tool(
     };
 
     // Try to execute with one retry on connection error
-    let result = execute_with_retry(pool, client_pool, server_id, &call_params).await?;
+    let result = execute_with_retry(
+        pool,
+        client_pool,
+        server_id,
+        &call_params,
+        oauth_headers.as_ref(),
+    )
+    .await?;
 
     // Record audit log (fire-and-forget)
     let is_error = result.is_error.unwrap_or(false);
@@ -499,9 +686,12 @@ async fn execute_with_retry(
     client_pool: &ClientPool,
     server_id: Uuid,
     params: &CallToolRequestParams,
+    oauth_headers: Option<&OAuthHeaders>,
 ) -> Result<CallToolResult, McpError> {
     // Attempt 1
-    client_pool.get_or_connect(pool, server_id).await?;
+    client_pool
+        .get_or_connect(pool, server_id, oauth_headers)
+        .await?;
 
     match call_tool(client_pool, server_id, params).await {
         Ok(result) => return Ok(result),
@@ -512,7 +702,9 @@ async fn execute_with_retry(
     }
 
     // Attempt 2 (reconnect)
-    client_pool.get_or_connect(pool, server_id).await?;
+    client_pool
+        .get_or_connect(pool, server_id, oauth_headers)
+        .await?;
     call_tool(client_pool, server_id, params).await
 }
 

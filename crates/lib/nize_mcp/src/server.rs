@@ -279,6 +279,7 @@ impl NizeMcpServer {
             &self.pool,
             &self.client_pool,
             &exec_request,
+            &self.encryption_key,
         )
         .await
         .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
