@@ -7,3 +7,6 @@
 [submodule "submodules/bitmark-configurator-api"]
 	path = submodules/bitmark-configurator-api
 	url = git@github.com:getMoreBrain/bitmark-configurator-api.git
+[submodule "submodules/gogmcp"]
+	path = submodules/gogmcp
+	url = git@github.com:six5536/gogmcp.git
