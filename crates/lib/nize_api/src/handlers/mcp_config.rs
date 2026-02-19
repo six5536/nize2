@@ -375,6 +375,20 @@ pub async fn test_connection_handler(
         _ => None,
     };
 
+    // @zen-impl: PLAN-032 Step 1
+    // If OAuth server has no valid token, return authRequired instead of
+    // attempting a connection that will fail.
+    let is_oauth = matches!(&body.config, ServerConfig::Http(http) if http.auth_type == "oauth");
+    if is_oauth && oauth_token.is_none() {
+        let result = nize_core::models::mcp::TestConnectionResult {
+            success: false,
+            error: Some("OAuth authorization required".to_string()),
+            auth_required: Some(true),
+            ..Default::default()
+        };
+        return Ok(Json(serde_json::to_value(result).unwrap()));
+    }
+
     let result = mcp_config::test_connection(
         &body.config,
         body.api_key.as_deref(),
@@ -477,20 +491,61 @@ pub async fn admin_update_server_handler(
     )
     .await?;
 
-    // Re-discover and store tools when config changes (skip for OAuth — requires token flow)
-    let is_oauth = match &body.config {
-        Some(ServerConfig::Http(http)) => http.auth_type == "oauth",
-        _ => false,
-    };
-    if let Some(config) = &body.config
-        && !is_oauth
-    {
-        let test_result = mcp_config::test_connection(config, body.api_key.as_deref(), None).await;
+    // Re-discover and store tools when config changes
+    if let Some(config) = &body.config {
+        // For OAuth servers, look up the stored access token
+        let oauth_token = match config {
+            ServerConfig::Http(http) if http.auth_type == "oauth" => {
+                match nize_core::mcp::queries::get_oauth_token(&state.pool, &user.0.sub, &server_id)
+                    .await
+                {
+                    Ok(Some(row)) => {
+                        match nize_core::mcp::secrets::decrypt(
+                            &row.access_token_encrypted,
+                            &state.config.mcp_encryption_key,
+                        ) {
+                            Ok(token) => Some(token),
+                            Err(e) => {
+                                tracing::warn!(
+                                    "Failed to decrypt OAuth token for tool discovery: {e}"
+                                );
+                                None
+                            }
+                        }
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+
+        let test_result =
+            mcp_config::test_connection(config, body.api_key.as_deref(), oauth_token.as_deref())
+                .await;
         if !test_result.tools.is_empty() {
             if let Err(e) =
                 mcp_config::store_tools_from_test(&state.pool, &server.id, &test_result.tools).await
             {
                 tracing::warn!("Failed to store tools for server {}: {e}", server.id);
+            }
+
+            // Mark server as available after successful tool discovery
+            if let Err(e) = nize_core::mcp::queries::update_server(
+                &state.pool,
+                &server_id,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some(true),
+                None,
+            )
+            .await
+            {
+                tracing::warn!("Failed to set server available: {e}");
             }
 
             // Generate embeddings for the newly stored tools

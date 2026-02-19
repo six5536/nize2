@@ -237,7 +237,7 @@ impl ServerConfig {
 }
 
 /// OAuth client configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OAuthConfig {
     pub client_id: String,
@@ -278,6 +278,9 @@ pub struct TestConnectionResult {
     pub error: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_details: Option<String>,
+    /// Indicates the server requires OAuth authorization before connection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_required: Option<bool>,
     /// Tools discovered during connection test (not serialized in response).
     #[serde(skip)]
     pub tools: Vec<McpToolSummary>,

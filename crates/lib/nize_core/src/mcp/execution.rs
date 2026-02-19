@@ -592,6 +592,7 @@ pub async fn test_http_connection(
         tool_count: Some(tool_count),
         error: None,
         error_details: None,
+        auth_required: None,
         tools,
     }
 }
@@ -699,6 +700,7 @@ pub async fn test_stdio_connection(config: &StdioServerConfig) -> TestConnection
         tool_count: Some(tool_count),
         error: None,
         error_details: None,
+        auth_required: None,
         tools,
     }
 }

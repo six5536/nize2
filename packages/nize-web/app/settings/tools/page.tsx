@@ -10,6 +10,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useAuth, useAuthFetch } from "@/lib/auth-context";
+import { ServerForm, type ServerConfig, type TestConnectionResult } from "@/components/mcp-server";
 
 // =============================================================================
 // Types
@@ -118,236 +119,6 @@ function ServerListItem({ server, onToggle, onExpand, onDelete, onEdit, isExpand
   );
 }
 
-function AddServerForm({ onSubmit, onTest, onCancel }: { onSubmit: (config: { name: string; description?: string; domain: string; url: string; authType: string; apiKey?: string }) => Promise<void>; onTest: (config: { url: string; transport: string; authType: string; apiKey?: string }) => Promise<{ success: boolean; toolCount?: number; error?: string }>; onCancel: () => void }) {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [domain, setDomain] = useState("");
-  const [url, setUrl] = useState("");
-  const [authType, setAuthType] = useState<"none" | "api-key" | "oauth">("none");
-  const [apiKey, setApiKey] = useState("");
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{ success: boolean; toolCount?: number; error?: string } | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleTest = async () => {
-    setTesting(true);
-    setTestResult(null);
-    try {
-      const result = await onTest({
-        transport: "http",
-        url,
-        authType,
-        apiKey: authType === "api-key" ? apiKey : undefined,
-      });
-      setTestResult(result);
-    } catch {
-      setTestResult({ success: false, error: "Test failed" });
-    } finally {
-      setTesting(false);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSubmitting(true);
-    try {
-      await onSubmit({
-        name,
-        description: description || undefined,
-        domain,
-        url,
-        authType,
-        apiKey: authType === "api-key" ? apiKey : undefined,
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add server");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const isValid = name.length > 0 && domain.length > 0 && url.length > 0 && (authType !== "api-key" || apiKey.length > 0);
-
-  return (
-    <form onSubmit={handleSubmit} className="border rounded-lg p-6 bg-white shadow-sm space-y-4">
-      <h3 className="text-lg font-medium text-gray-900">Add MCP Server</h3>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Name</label>
-        <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" placeholder="My Server" required />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Description</label>
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={500} rows={2} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" placeholder="Describe what this server provides" />
-        <p className="mt-1 text-xs text-gray-500">{description.length}/500 characters</p>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Domain</label>
-        <input type="text" value={domain} onChange={(e) => setDomain(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" placeholder="e.g., files, search, code" required />
-        <p className="mt-1 text-xs text-gray-500">Category for grouping tools</p>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Server URL</label>
-        <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" placeholder="https://mcp.example.com" required />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Authentication</label>
-        <select value={authType} onChange={(e) => setAuthType(e.target.value as "none" | "api-key" | "oauth")} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-          <option value="none">None</option>
-          <option value="api-key">API Key</option>
-          <option value="oauth">OAuth</option>
-        </select>
-      </div>
-
-      {authType === "api-key" && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700">API Key</label>
-          <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" placeholder="Enter API key" required />
-        </div>
-      )}
-
-      {authType === "oauth" && <p className="text-sm text-yellow-600">OAuth configuration will be set up after connection test.</p>}
-
-      {testResult && <div className={`p-3 rounded-md ${testResult.success ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>{testResult.success ? <p>&#10003; Connected successfully! Found {testResult.toolCount} tools.</p> : <p>&#10007; {testResult.error}</p>}</div>}
-
-      {error && <div className="p-3 rounded-md bg-red-50 text-red-800">{error}</div>}
-
-      <div className="flex gap-3 justify-end">
-        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
-          Cancel
-        </button>
-        <button type="button" onClick={handleTest} disabled={!url || testing} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50">
-          {testing ? "Testing..." : "Test Connection"}
-        </button>
-        <button type="submit" disabled={!isValid || !testResult?.success || submitting} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50">
-          {submitting ? "Adding..." : "Add Server"}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function EditUserServerForm({ server, onSubmit, onTest, onCancel }: { server: UserServerView; onSubmit: (serverId: string, updates: { name?: string; description?: string; domain?: string; url?: string; authType?: string; apiKey?: string }) => Promise<void>; onTest: (config: { url: string; transport: string; authType: string; apiKey?: string }) => Promise<{ success: boolean; toolCount?: number; error?: string }>; onCancel: () => void }) {
-  const [name, setName] = useState(server.name);
-  const [description, setDescription] = useState(server.description);
-  const [domain, setDomain] = useState(server.domain);
-  const [url, setUrl] = useState("");
-  const [authType, setAuthType] = useState<"none" | "api-key" | "oauth">("none");
-  const [apiKey, setApiKey] = useState("");
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{ success: boolean; toolCount?: number; error?: string } | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleTest = async () => {
-    setTesting(true);
-    setTestResult(null);
-    try {
-      const result = await onTest({
-        transport: "http",
-        url,
-        authType,
-        apiKey: authType === "api-key" ? apiKey : undefined,
-      });
-      setTestResult(result);
-    } catch {
-      setTestResult({ success: false, error: "Test failed" });
-    } finally {
-      setTesting(false);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSubmitting(true);
-    try {
-      const updates: { name?: string; description?: string; domain?: string; url?: string; authType?: string; apiKey?: string } = {
-        name,
-        description: description || undefined,
-        domain,
-      };
-      if (url) updates.url = url;
-      if (authType) updates.authType = authType;
-      if (authType === "api-key" && apiKey) updates.apiKey = apiKey;
-      await onSubmit(server.id, updates);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update server");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const isValid = name.length > 0 && domain.length > 0;
-
-  return (
-    <form onSubmit={handleSubmit} className="border rounded-lg p-6 bg-white shadow-sm space-y-4">
-      <h3 className="text-lg font-medium text-gray-900">Edit Server: {server.name}</h3>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Name</label>
-        <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" required />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Description</label>
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={500} rows={2} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
-        <p className="mt-1 text-xs text-gray-500">{description.length}/500 characters</p>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Domain</label>
-        <input type="text" value={domain} onChange={(e) => setDomain(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" required />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Server URL</label>
-        <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" placeholder="Enter new URL (leave blank to keep existing)" />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Authentication</label>
-        <select value={authType} onChange={(e) => setAuthType(e.target.value as "none" | "api-key" | "oauth")} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-          <option value="none">None</option>
-          <option value="api-key">API Key</option>
-          <option value="oauth">OAuth</option>
-        </select>
-      </div>
-
-      {authType === "api-key" && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700">API Key</label>
-          <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" placeholder="Enter new API key (leave blank to keep existing)" />
-        </div>
-      )}
-
-      {testResult && <div className={`p-3 rounded-md ${testResult.success ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>{testResult.success ? <p>&#10003; Connected successfully! Found {testResult.toolCount} tools.</p> : <p>&#10007; {testResult.error}</p>}</div>}
-
-      {error && <div className="p-3 rounded-md bg-red-50 text-red-800">{error}</div>}
-
-      <div className="flex gap-3 justify-end">
-        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
-          Cancel
-        </button>
-        {url && (
-          <button type="button" onClick={handleTest} disabled={testing} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50">
-            {testing ? "Testing..." : "Test Connection"}
-          </button>
-        )}
-        <button type="submit" disabled={!isValid || submitting} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50">
-          {submitting ? "Saving..." : "Save Changes"}
-        </button>
-      </div>
-    </form>
-  );
-}
-
 // =============================================================================
 // Main Page
 // =============================================================================
@@ -435,46 +206,87 @@ export default function UserToolsPage() {
     }
   };
 
-  const handleAdd = async (config: { name: string; description?: string; domain: string; url: string; authType: string; apiKey?: string }) => {
+  // @zen-impl: PLAN-032 Step 10 — ServerForm callbacks for user page
+  // User API uses flat fields (url, authType, apiKey), not nested config objects
+  const handleTestConnection = async (config: ServerConfig, serverId?: string): Promise<TestConnectionResult> => {
+    const res = await authFetch("/mcp/test-connection", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ config, serverId }),
+    });
+    return res.json();
+  };
+
+  const handleCreateServer = async (payload: { name: string; description: string; domain: string; visibility: "hidden" | "visible"; config: ServerConfig; oauthConfig?: { clientId: string; authorizationUrl: string; tokenUrl: string; scopes: string[] }; clientSecret?: string }): Promise<string> => {
+    // Flatten config for user API
+    const httpConfig = payload.config as { transport: "http"; url: string; authType: string; apiKey?: string };
+    const body: Record<string, unknown> = {
+      name: payload.name,
+      description: payload.description,
+      domain: payload.domain,
+      url: httpConfig.url,
+      authType: httpConfig.authType,
+    };
+    if (httpConfig.apiKey) body.apiKey = httpConfig.apiKey;
+    if (payload.oauthConfig) body.oauthConfig = payload.oauthConfig;
+    if (payload.clientSecret) body.clientSecret = payload.clientSecret;
+
     const res = await authFetch("/mcp/servers", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(config),
+      body: JSON.stringify(body),
     });
     if (!res.ok) {
       const data = await res.json();
       throw new Error(data.message || "Failed to add server");
     }
-    setShowAddForm(false);
-    await loadServers();
+    const server = await res.json();
+    loadServers();
+    return server.id;
   };
 
-  const handleTest = async (config: { url: string; transport: string; authType: string; apiKey?: string }) => {
-    const res = await authFetch("/mcp/test-connection", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(config),
-    });
-    return res.json();
-  };
+  const handleUpdateServer = async (
+    serverId: string,
+    updates: {
+      name?: string;
+      description?: string;
+      domain?: string;
+      visibility?: "hidden" | "visible";
+      config?: ServerConfig;
+      oauthConfig?: { clientId: string; authorizationUrl: string; tokenUrl: string; scopes: string[] };
+      clientSecret?: string;
+    },
+  ): Promise<void> => {
+    // Flatten config for user API
+    const body: Record<string, unknown> = {};
+    if (updates.name !== undefined) body.name = updates.name;
+    if (updates.description !== undefined) body.description = updates.description;
+    if (updates.domain !== undefined) body.domain = updates.domain;
+    if (updates.config) {
+      const httpConfig = updates.config as { transport: "http"; url: string; authType: string; apiKey?: string };
+      if (httpConfig.url) body.url = httpConfig.url;
+      if (httpConfig.authType) body.authType = httpConfig.authType;
+      if (httpConfig.apiKey) body.apiKey = httpConfig.apiKey;
+    }
 
-  const handleEdit = (serverId: string) => {
-    setEditingServerId(serverId);
-    setShowAddForm(false);
-  };
-
-  const handleUpdate = async (serverId: string, updates: { name?: string; description?: string; domain?: string; url?: string; authType?: string; apiKey?: string }) => {
     const res = await authFetch(`/mcp/servers/${serverId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updates),
+      body: JSON.stringify(body),
     });
     if (!res.ok) {
       const data = await res.json();
       throw new Error(data.message || "Failed to update server");
     }
-    setEditingServerId(null);
-    await loadServers();
+  };
+
+  const handleDeleteServer = async (serverId: string) => {
+    await authFetch(`/mcp/servers/${serverId}`, { method: "DELETE" });
+  };
+
+  const handleEdit = (serverId: string) => {
+    setEditingServerId(serverId);
+    setShowAddForm(false);
   };
 
   if (authLoading || loading) {
@@ -505,7 +317,18 @@ export default function UserToolsPage() {
 
       {showAddForm && (
         <div className="mb-6">
-          <AddServerForm onSubmit={handleAdd} onTest={handleTest} onCancel={() => setShowAddForm(false)} />
+          <ServerForm
+            mode="create"
+            authFetch={authFetch}
+            onTestConnection={handleTestConnection}
+            onCreateServer={handleCreateServer}
+            onDeleteServer={handleDeleteServer}
+            onCancel={() => setShowAddForm(false)}
+            onSuccess={() => {
+              setShowAddForm(false);
+              loadServers();
+            }}
+          />
         </div>
       )}
 
@@ -515,7 +338,26 @@ export default function UserToolsPage() {
           if (!editingServer) return null;
           return (
             <div className="mb-6">
-              <EditUserServerForm server={editingServer} onSubmit={handleUpdate} onTest={handleTest} onCancel={() => setEditingServerId(null)} />
+              <ServerForm
+                mode="edit"
+                initialValues={{
+                  id: editingServer.id,
+                  name: editingServer.name,
+                  description: editingServer.description,
+                  domain: editingServer.domain,
+                  visibility: "visible",
+                  transport: "http",
+                  authType: "none",
+                }}
+                authFetch={authFetch}
+                onTestConnection={handleTestConnection}
+                onUpdateServer={handleUpdateServer}
+                onCancel={() => setEditingServerId(null)}
+                onSuccess={() => {
+                  setEditingServerId(null);
+                  loadServers();
+                }}
+              />
             </div>
           );
         })()}

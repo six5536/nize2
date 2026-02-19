@@ -170,6 +170,25 @@ async fn handle_callback_inner(
         "OAuth tokens stored successfully"
     );
 
+    // Mark server as available now that OAuth tokens are stored
+    if let Err(e) = nize_core::mcp::queries::update_server(
+        &state.pool,
+        &pending.server_id,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(true),
+        None,
+    )
+    .await
+    {
+        tracing::warn!("Failed to mark server as available after OAuth: {e}");
+    }
+
     // Discover and store tools now that we have a valid access token
     discover_tools_after_oauth(state, &pending.server_id, &token_resp.access_token).await;
 

@@ -683,6 +683,24 @@ pub async fn update_built_in_server(
             .await?;
     }
 
+    // Invalidate all user OAuth tokens when OAuth config actually changes
+    let oauth_config_changed = match (oauth_config, &existing.oauth_config) {
+        (Some(new_cfg), Some(existing_json)) => {
+            match serde_json::from_value::<OAuthConfig>(existing_json.clone()) {
+                Ok(existing_cfg) => new_cfg != &existing_cfg,
+                Err(_) => true, // Can't parse existing — treat as changed
+            }
+        }
+        (Some(_), None) => true, // Adding OAuth config where none existed
+        (None, _) => false,      // No new config provided
+    };
+    if oauth_config_changed || client_secret.is_some() {
+        let revoked = queries::delete_all_oauth_tokens_for_server(pool, server_id).await?;
+        if revoked > 0 {
+            info!(server_id = %server_id, revoked = revoked, "Revoked OAuth tokens after config change");
+        }
+    }
+
     // Audit
     let details = serde_json::json!({ "action": "admin_update" });
     if let Err(e) = queries::insert_audit_log(

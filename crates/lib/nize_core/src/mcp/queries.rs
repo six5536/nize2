@@ -472,6 +472,18 @@ pub async fn delete_oauth_token(
     Ok(())
 }
 
+/// Delete all OAuth tokens for a server (all users).
+pub async fn delete_all_oauth_tokens_for_server(
+    pool: &PgPool,
+    server_id: &str,
+) -> Result<u64, McpError> {
+    let result = sqlx::query("DELETE FROM mcp_oauth_tokens WHERE server_id = $1::uuid")
+        .bind(server_id)
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected())
+}
+
 // =============================================================================
 // Secret queries
 // =============================================================================

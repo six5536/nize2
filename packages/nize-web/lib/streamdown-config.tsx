@@ -4,7 +4,7 @@
 import type { ReactNode, ComponentType, JSX } from "react";
 import { Streamdown, type PluginConfig } from "streamdown";
 import { code } from "@streamdown/code";
-import { CodeBlock } from "@/components/chat/code-block";
+import { CodeBlock, InlineCode } from "@/components/chat/code-block";
 
 // Components type from streamdown (not exported directly)
 type Components = {
@@ -23,11 +23,16 @@ export const streamdownPlugins: PluginConfig = {
  * Custom components for Streamdown to use for rendering
  */
 export const streamdownComponents: Components = {
-  // Override code blocks to use our custom CodeBlock with copy button
-  code: ({ children, className }: { children?: ReactNode; className?: string }) => {
-    const language = className?.replace("language-", "") ?? "";
-    const codeContent = typeof children === "string" ? children : String(children);
-    return <CodeBlock language={language}>{codeContent}</CodeBlock>;
+  // Override code blocks to use our custom CodeBlock with copy button.
+  // Fenced code blocks receive "data-block" from streamdown's built-in pre handler;
+  // inline code does not and must stay inline to avoid <p> > <div>/<pre> nesting.
+  code: ({ children, className, ...rest }: { children?: ReactNode; className?: string; [key: string]: unknown }) => {
+    if ("data-block" in rest) {
+      const language = className?.replace("language-", "") ?? "";
+      const codeContent = typeof children === "string" ? children : String(children);
+      return <CodeBlock language={language}>{codeContent}</CodeBlock>;
+    }
+    return <InlineCode>{children}</InlineCode>;
   },
   // Style links for accessibility
   a: ({ href, children }: { href?: string; children?: ReactNode }) => (
