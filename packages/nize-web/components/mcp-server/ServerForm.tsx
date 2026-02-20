@@ -96,6 +96,29 @@ export function ServerForm({ mode, initialValues, showTransport = false, transpo
     return startOAuthFlow(authUrl, serverId, authFetch);
   };
 
+  const ensureOAuthAuthorized = async (serverId?: string): Promise<boolean> => {
+    if (!serverId) return true;
+    const needsOAuth = form.authType === "oauth" || !!initialValues?.oauthConfig;
+    if (!needsOAuth) return true;
+
+    try {
+      const statusRes = await authFetch(`/mcp/servers/${serverId}/oauth/status`);
+      if (statusRes.ok) {
+        const status = await statusRes.json();
+        if (status.connected) return true;
+      }
+    } catch {
+      // If status lookup fails, fall through to OAuth initiation.
+    }
+
+    const oauthResult = await initiateAndRunOAuth(serverId);
+    if (!oauthResult.success) {
+      setError(oauthResult.error || "OAuth authorization required.");
+      return false;
+    }
+    return true;
+  };
+
   // @zen-impl: PLAN-032 Step 8 — Test Connection: auto-auth if needed → test
   const handleTest = async () => {
     setTesting(true);
@@ -121,6 +144,16 @@ export function ServerForm({ mode, initialValues, showTransport = false, transpo
         serverId = newId;
       }
 
+      if (!(await ensureOAuthAuthorized(serverId))) {
+        // OAuth failed — clean up server if we just created it
+        if (mode === "create" && serverId) {
+          await onDeleteServer?.(serverId).catch(() => {});
+          setCreatedServerId(null);
+        }
+        setTestResult({ success: false, error: "OAuth authorization failed" });
+        return;
+      }
+
       // First attempt: test connection
       let result = await onTestConnection(config, serverId);
 
@@ -132,8 +165,8 @@ export function ServerForm({ mode, initialValues, showTransport = false, transpo
           result = await onTestConnection(config, serverId);
         } else {
           // OAuth failed — clean up server if we just created it
-          if (mode === "create" && createdServerId) {
-            await onDeleteServer?.(createdServerId).catch(() => {});
+          if (mode === "create" && serverId) {
+            await onDeleteServer?.(serverId).catch(() => {});
             setCreatedServerId(null);
           }
           setTestResult({ success: false, error: oauthResult.error || "OAuth authorization failed" });
@@ -212,8 +245,15 @@ export function ServerForm({ mode, initialValues, showTransport = false, transpo
           clientSecret: form.clientSecret || undefined,
         });
 
-        // 3. If OAuth server, ensure valid connection
-        if (form.authType === "oauth") {
+        // 3. If OAuth is configured for this server, ensure valid connection
+        const needsOAuth = form.authType === "oauth" || !!initialValues?.oauthConfig;
+        if (needsOAuth) {
+          if (!(await ensureOAuthAuthorized(initialValues.id))) {
+            setError("Saved. OAuth authorization required.");
+            setSubmitting(false);
+            return;
+          }
+
           const testResult = await onTestConnection(config, initialValues.id);
           if (testResult.authRequired) {
             const oauthResult = await initiateAndRunOAuth(initialValues.id);
@@ -239,6 +279,7 @@ export function ServerForm({ mode, initialValues, showTransport = false, transpo
   const title = mode === "create" ? "Create Built-in Server" : `Edit Server: ${initialValues?.name || ""}`;
   const submitLabel = mode === "create" ? (createdServerId ? "Done" : submitting ? "Creating..." : "Create Server") : submitting ? "Saving..." : "Save Changes";
   const testLabel = testing ? (form.authType === "oauth" ? "Connecting..." : "Testing...") : form.authType === "oauth" && mode === "create" && !createdServerId ? "Connect with OAuth" : "Test Connection";
+  const showOAuthStatusBanner = mode === "edit" && !!initialValues?.id && (form.authType === "oauth" || !!initialValues?.oauthConfig);
 
   return (
     <form onSubmit={handleSubmit} className="border rounded-lg p-6 bg-white shadow-sm space-y-4">
@@ -295,8 +336,6 @@ export function ServerForm({ mode, initialValues, showTransport = false, transpo
           <HttpConfigFields url={form.url} authType={form.authType} apiKey={form.apiKey} onUrlChange={form.setUrl} onAuthTypeChange={form.setAuthType} onApiKeyChange={form.setApiKey} apiKeyPlaceholder={mode === "edit" ? "Enter new API key (leave blank to keep existing)" : "Enter API key"} />
           {form.authType === "oauth" && (
             <>
-              {/* OAuth status banner — only for existing servers */}
-              {mode === "edit" && initialValues?.id && <OAuthStatusBanner serverId={initialValues.id} authFetch={authFetch} onError={setError} />}
               {/* OAuth config changed warning */}
               {form.hasOAuthConfigChanged && mode === "edit" && (
                 <div className="p-3 rounded-md bg-orange-50 border border-orange-200">
@@ -324,6 +363,24 @@ export function ServerForm({ mode, initialValues, showTransport = false, transpo
               <input type="number" value={form.readyTimeoutSecs} onChange={(e) => form.setReadyTimeoutSecs(parseInt(e.target.value) || 30)} min={1} max={300} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
             </div>
           </div>
+          {/* Authentication for managed servers (e.g. OAuth for Google MCP) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Authentication</label>
+            <select value={form.authType} onChange={(e) => form.setAuthType(e.target.value as "none" | "oauth")} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+              <option value="none">None</option>
+              <option value="oauth">OAuth</option>
+            </select>
+          </div>
+          {form.authType === "oauth" && (
+            <>
+              {form.hasOAuthConfigChanged && mode === "edit" && (
+                <div className="p-3 rounded-md bg-orange-50 border border-orange-200">
+                  <p className="text-sm font-medium text-orange-800">&#9888; OAuth settings changed — saving will disconnect the current session and require re-authorization.</p>
+                </div>
+              )}
+              <OAuthConfigFields clientId={form.clientId} clientSecret={form.clientSecret} oauthScopes={form.oauthScopes} authorizationUrl={form.authorizationUrl} tokenUrl={form.tokenUrl} onClientIdChange={form.setClientId} onClientSecretChange={form.setClientSecret} onOauthScopesChange={form.setOauthScopes} onAuthorizationUrlChange={form.setAuthorizationUrl} onTokenUrlChange={form.setTokenUrl} clientSecretPlaceholder={mode === "edit" ? "Leave blank to keep existing" : "Google OAuth Client Secret"} clientSecretRequired={mode === "create"} />
+            </>
+          )}
         </>
       ) : (
         <StdioConfigFields command={form.command} args={form.args} envPairs={form.envPairs} onCommandChange={form.setCommand} onArgsChange={form.setArgs} onEnvPairsChange={form.setEnvPairs} />
@@ -334,6 +391,9 @@ export function ServerForm({ mode, initialValues, showTransport = false, transpo
 
       {/* Error */}
       {error && <div className="p-3 rounded-md bg-red-50 text-red-800">{error}</div>}
+
+      {/* OAuth status */}
+      {showOAuthStatusBanner && <OAuthStatusBanner serverId={initialValues.id} authFetch={authFetch} onError={setError} />}
 
       {/* Footer buttons */}
       <div className="flex gap-3 justify-end">

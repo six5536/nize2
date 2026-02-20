@@ -10,6 +10,7 @@
   "rust-analyzer.debug.buildBeforeRestart": true,
   "rust-analyzer.diagnostics.styleLints.enable": true,
   "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.cargo.targetDir": true,
   "mise.configureExtensionsUseSymLinks": true,
   "python.defaultInterpreterPath": "${workspaceFolder}/.vscode/mise-tools/python",
   "debug.javascript.defaultRuntimeExecutable": {
@@ -31,6 +32,7 @@
     "**/target": true
   },
   "files.watcherExclude": {
-    "**/target/**": true
+    "**/target/**": true,
+    "**/target/rust-analyzer/**": true
   }
 }

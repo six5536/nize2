@@ -600,15 +600,32 @@ pub async fn insert_audit_log(
 
 /// Extract auth_type from a server's config JSONB.
 pub fn extract_auth_type(config: &Option<serde_json::Value>) -> AuthType {
-    config
-        .as_ref()
-        .and_then(|c| c.get("authType"))
-        .and_then(|v| v.as_str())
-        .map(|s| match s {
+    fn parse_auth_type(value: &str) -> AuthType {
+        match value {
             "api-key" => AuthType::ApiKey,
             "oauth" => AuthType::OAuth,
             _ => AuthType::None,
-        })
+        }
+    }
+
+    let Some(raw) = config.as_ref() else {
+        return AuthType::None;
+    };
+
+    if let Ok(parsed) = serde_json::from_value::<ServerConfig>(raw.clone()) {
+        return match parsed {
+            ServerConfig::Http(http) => parse_auth_type(&http.auth_type),
+            ServerConfig::Sse(sse) => parse_auth_type(&sse.auth_type),
+            _ => AuthType::None,
+        };
+    }
+
+    raw.get("authType")
+        .or_else(|| raw.get("auth_type"))
+        .or_else(|| raw.get("config").and_then(|c| c.get("authType")))
+        .or_else(|| raw.get("config").and_then(|c| c.get("auth_type")))
+        .and_then(|v| v.as_str())
+        .map(parse_auth_type)
         .unwrap_or(AuthType::None)
 }
 

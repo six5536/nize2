@@ -124,7 +124,9 @@ export function useServerForm(initialValues?: ServerFormValues, options?: { mode
       return true;
     }
     if (transport === "managed-sse" || transport === "managed-http") {
-      return command.length > 0 && port > 0;
+      if (!command || port <= 0) return false;
+      if (authType === "oauth" && !clientId) return false;
+      return true;
     }
     // HTTP — in edit mode, URL is optional (keep existing)
     if (mode === "create" && !url) return false;

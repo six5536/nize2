@@ -189,8 +189,16 @@ async fn handle_callback_inner(
         tracing::warn!("Failed to mark server as available after OAuth: {e}");
     }
 
-    // Discover and store tools now that we have a valid access token
-    discover_tools_after_oauth(state, &pending.server_id, &token_resp.access_token).await;
+    // Discover and store tools now that we have valid OAuth tokens
+    let oauth_headers =
+        token_resp
+            .id_token
+            .as_ref()
+            .map(|id_token| nize_core::mcp::execution::OAuthHeaders {
+                id_token: id_token.clone(),
+                access_token: token_resp.access_token.clone(),
+            });
+    discover_tools_after_oauth(state, &pending.server_id, oauth_headers.as_ref()).await;
 
     Ok(pending.server_id)
 }
@@ -200,7 +208,11 @@ async fn handle_callback_inner(
 /// Called after a successful OAuth token exchange. Loads the server config,
 /// runs `initialize` + `tools/list` with the bearer token, stores results,
 /// and generates embeddings. Failures are logged but do not fail the callback.
-async fn discover_tools_after_oauth(state: &AppState, server_id: &str, access_token: &str) {
+async fn discover_tools_after_oauth(
+    state: &AppState,
+    server_id: &str,
+    oauth_headers: Option<&nize_core::mcp::execution::OAuthHeaders>,
+) {
     use crate::services::mcp_config;
     use nize_core::models::mcp::ServerConfig;
 
@@ -233,7 +245,7 @@ async fn discover_tools_after_oauth(state: &AppState, server_id: &str, access_to
         }
     };
 
-    let test_result = mcp_config::test_connection(&config, None, Some(access_token)).await;
+    let test_result = mcp_config::test_connection(&config, None, oauth_headers).await;
 
     if !test_result.success {
         tracing::warn!(

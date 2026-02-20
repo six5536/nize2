@@ -227,7 +227,7 @@ impl ClientPool {
             TransportType::Stdio => self.connect_stdio(&server, server_id).await?,
             TransportType::Sse => self.connect_sse(&server, oauth_headers).await?,
             TransportType::ManagedSse | TransportType::ManagedHttp => {
-                self.connect_managed(&server, server_id, transport_type)
+                self.connect_managed(&server, server_id, transport_type, oauth_headers)
                     .await?
             }
         }
@@ -258,14 +258,33 @@ impl ClientPool {
 
         // Determine auth type from server config
         let auth_type = queries::extract_auth_type(&server.config);
+        let uses_oauth = auth_type == AuthType::OAuth || server.oauth_config.is_some();
+        debug!(
+            server_id = %server.id,
+            server_name = %server.name,
+            transport = ?server.transport,
+            auth_type = ?auth_type,
+            has_oauth_config = server.oauth_config.is_some(),
+            oauth_headers_provided = oauth_headers.is_some(),
+            uses_oauth,
+            "connect_http auth decision"
+        );
 
-        let transport = if auth_type == AuthType::OAuth {
+        let transport = if uses_oauth {
             // For OAuth servers, inject auth headers via custom reqwest::Client
             let headers = oauth_headers.ok_or_else(|| {
                 McpError::ConnectionFailed(
                     "OAuth server requires authentication — please authorize first".into(),
                 )
             })?;
+            debug!(
+                server_id = %server.id,
+                id_token_len = headers.id_token.len(),
+                access_token_len = headers.access_token.len(),
+                id_token_prefix = %headers.id_token.chars().take(6).collect::<String>(),
+                access_token_prefix = %headers.access_token.chars().take(6).collect::<String>(),
+                "connect_http oauth headers selected"
+            );
 
             // Set id_token as Bearer auth (rmcp auto-adds "Bearer " prefix)
             config.auth_header = Some(headers.id_token.clone());
@@ -435,19 +454,41 @@ impl ClientPool {
 
         // Configure auth
         let auth_type = queries::extract_auth_type(&server.config);
-        if auth_type == AuthType::OAuth {
-            if let Some(headers) = oauth_headers {
-                if let Ok(val) =
-                    reqwest::header::HeaderValue::from_str(&format!("Bearer {}", headers.id_token))
-                {
-                    extra_headers.insert(reqwest::header::AUTHORIZATION, val);
-                }
-                if let Ok(val) = reqwest::header::HeaderValue::from_str(&headers.access_token) {
-                    extra_headers.insert(
-                        reqwest::header::HeaderName::from_static("x-google-access-token"),
-                        val,
-                    );
-                }
+        let uses_oauth = auth_type == AuthType::OAuth || server.oauth_config.is_some();
+        debug!(
+            server_id = %server.id,
+            server_name = %server.name,
+            transport = ?server.transport,
+            auth_type = ?auth_type,
+            has_oauth_config = server.oauth_config.is_some(),
+            oauth_headers_provided = oauth_headers.is_some(),
+            uses_oauth,
+            "connect_sse auth decision"
+        );
+        if uses_oauth {
+            let headers = oauth_headers.ok_or_else(|| {
+                McpError::ConnectionFailed(
+                    "OAuth server requires authentication — please authorize first".into(),
+                )
+            })?;
+            debug!(
+                server_id = %server.id,
+                id_token_len = headers.id_token.len(),
+                access_token_len = headers.access_token.len(),
+                id_token_prefix = %headers.id_token.chars().take(6).collect::<String>(),
+                access_token_prefix = %headers.access_token.chars().take(6).collect::<String>(),
+                "connect_sse oauth headers selected"
+            );
+            if let Ok(val) =
+                reqwest::header::HeaderValue::from_str(&format!("Bearer {}", headers.id_token))
+            {
+                extra_headers.insert(reqwest::header::AUTHORIZATION, val);
+            }
+            if let Ok(val) = reqwest::header::HeaderValue::from_str(&headers.access_token) {
+                extra_headers.insert(
+                    reqwest::header::HeaderName::from_static("x-google-access-token"),
+                    val,
+                );
             }
         }
 
@@ -499,6 +540,7 @@ impl ClientPool {
         server: &crate::models::mcp::McpServerRow,
         server_id: Uuid,
         transport_type: TransportType,
+        oauth_headers: Option<&OAuthHeaders>,
     ) -> Result<(), McpError> {
         // Enforce managed process limit
         if self.managed_count() >= self.max_managed_processes && !self.evict_lru_managed() {
@@ -590,8 +632,60 @@ impl ClientPool {
                     })?
             }
             TransportType::ManagedHttp => {
-                let config = StreamableHttpClientTransportConfig::with_uri(&*url);
-                let transport = StreamableHttpClientTransport::from_config(config);
+                let mut cfg = StreamableHttpClientTransportConfig::with_uri(&*url);
+
+                // Inject OAuth headers if the server requires them
+                let uses_oauth = server.oauth_config.is_some();
+                debug!(
+                    server_id = %server.id,
+                    server_name = %server.name,
+                    transport = ?server.transport,
+                    has_oauth_config = server.oauth_config.is_some(),
+                    oauth_headers_provided = oauth_headers.is_some(),
+                    uses_oauth,
+                    "connect_managed_http auth decision"
+                );
+                let transport = if uses_oauth {
+                    let headers = oauth_headers.ok_or_else(|| {
+                        let _ = child.start_kill();
+                        McpError::ConnectionFailed(
+                            "Managed OAuth server requires authentication — please authorize first"
+                                .into(),
+                        )
+                    })?;
+                    debug!(
+                        server_id = %server.id,
+                        id_token_len = headers.id_token.len(),
+                        access_token_len = headers.access_token.len(),
+                        id_token_prefix = %headers.id_token.chars().take(6).collect::<String>(),
+                        access_token_prefix = %headers.access_token.chars().take(6).collect::<String>(),
+                        "connect_managed_http oauth headers selected"
+                    );
+                    cfg.auth_header = Some(headers.id_token.clone());
+                    let mut header_map = reqwest::header::HeaderMap::new();
+                    header_map.insert(
+                        reqwest::header::HeaderName::from_static("x-google-access-token"),
+                        reqwest::header::HeaderValue::from_str(&headers.access_token).map_err(
+                            |e| {
+                                let _ = child.start_kill();
+                                McpError::ConnectionFailed(format!(
+                                    "Invalid access token header value: {e}"
+                                ))
+                            },
+                        )?,
+                    );
+                    let client = reqwest::Client::builder()
+                        .default_headers(header_map)
+                        .build()
+                        .map_err(|e| {
+                            let _ = child.start_kill();
+                            McpError::ConnectionFailed(format!("Failed to build HTTP client: {e}"))
+                        })?;
+                    StreamableHttpClientTransport::with_client(client, cfg)
+                } else {
+                    StreamableHttpClientTransport::from_config(cfg)
+                };
+
                 tokio::time::timeout(STDIO_CONNECT_TIMEOUT, ().serve(transport))
                     .await
                     .map_err(|_| {
@@ -789,7 +883,7 @@ async fn wait_for_ready(url: &str, timeout: Duration) -> Result<(), String> {
 pub async fn test_http_connection(
     config: &HttpServerConfig,
     api_key: Option<&str>,
-    oauth_token: Option<&str>,
+    oauth_headers: Option<&OAuthHeaders>,
 ) -> TestConnectionResult {
     let server_url = &config.url;
     if server_url.is_empty() {
@@ -817,9 +911,17 @@ pub async fn test_http_connection(
             }
         }
     } else if config.auth_type == "oauth"
-        && let Some(token) = oauth_token
+        && let Some(headers) = oauth_headers
     {
-        transport_config.auth_header = Some(token.to_string());
+        transport_config.auth_header = Some(headers.id_token.clone());
+        if let Ok(access_token_value) =
+            reqwest::header::HeaderValue::from_str(&headers.access_token)
+        {
+            header_map.insert(
+                reqwest::header::HeaderName::from_static("x-google-access-token"),
+                access_token_value,
+            );
+        }
     }
 
     // Add custom headers from config
@@ -888,6 +990,9 @@ pub async fn test_http_connection(
     };
 
     let tool_count = tools.len() as i64;
+
+    // Gracefully close: sends DELETE session, then drops the service
+    let _ = service.cancel().await;
 
     TestConnectionResult {
         success: true,
@@ -1020,7 +1125,7 @@ pub async fn test_stdio_connection(config: &StdioServerConfig) -> TestConnection
 pub async fn test_sse_connection(
     config: &SseServerConfig,
     api_key: Option<&str>,
-    oauth_token: Option<&str>,
+    oauth_headers: Option<&OAuthHeaders>,
 ) -> TestConnectionResult {
     if config.url.is_empty() {
         return TestConnectionResult {
@@ -1044,9 +1149,17 @@ pub async fn test_sse_connection(
             }
         }
     } else if config.auth_type == "oauth" {
-        if let Some(token) = oauth_token {
-            if let Ok(val) = reqwest::header::HeaderValue::from_str(&format!("Bearer {token}")) {
+        if let Some(headers) = oauth_headers {
+            if let Ok(val) =
+                reqwest::header::HeaderValue::from_str(&format!("Bearer {}", headers.id_token))
+            {
                 extra_headers.insert(reqwest::header::AUTHORIZATION, val);
+            }
+            if let Ok(val) = reqwest::header::HeaderValue::from_str(&headers.access_token) {
+                extra_headers.insert(
+                    reqwest::header::HeaderName::from_static("x-google-access-token"),
+                    val,
+                );
             }
         }
     }
@@ -1120,6 +1233,9 @@ pub async fn test_sse_connection(
 
     let tool_count = tools.len() as i64;
 
+    // Gracefully close the service
+    let _ = service.cancel().await;
+
     TestConnectionResult {
         success: true,
         server_name,
@@ -1145,6 +1261,7 @@ pub async fn test_sse_connection(
 pub async fn test_managed_connection(
     config: &ManagedHttpServerConfig,
     transport_type: &TransportType,
+    oauth_headers: Option<&OAuthHeaders>,
 ) -> TestConnectionResult {
     if config.command.is_empty() {
         return TestConnectionResult {
@@ -1173,7 +1290,12 @@ pub async fn test_managed_connection(
         }
     };
 
-    let path = config.path.as_deref().unwrap_or("/sse");
+    let default_path = match transport_type {
+        TransportType::ManagedSse => "/sse",
+        TransportType::ManagedHttp => "/mcp",
+        _ => "/mcp",
+    };
+    let path = config.path.as_deref().unwrap_or(default_path);
     let url = format!("http://127.0.0.1:{}{path}", config.port);
     let ready_timeout = Duration::from_secs(config.ready_timeout_secs.unwrap_or(30) as u64);
 
@@ -1187,58 +1309,128 @@ pub async fn test_managed_connection(
         };
     }
 
-    // Connect via the appropriate protocol
-    let result = match transport_type {
-        TransportType::ManagedSse => {
-            let transport = super::sse_transport::SseClientTransport::new(&url);
-            match tokio::time::timeout(STDIO_CONNECT_TIMEOUT, ().serve(transport)).await {
-                Ok(Ok(service)) => extract_test_result(&service, "managed SSE").await,
-                Ok(Err(e)) => TestConnectionResult {
-                    success: false,
-                    error: Some("Managed SSE communication error".to_string()),
-                    error_details: Some(format!("{e}")),
-                    ..Default::default()
-                },
-                Err(_) => TestConnectionResult {
-                    success: false,
-                    error: Some(format!(
-                        "Managed SSE connection timed out ({}s)",
-                        STDIO_CONNECT_TIMEOUT.as_secs()
-                    )),
-                    ..Default::default()
-                },
+    // Connect via the appropriate protocol.
+    // On success we get a RunningService that must be gracefully closed
+    // (delete session → drop service) before killing the child process.
+    let connect_result: Result<RunningService<RoleClient, ()>, TestConnectionResult> =
+        match transport_type {
+            TransportType::ManagedSse => {
+                let transport = super::sse_transport::SseClientTransport::new(&url);
+                match tokio::time::timeout(STDIO_CONNECT_TIMEOUT, ().serve(transport)).await {
+                    Ok(Ok(service)) => Ok(service),
+                    Ok(Err(e)) => Err(TestConnectionResult {
+                        success: false,
+                        error: Some("Managed SSE communication error".to_string()),
+                        error_details: Some(format!("{e}")),
+                        ..Default::default()
+                    }),
+                    Err(_) => Err(TestConnectionResult {
+                        success: false,
+                        error: Some(format!(
+                            "Managed SSE connection timed out ({}s)",
+                            STDIO_CONNECT_TIMEOUT.as_secs()
+                        )),
+                        ..Default::default()
+                    }),
+                }
             }
-        }
-        TransportType::ManagedHttp => {
-            let http_path = config.path.as_deref().unwrap_or("/mcp");
-            let http_url = format!("http://127.0.0.1:{}{http_path}", config.port);
-            let cfg = StreamableHttpClientTransportConfig::with_uri(&*http_url);
-            let transport = StreamableHttpClientTransport::from_config(cfg);
-            match tokio::time::timeout(STDIO_CONNECT_TIMEOUT, ().serve(transport)).await {
-                Ok(Ok(service)) => extract_test_result(&service, "managed HTTP").await,
-                Ok(Err(e)) => TestConnectionResult {
-                    success: false,
-                    error: Some("Managed HTTP communication error".to_string()),
-                    error_details: Some(format!("{e}")),
-                    ..Default::default()
-                },
-                Err(_) => TestConnectionResult {
-                    success: false,
-                    error: Some(format!(
-                        "Managed HTTP connection timed out ({}s)",
-                        STDIO_CONNECT_TIMEOUT.as_secs()
-                    )),
-                    ..Default::default()
-                },
+            TransportType::ManagedHttp => {
+                let http_path = config.path.as_deref().unwrap_or("/mcp");
+                let http_url = format!("http://127.0.0.1:{}{http_path}", config.port);
+                let mut cfg = StreamableHttpClientTransportConfig::with_uri(&*http_url);
+                let transport = if let Some(headers) = oauth_headers {
+                    cfg.auth_header = Some(headers.id_token.clone());
+                    let mut header_map = reqwest::header::HeaderMap::new();
+                    match reqwest::header::HeaderValue::from_str(&headers.access_token) {
+                        Ok(access_token_value) => {
+                            header_map.insert(
+                                reqwest::header::HeaderName::from_static("x-google-access-token"),
+                                access_token_value,
+                            );
+                        }
+                        Err(e) => {
+                            return TestConnectionResult {
+                                success: false,
+                                error: Some(format!("Invalid access token header value: {e}")),
+                                ..Default::default()
+                            };
+                        }
+                    }
+                    let client = match reqwest::Client::builder()
+                        .default_headers(header_map)
+                        .build()
+                    {
+                        Ok(client) => client,
+                        Err(e) => {
+                            return TestConnectionResult {
+                                success: false,
+                                error: Some(format!("Failed to build HTTP client: {e}")),
+                                ..Default::default()
+                            };
+                        }
+                    };
+                    StreamableHttpClientTransport::with_client(client, cfg)
+                } else {
+                    cfg.auth_header = None;
+                    debug!(
+                        transport = ?transport_type,
+                        url = %http_url,
+                        "test_managed_connection uses fresh HTTP client with no auth headers"
+                    );
+                    let client = match reqwest::Client::builder()
+                        .default_headers(reqwest::header::HeaderMap::new())
+                        .build()
+                    {
+                        Ok(client) => client,
+                        Err(e) => {
+                            return TestConnectionResult {
+                                success: false,
+                                error: Some(format!("Failed to build HTTP client: {e}")),
+                                ..Default::default()
+                            };
+                        }
+                    };
+                    StreamableHttpClientTransport::with_client(client, cfg)
+                };
+                match tokio::time::timeout(STDIO_CONNECT_TIMEOUT, ().serve(transport)).await {
+                    Ok(Ok(service)) => Ok(service),
+                    Ok(Err(e)) => Err(TestConnectionResult {
+                        success: false,
+                        error: Some("Managed HTTP communication error".to_string()),
+                        error_details: Some(format!("{e}")),
+                        ..Default::default()
+                    }),
+                    Err(_) => Err(TestConnectionResult {
+                        success: false,
+                        error: Some(format!(
+                            "Managed HTTP connection timed out ({}s)",
+                            STDIO_CONNECT_TIMEOUT.as_secs()
+                        )),
+                        ..Default::default()
+                    }),
+                }
             }
+            _ => Err(TestConnectionResult {
+                success: false,
+                error: Some(format!(
+                    "Unexpected transport type for managed test: {transport_type:?}"
+                )),
+                ..Default::default()
+            }),
+        };
+
+    let result = match connect_result {
+        Ok(service) => {
+            let label = match transport_type {
+                TransportType::ManagedSse => "managed SSE",
+                _ => "managed HTTP",
+            };
+            let result = extract_test_result(&service, label).await;
+            // Gracefully close: sends DELETE session, then drops the service
+            let _ = service.cancel().await;
+            result
         }
-        _ => TestConnectionResult {
-            success: false,
-            error: Some(format!(
-                "Unexpected transport type for managed test: {transport_type:?}"
-            )),
-            ..Default::default()
-        },
+        Err(err_result) => err_result,
     };
 
     // Kill the temporary child process
@@ -1325,7 +1517,16 @@ async fn resolve_oauth_headers(
         .ok_or_else(|| McpError::NotFound(format!("Server {server_id}")))?;
 
     let auth_type = queries::extract_auth_type(&server.config);
-    if auth_type != AuthType::OAuth {
+    let uses_oauth = auth_type == AuthType::OAuth || server.oauth_config.is_some();
+    debug!(
+        user_id = %user_id,
+        server_id = %server_id,
+        auth_type = ?auth_type,
+        has_oauth_config = server.oauth_config.is_some(),
+        uses_oauth,
+        "resolve_oauth_headers auth requirement"
+    );
+    if !uses_oauth {
         return Ok(None);
     }
 
@@ -1337,6 +1538,13 @@ async fn resolve_oauth_headers(
                 "No OAuth tokens found — please authorize this server first".into(),
             )
         })?;
+    debug!(
+        user_id = %user_id,
+        server_id = %server_id,
+        has_id_token = token_row.id_token_encrypted.as_ref().is_some(),
+        has_refresh_token = token_row.refresh_token_encrypted.as_ref().is_some(),
+        "resolve_oauth_headers token row found"
+    );
 
     // Check if tokens need refresh
     let needs_refresh = super::oauth::should_refresh(&token_row.expires_at);
@@ -1460,6 +1668,14 @@ pub async fn execute_tool(
     // Resolve OAuth headers if the server uses OAuth auth
     let oauth_headers =
         resolve_oauth_headers(pool, &request.user_id, server_id, encryption_key).await?;
+    debug!(
+        user_id = %request.user_id,
+        server_id = %server_id,
+        tool_id = %request.tool_id,
+        tool_name = %request.tool_name,
+        oauth_headers_resolved = oauth_headers.is_some(),
+        "execute_tool oauth header resolution"
+    );
 
     // Convert params to JsonObject
     let arguments = request.params.clone();

@@ -7,6 +7,7 @@ use sqlx::PgPool;
 use tracing::{error, info};
 
 use nize_core::mcp::McpError;
+use nize_core::mcp::execution::OAuthHeaders;
 use nize_core::mcp::queries;
 use nize_core::models::mcp::{
     AdminServerView, AuthType, DeleteResult, HttpServerConfig, McpServerRow, McpToolSummary,
@@ -871,21 +872,22 @@ pub async fn delete_built_in_server(
 pub async fn test_connection(
     config: &ServerConfig,
     api_key: Option<&str>,
-    oauth_token: Option<&str>,
+    oauth_headers: Option<&OAuthHeaders>,
 ) -> TestConnectionResult {
     match config {
         ServerConfig::Http(http) => {
-            nize_core::mcp::execution::test_http_connection(http, api_key, oauth_token).await
+            nize_core::mcp::execution::test_http_connection(http, api_key, oauth_headers).await
         }
         ServerConfig::Stdio(stdio) => nize_core::mcp::execution::test_stdio_connection(stdio).await,
         ServerConfig::Sse(sse) => {
-            nize_core::mcp::execution::test_sse_connection(sse, api_key, oauth_token).await
+            nize_core::mcp::execution::test_sse_connection(sse, api_key, oauth_headers).await
         }
         // @zen-impl: PLAN-033 T-XMCP-072 — managed transports spawn temporary process for testing
         ServerConfig::ManagedSse(managed) => {
             nize_core::mcp::execution::test_managed_connection(
                 managed,
                 &nize_core::models::mcp::TransportType::ManagedSse,
+                oauth_headers,
             )
             .await
         }
@@ -893,6 +895,7 @@ pub async fn test_connection(
             nize_core::mcp::execution::test_managed_connection(
                 managed,
                 &nize_core::models::mcp::TransportType::ManagedHttp,
+                oauth_headers,
             )
             .await
         }

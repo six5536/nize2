@@ -10,6 +10,7 @@ use crate::AppState;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
 use crate::services::mcp_config;
+use nize_core::mcp::execution::OAuthHeaders;
 use nize_core::models::mcp::{OAuthConfig, ServerConfig, TransportType};
 
 // ---------------------------------------------------------------------------
@@ -361,33 +362,72 @@ pub async fn test_connection_handler(
     axum::Extension(user): axum::Extension<AuthenticatedUser>,
     Json(body): Json<TestConnectionRequest>,
 ) -> AppResult<Json<serde_json::Value>> {
-    // For OAuth servers, look up the stored access token
-    let oauth_token = match (&body.config, &body.server_id) {
-        (ServerConfig::Http(http), Some(sid)) if http.auth_type == "oauth" => {
+    // Determine OAuth requirement for this test request.
+    // Prefer server-level oauth_config when serverId is present so all transports
+    // (including managed) share the same OAuth behavior.
+    let server_uses_oauth = if let Some(sid) = &body.server_id {
+        match nize_core::mcp::queries::get_server(&state.pool, sid).await? {
+            Some(server) => server.oauth_config.is_some(),
+            None => false,
+        }
+    } else {
+        matches!(&body.config, ServerConfig::Http(http) if http.auth_type == "oauth")
+            || matches!(&body.config, ServerConfig::Sse(sse) if sse.auth_type == "oauth")
+    };
+
+    // If OAuth is required, look up the stored OAuth headers for this user+server.
+    let oauth_headers = if server_uses_oauth {
+        if let Some(sid) = &body.server_id {
             match nize_core::mcp::queries::get_oauth_token(&state.pool, &user.0.sub, sid).await {
                 Ok(Some(row)) => {
-                    match nize_core::mcp::secrets::decrypt(
-                        &row.access_token_encrypted,
-                        &state.config.mcp_encryption_key,
-                    ) {
-                        Ok(token) => Some(token),
-                        Err(e) => {
-                            tracing::warn!("Failed to decrypt OAuth token for test: {e}");
-                            None
-                        }
+                    let id_token = match row.id_token_encrypted.as_deref() {
+                        Some(encrypted) => match nize_core::mcp::secrets::decrypt(
+                            encrypted,
+                            &state.config.mcp_encryption_key,
+                        ) {
+                            Ok(token) => Some(token),
+                            Err(e) => {
+                                tracing::warn!("Failed to decrypt OAuth ID token for test: {e}");
+                                None
+                            }
+                        },
+                        None => None,
+                    };
+
+                    let access_token =
+                        match nize_core::mcp::secrets::decrypt(
+                            &row.access_token_encrypted,
+                            &state.config.mcp_encryption_key,
+                        ) {
+                            Ok(token) => Some(token),
+                            Err(e) => {
+                                tracing::warn!(
+                                    "Failed to decrypt OAuth access token for test: {e}"
+                                );
+                                None
+                            }
+                        };
+
+                    match (id_token, access_token) {
+                        (Some(id_token), Some(access_token)) => Some(OAuthHeaders {
+                            id_token,
+                            access_token,
+                        }),
+                        _ => None,
                     }
                 }
                 _ => None,
             }
+        } else {
+            None
         }
-        _ => None,
+    } else {
+        None
     };
 
-    // @zen-impl: PLAN-032 Step 1
-    // If OAuth server has no valid token, return authRequired instead of
-    // attempting a connection that will fail.
-    let is_oauth = matches!(&body.config, ServerConfig::Http(http) if http.auth_type == "oauth");
-    if is_oauth && oauth_token.is_none() {
+    // If OAuth is required and no token is available, return authRequired
+    // instead of attempting a connection.
+    if server_uses_oauth && oauth_headers.is_none() {
         let result = nize_core::models::mcp::TestConnectionResult {
             success: false,
             error: Some("OAuth authorization required".to_string()),
@@ -400,7 +440,7 @@ pub async fn test_connection_handler(
     let result = mcp_config::test_connection(
         &body.config,
         body.api_key.as_deref(),
-        oauth_token.as_deref(),
+        oauth_headers.as_ref(),
     )
     .await;
 
@@ -544,24 +584,47 @@ pub async fn admin_update_server_handler(
 
     // Re-discover and store tools when config changes
     if let Some(config) = &body.config {
-        // For OAuth servers, look up the stored access token
-        let oauth_token = match config {
+        // For OAuth servers, look up stored OAuth headers
+        let oauth_headers = match config {
             ServerConfig::Http(http) if http.auth_type == "oauth" => {
                 match nize_core::mcp::queries::get_oauth_token(&state.pool, &user.0.sub, &server_id)
                     .await
                 {
                     Ok(Some(row)) => {
-                        match nize_core::mcp::secrets::decrypt(
-                            &row.access_token_encrypted,
-                            &state.config.mcp_encryption_key,
-                        ) {
-                            Ok(token) => Some(token),
-                            Err(e) => {
-                                tracing::warn!(
-                                    "Failed to decrypt OAuth token for tool discovery: {e}"
-                                );
-                                None
-                            }
+                        let id_token = match row.id_token_encrypted.as_deref() {
+                            Some(encrypted) => match nize_core::mcp::secrets::decrypt(
+                                encrypted,
+                                &state.config.mcp_encryption_key,
+                            ) {
+                                Ok(token) => Some(token),
+                                Err(e) => {
+                                    tracing::warn!(
+                                        "Failed to decrypt OAuth ID token for tool discovery: {e}"
+                                    );
+                                    None
+                                }
+                            },
+                            None => None,
+                        };
+                        let access_token =
+                            match nize_core::mcp::secrets::decrypt(
+                                &row.access_token_encrypted,
+                                &state.config.mcp_encryption_key,
+                            ) {
+                                Ok(token) => Some(token),
+                                Err(e) => {
+                                    tracing::warn!(
+                                        "Failed to decrypt OAuth access token for tool discovery: {e}"
+                                    );
+                                    None
+                                }
+                            };
+                        match (id_token, access_token) {
+                            (Some(id_token), Some(access_token)) => Some(OAuthHeaders {
+                                id_token,
+                                access_token,
+                            }),
+                            _ => None,
                         }
                     }
                     _ => None,
@@ -571,7 +634,7 @@ pub async fn admin_update_server_handler(
         };
 
         let test_result =
-            mcp_config::test_connection(config, body.api_key.as_deref(), oauth_token.as_deref())
+            mcp_config::test_connection(config, body.api_key.as_deref(), oauth_headers.as_ref())
                 .await;
         if !test_result.tools.is_empty() {
             if let Err(e) =
