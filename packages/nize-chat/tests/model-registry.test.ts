@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { getChatModel, getProviderFromSpec } from "../src/model-registry.js";
 
-// @zen-test: PLAN-028-3.4
+// @awa-test: PLAN-028-3.4
 
 describe("getChatModel", () => {
   it("should throw on invalid spec without colon", () => {

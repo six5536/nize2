@@ -1,7 +1,7 @@
 "use client";
 
-// @zen-component: CHAT-ChatRedirect
-// @zen-impl: NAV-1_AC-1
+// @awa-component: CHAT-ChatRedirect
+// @awa-impl: NAV-1_AC-1
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";

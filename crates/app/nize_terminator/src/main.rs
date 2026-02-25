@@ -1,4 +1,4 @@
-// @zen-component: PLAN-005-Terminator
+// @awa-component: PLAN-005-Terminator
 //! nize_terminator — process reaper for unclean shutdown cleanup.
 //!
 //! Watches a parent PID and executes cleanup commands from a manifest file
@@ -28,13 +28,13 @@ struct Args {
 fn main() -> ExitCode {
     let args = Args::parse();
 
-    // @zen-impl: PLAN-005 — wait for parent death
+    // @awa-impl: PLAN-005 — wait for parent death
     pid_watch::wait_for_pid_exit(args.parent_pid);
 
-    // @zen-impl: PLAN-005 — read manifest and execute cleanup commands
+    // @awa-impl: PLAN-005 — read manifest and execute cleanup commands
     let exit_code = run_cleanup(&args.manifest);
 
-    // @zen-impl: PLAN-005 — delete manifest after cleanup
+    // @awa-impl: PLAN-005 — delete manifest after cleanup
     if args.manifest.exists() {
         if let Err(e) = fs::remove_file(&args.manifest) {
             eprintln!("nize_terminator: failed to remove manifest: {e}");
@@ -65,7 +65,7 @@ fn run_cleanup(manifest: &PathBuf) -> ExitCode {
     let mut all_ok = true;
     for cmd in &commands {
         eprintln!("nize_terminator: executing: {cmd}");
-        // @zen-impl: PLAN-006-3.3
+        // @awa-impl: PLAN-006-3.3
         #[cfg(unix)]
         let result = Command::new("sh").arg("-c").arg(cmd).status();
         #[cfg(windows)]
@@ -109,7 +109,7 @@ fn parse_manifest(contents: &str) -> Vec<&str> {
 mod tests {
     use super::*;
 
-    // @zen-test: PLAN-005-ManifestParsing
+    // @awa-test: PLAN-005-ManifestParsing
     #[test]
     fn parse_manifest_skips_blanks_and_comments() {
         let input = "\
@@ -124,14 +124,14 @@ kill 12345
         assert_eq!(commands, vec!["pg_ctl -D /data -m fast stop", "kill 12345"]);
     }
 
-    // @zen-test: PLAN-005-ManifestParsing
+    // @awa-test: PLAN-005-ManifestParsing
     #[test]
     fn parse_manifest_empty_input() {
         let commands = parse_manifest("");
         assert!(commands.is_empty());
     }
 
-    // @zen-test: PLAN-005-ManifestParsing
+    // @awa-test: PLAN-005-ManifestParsing
     #[test]
     fn parse_manifest_trims_whitespace() {
         let input = "  pg_ctl stop  \n  kill 1  ";
@@ -139,7 +139,7 @@ kill 12345
         assert_eq!(commands, vec!["pg_ctl stop", "kill 1"]);
     }
 
-    // @zen-test: PLAN-005-CleanupExecution
+    // @awa-test: PLAN-005-CleanupExecution
     #[test]
     fn run_cleanup_with_successful_commands() {
         let dir = tempfile::tempdir().expect("tempdir");
@@ -149,7 +149,7 @@ kill 12345
         assert_eq!(code, ExitCode::SUCCESS);
     }
 
-    // @zen-test: PLAN-005-CleanupExecution
+    // @awa-test: PLAN-005-CleanupExecution
     #[test]
     fn run_cleanup_with_failing_command() {
         let dir = tempfile::tempdir().expect("tempdir");
@@ -159,7 +159,7 @@ kill 12345
         assert_eq!(code, ExitCode::FAILURE);
     }
 
-    // @zen-test: PLAN-005-CleanupExecution
+    // @awa-test: PLAN-005-CleanupExecution
     #[test]
     fn run_cleanup_nonexistent_manifest() {
         let path = PathBuf::from("/nonexistent/cleanup.manifest");
@@ -167,7 +167,7 @@ kill 12345
         assert_eq!(code, ExitCode::FAILURE);
     }
 
-    // @zen-test: PLAN-005-CleanupExecution
+    // @awa-test: PLAN-005-CleanupExecution
     #[test]
     fn run_cleanup_empty_manifest() {
         let dir = tempfile::tempdir().expect("tempdir");

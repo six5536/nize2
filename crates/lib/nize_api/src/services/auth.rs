@@ -1,6 +1,6 @@
-// @zen-component: AUTH-TokenService
-// @zen-component: AUTH-CredentialService
-// @zen-component: AUTH-RefreshTokenStore
+// @awa-component: AUTH-TokenService
+// @awa-component: AUTH-CredentialService
+// @awa-component: AUTH-RefreshTokenStore
 //
 //! Authentication service — login/register flows delegating to `nize_core::auth`.
 
@@ -28,13 +28,13 @@ const REFRESH_TOKEN_EXPIRY_DAYS: i64 = 30;
 // Password hashing (delegate to nize_core)
 // ---------------------------------------------------------------------------
 
-// @zen-impl: AUTH-1.1_AC-1
+// @awa-impl: AUTH-1.1_AC-1
 /// Hash a password with bcrypt (cost 10).
 pub fn hash_password(password: &str) -> AppResult<String> {
     nize_core::auth::password::hash_password(password).map_err(AppError::from)
 }
 
-// @zen-impl: AUTH-1.1_AC-1
+// @awa-impl: AUTH-1.1_AC-1
 /// Verify a password against a bcrypt hash.
 pub fn verify_password(password: &str, hash: &str) -> AppResult<bool> {
     nize_core::auth::password::verify_password(password, hash).map_err(AppError::from)
@@ -64,7 +64,7 @@ fn hash_refresh_token(token: &str) -> String {
 // JWT generation & verification (delegate to nize_core)
 // ---------------------------------------------------------------------------
 
-// @zen-impl: AUTH-1_AC-1, AUTH-1_AC-3
+// @awa-impl: AUTH-1_AC-1, AUTH-1_AC-3
 /// Generate a signed JWT access token (HS256, 15 min expiry).
 pub fn generate_access_token(
     user_id: &str,
@@ -81,7 +81,7 @@ pub fn generate_access_token(
 // ---------------------------------------------------------------------------
 
 /// Fetch user roles from the `user_roles` table.
-// @zen-impl: PRM-9_AC-1
+// @awa-impl: PRM-9_AC-1
 async fn get_user_roles(pool: &PgPool, user_id: &str) -> AppResult<Vec<String>> {
     nize_core::auth::queries::get_user_roles(pool, user_id)
         .await
@@ -115,7 +115,7 @@ fn build_token_response(
 // Public auth operations
 // ---------------------------------------------------------------------------
 
-// @zen-impl: AUTH-1_AC-1, AUTH-1_AC-2
+// @awa-impl: AUTH-1_AC-1, AUTH-1_AC-2
 /// Authenticate with email + password.
 pub async fn login(
     pool: &PgPool,
@@ -126,7 +126,7 @@ pub async fn login(
     let row = nize_core::auth::queries::find_user_by_email(pool, email).await?;
 
     let (user_id, name, pw_hash) = match row {
-        // @zen-impl: AUTH-1_AC-2 — generic error for wrong email
+        // @awa-impl: AUTH-1_AC-2 — generic error for wrong email
         None => return Err(AppError::Unauthorized("Invalid credentials".into())),
         Some(r) => r,
     };
@@ -136,7 +136,7 @@ pub async fn login(
         Some(h) => h,
     };
 
-    // @zen-impl: AUTH-1_AC-2 — generic error for wrong password
+    // @awa-impl: AUTH-1_AC-2 — generic error for wrong password
     if !verify_password(password, &pw_hash)? {
         return Err(AppError::Unauthorized("Invalid credentials".into()));
     }
@@ -146,7 +146,7 @@ pub async fn login(
     let refresh_token = generate_refresh_token();
     let token_hash = hash_refresh_token(&refresh_token);
 
-    // @zen-impl: AUTH-1_AC-4
+    // @awa-impl: AUTH-1_AC-4
     let expires_at = Utc::now() + Duration::days(REFRESH_TOKEN_EXPIRY_DAYS);
     nize_core::auth::queries::store_refresh_token(pool, &token_hash, &user_id, expires_at).await?;
 
@@ -160,8 +160,8 @@ pub async fn login(
     ))
 }
 
-// @zen-impl: AUTH-1.1_AC-2, AUTH-1.1_AC-4
-// @zen-impl: PRM-9_AC-1 — first user is admin
+// @awa-impl: AUTH-1.1_AC-2, AUTH-1.1_AC-4
+// @awa-impl: PRM-9_AC-1 — first user is admin
 /// Register a new user account. First user gets admin role.
 pub async fn register(
     pool: &PgPool,
@@ -170,7 +170,7 @@ pub async fn register(
     name: Option<&str>,
     jwt_secret: &[u8],
 ) -> AppResult<TokenResponse> {
-    // @zen-impl: AUTH-1.1_AC-2
+    // @awa-impl: AUTH-1.1_AC-2
     if password.len() < 8 {
         return Err(AppError::Validation(
             "Password must be at least 8 characters".into(),
@@ -185,12 +185,12 @@ pub async fn register(
     // Check if this is the first user
     let is_first_user = nize_core::auth::queries::user_count(pool).await? == 0;
 
-    // @zen-impl: AUTH-1.1_AC-1
+    // @awa-impl: AUTH-1.1_AC-1
     let pw_hash = hash_password(password)?;
 
     let user_id = nize_core::auth::queries::create_user(pool, email, name, &pw_hash).await?;
 
-    // @zen-impl: PRM-9_AC-1
+    // @awa-impl: PRM-9_AC-1
     let mut roles = Vec::new();
     if is_first_user {
         nize_core::auth::queries::grant_role(pool, &user_id, "admin").await?;
@@ -215,7 +215,7 @@ pub async fn register(
     ))
 }
 
-// @zen-impl: AUTH-3_AC-1, AUTH-3_AC-2, AUTH-3_AC-4
+// @awa-impl: AUTH-3_AC-1, AUTH-3_AC-2, AUTH-3_AC-4
 /// Refresh an access token using a refresh token (single-use rotation).
 pub async fn refresh(
     pool: &PgPool,
@@ -228,12 +228,12 @@ pub async fn refresh(
     let row = nize_core::auth::queries::find_valid_refresh_token(pool, &token_hash).await?;
 
     let (token_id, user_id) = match row {
-        // @zen-impl: AUTH-3_AC-3
+        // @awa-impl: AUTH-3_AC-3
         None => return Err(AppError::Unauthorized("Invalid refresh token".into())),
         Some(r) => r,
     };
 
-    // @zen-impl: AUTH-3_AC-4 — revoke old token
+    // @awa-impl: AUTH-3_AC-4 — revoke old token
     nize_core::auth::queries::revoke_refresh_token(pool, &token_id).await?;
 
     // Fetch user
@@ -261,7 +261,7 @@ pub async fn refresh(
     ))
 }
 
-// @zen-impl: AUTH-4_AC-1, AUTH-4_AC-2
+// @awa-impl: AUTH-4_AC-1, AUTH-4_AC-2
 /// Logout — revoke a specific refresh token.
 pub async fn logout(pool: &PgPool, refresh_token: Option<&str>) -> AppResult<LogoutResponse> {
     if let Some(token) = refresh_token {

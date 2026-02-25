@@ -1,5 +1,5 @@
-// @zen-impl: PLAN-021 — serve /__nize-env.js in dev (production uses nize-web-server.mjs)
-// @zen-component: AUTH-Middleware
+// @awa-impl: PLAN-021 — serve /__nize-env.js in dev (production uses nize-web-server.mjs)
+// @awa-component: AUTH-Middleware
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -17,8 +17,8 @@ const ADMIN_ROUTES = ["/admin"];
 // Routes that should redirect to chat if already authenticated
 const AUTH_ROUTES = ["/login", "/register"];
 
-// @zen-impl: AUTH-2_AC-1
-// @zen-impl: PRM-7_AC-6
+// @awa-impl: AUTH-2_AC-1
+// @awa-impl: PRM-7_AC-6
 export function proxy(request: NextRequest) {
   // Serve /__nize-env.js for Tauri dev builds
   if (request.nextUrl.pathname === "/__nize-env.js") {

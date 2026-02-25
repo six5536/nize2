@@ -1,4 +1,4 @@
-// @zen-component: CHAT-Input
+// @awa-component: CHAT-Input
 
 interface ChatInputProps {
   /** Current input value */

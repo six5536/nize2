@@ -1,14 +1,14 @@
 "use client";
 
-// @zen-component: NAV-SidebarToggle
+// @awa-component: NAV-SidebarToggle
 
 interface SidebarToggleProps {
   isCollapsed: boolean;
   onToggle: () => void;
 }
 
-// @zen-impl: NAV-1_AC-2
-// @zen-impl: NAV-1_AC-3
+// @awa-impl: NAV-1_AC-2
+// @awa-impl: NAV-1_AC-3
 export function SidebarToggle({ isCollapsed, onToggle }: SidebarToggleProps) {
   return (
     <button onClick={onToggle} className="p-2 rounded-lg hover:bg-gray-200 transition-colors" aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}>

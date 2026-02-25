@@ -1,4 +1,4 @@
-// @zen-component: DB-UUIDv7
+// @awa-component: DB-UUIDv7
 // Helper for generating UUIDv7 (timestamp-sortable UUIDs)
 //
 // PostgreSQL does not natively support UUIDv7 for auto-generation.

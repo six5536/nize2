@@ -1,4 +1,4 @@
-// @zen-impl: PLAN-021 — Tauri detection and IPC helpers for nize-web
+// @awa-impl: PLAN-021 — Tauri detection and IPC helpers for nize-web
 //
 // When nize-web runs inside the Tauri webview, `window.__TAURI_INTERNALS__`
 // is injected automatically.  All desktop-specific code should be gated

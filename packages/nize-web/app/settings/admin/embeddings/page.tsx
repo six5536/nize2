@@ -1,4 +1,4 @@
-// @zen-component: PLAN-023-EmbeddingsConfigUI
+// @awa-component: PLAN-023-EmbeddingsConfigUI
 
 /**
  * Admin embedding configuration page at /settings/admin/embeddings

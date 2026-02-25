@@ -1,6 +1,6 @@
 "use client";
 
-// @zen-component: DEV-DevPanel
+// @awa-component: DEV-DevPanel
 
 import { useState, useCallback } from "react";
 import { useDevPanel } from "@/lib/dev-panel-context";
@@ -17,19 +17,19 @@ const RawChatTab = dynamic(() => import("./tabs/raw-chat-tab").then((mod) => ({ 
   ssr: false,
 });
 
-// @zen-impl: TRC-5_AC-1 - Chat Trace tab
+// @awa-impl: TRC-5_AC-1 - Chat Trace tab
 const ChatTraceTab = dynamic(() => import("./tabs/chat-trace-tab").then((mod) => ({ default: mod.ChatTraceTab })), {
   ssr: false,
 });
 
-// @zen-impl: DEV-1_AC-3
-// @zen-impl: DEV-1_AC-4
-// @zen-impl: DEV-1_AC-7
-// @zen-impl: DEV-1_AC-8
-// @zen-impl: DEV-3_AC-1
-// @zen-impl: DEV-3_AC-2
-// @zen-impl: DEV-3_AC-3
-// @zen-impl: DEV-3_AC-4
+// @awa-impl: DEV-1_AC-3
+// @awa-impl: DEV-1_AC-4
+// @awa-impl: DEV-1_AC-7
+// @awa-impl: DEV-1_AC-8
+// @awa-impl: DEV-3_AC-1
+// @awa-impl: DEV-3_AC-2
+// @awa-impl: DEV-3_AC-3
+// @awa-impl: DEV-3_AC-4
 export function DevPanel() {
   const { isExpanded, setIsExpanded, activeTab, setActiveTab, chatState, panelWidth, setPanelWidth, panelHeight, setPanelHeight } = useDevPanel();
 
@@ -44,7 +44,7 @@ export function DevPanel() {
     return null;
   }
 
-  // @zen-impl: TRC-5_AC-1 - Chat Trace as first tab
+  // @awa-impl: TRC-5_AC-1 - Chat Trace as first tab
   const tabs = [
     { id: "chat-trace", label: "Chat Trace" },
     { id: "raw-chat", label: "Raw Chat" },

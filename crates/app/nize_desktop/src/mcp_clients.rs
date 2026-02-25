@@ -1,4 +1,4 @@
-// @zen-component: PLAN-011-McpClients
+// @awa-component: PLAN-011-McpClients
 //! MCP client configuration detection and writing.
 //!
 //! Detects installed AI clients, checks if Nize is configured,
@@ -299,7 +299,7 @@ pub fn get_all_statuses() -> Vec<McpClientStatus> {
 // Path resolution helpers
 // ---------------------------------------------------------------------------
 
-// @zen-impl: PLAN-016-2.5
+// @awa-impl: PLAN-016-2.5
 /// Resolves the sidecar bun binary path.
 pub fn sidecar_bun_path() -> Result<PathBuf, String> {
     let exe = std::env::current_exe().map_err(|e| format!("current_exe: {e}"))?;
@@ -312,7 +312,7 @@ pub fn sidecar_bun_path() -> Result<PathBuf, String> {
     }
 }
 
-// @zen-impl: PLAN-011-2.4
+// @awa-impl: PLAN-011-2.4
 /// Resolves the bundled mcp-remote.mjs path.
 pub fn bundled_mcp_remote_path() -> Result<PathBuf, String> {
     let exe = std::env::current_exe().map_err(|e| format!("current_exe: {e}"))?;
@@ -374,7 +374,7 @@ fn write_config_atomic(path: &PathBuf, value: &serde_json::Value) -> Result<(), 
     Ok(())
 }
 
-// @zen-impl: PLAN-016-2.5
+// @awa-impl: PLAN-016-2.5
 /// Configure Claude Desktop: writes mcp-remote stdio bridge config.
 pub fn configure_claude_desktop(mcp_port: u16, token: &str) -> Result<(), String> {
     let bun_path = sidecar_bun_path()?;
@@ -422,7 +422,7 @@ pub fn configure_claude_desktop(mcp_port: u16, token: &str) -> Result<(), String
     Ok(())
 }
 
-// @zen-impl: PLAN-011-2.3
+// @awa-impl: PLAN-011-2.3
 /// Configure Claude Code: writes HTTP streamable config.
 pub fn configure_claude_code(mcp_port: u16, token: &str) -> Result<(), String> {
     let path = config_path(McpClient::ClaudeCode).ok_or("no config path")?;
@@ -454,7 +454,7 @@ pub fn configure_claude_code(mcp_port: u16, token: &str) -> Result<(), String> {
     Ok(())
 }
 
-// @zen-impl: PLAN-011-2.3
+// @awa-impl: PLAN-011-2.3
 /// Configure GitHub Copilot / VS Code: writes HTTP streamable config.
 pub fn configure_copilot_vscode(mcp_port: u16, token: &str) -> Result<(), String> {
     let path = config_path(McpClient::CopilotVscode).ok_or("no config path")?;
@@ -535,13 +535,13 @@ pub fn remove_nize_from_client(client: McpClient) -> Result<(), String> {
 // Tauri commands
 // ---------------------------------------------------------------------------
 
-// @zen-impl: PLAN-011-2.5
+// @awa-impl: PLAN-011-2.5
 #[tauri::command]
 pub async fn get_mcp_client_statuses() -> Result<Vec<McpClientStatus>, String> {
     Ok(get_all_statuses())
 }
 
-// @zen-impl: PLAN-011-2.5
+// @awa-impl: PLAN-011-2.5
 #[tauri::command]
 pub async fn configure_mcp_client(
     client: McpClient,
@@ -552,7 +552,7 @@ pub async fn configure_mcp_client(
     Ok(format!("{} configured successfully", client.display_name()))
 }
 
-// @zen-impl: PLAN-011-2.5
+// @awa-impl: PLAN-011-2.5
 #[tauri::command]
 pub async fn remove_mcp_client(client: McpClient) -> Result<(), String> {
     remove_nize_from_client(client)

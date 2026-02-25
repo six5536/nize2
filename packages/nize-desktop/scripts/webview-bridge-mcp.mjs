@@ -1,4 +1,4 @@
-// @zen-component: PLAN-015-McpServer
+// @awa-component: PLAN-015-McpServer
 //
 // WebView Bridge MCP Server — exposes MCP tools over stdio
 // that translate to WebSocket commands sent to the bridge client injected
@@ -117,7 +117,7 @@ const mcpServer = new McpServer(
   },
 );
 
-// @zen-impl: PLAN-015-2.2
+// @awa-impl: PLAN-015-2.2
 
 mcpServer.tool("webview_snapshot", "Returns an accessibility-tree-style snapshot of the current DOM (parent + iframe). " + "Each interactive element has a ref id for targeting with other tools.", {}, async () => {
   const result = await sendCommand("snapshot");

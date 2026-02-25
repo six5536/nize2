@@ -1,5 +1,5 @@
 -- Auth tables for Nize (matches ref project schema)
--- @zen-impl: AUTH-1_AC-4, AUTH-1.1_AC-1
+-- @awa-impl: AUTH-1_AC-4, AUTH-1.1_AC-1
 
 -- Users
 CREATE TABLE IF NOT EXISTS users (

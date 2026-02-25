@@ -1,6 +1,6 @@
-// @zen-component: AUTH-LoginEndpoint
-// @zen-component: AUTH-RegistrationEndpoint
-// @zen-component: AUTH-TokenRefreshEndpoint
+// @awa-component: AUTH-LoginEndpoint
+// @awa-component: AUTH-RegistrationEndpoint
+// @awa-component: AUTH-TokenRefreshEndpoint
 //
 //! Authentication request handlers.
 
@@ -17,7 +17,7 @@ use crate::generated::models::{
 use crate::services::auth;
 use crate::services::cookies;
 
-// @zen-impl: AUTH-1_AC-1, AUTH-1_AC-2
+// @awa-impl: AUTH-1_AC-1, AUTH-1_AC-2
 /// `POST /auth/login` — authenticate with email + password.
 /// Sets httpOnly auth cookies alongside the JSON response.
 pub async fn login_handler(
@@ -38,7 +38,7 @@ pub async fn login_handler(
     Ok((jar, Json(resp)))
 }
 
-// @zen-impl: AUTH-1.1_AC-2, AUTH-1.1_AC-4
+// @awa-impl: AUTH-1.1_AC-2, AUTH-1.1_AC-4
 /// `POST /auth/register` — create a new user account.
 /// Sets httpOnly auth cookies alongside the JSON response.
 pub async fn register_handler(
@@ -60,7 +60,7 @@ pub async fn register_handler(
     Ok((jar, Json(resp)))
 }
 
-// @zen-impl: AUTH-3_AC-1, AUTH-3_AC-2
+// @awa-impl: AUTH-3_AC-1, AUTH-3_AC-2
 /// `POST /auth/refresh` — exchange a refresh token for a new token pair.
 /// Checks refresh token from cookie first, then from JSON body.
 /// Sets new httpOnly auth cookies.
@@ -88,7 +88,7 @@ pub async fn refresh_handler(
     Ok((jar, Json(resp)))
 }
 
-// @zen-impl: AUTH-4_AC-1, AUTH-4_AC-2
+// @awa-impl: AUTH-4_AC-1, AUTH-4_AC-2
 /// `POST /auth/logout` — revoke a refresh token. Clears auth cookies.
 pub async fn logout_handler(
     State(state): State<AppState>,

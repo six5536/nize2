@@ -1,6 +1,6 @@
-// @zen-component: NAV-Types
+// @awa-component: NAV-Types
 
-// @zen-impl: NAV-2.1_AC-2
+// @awa-impl: NAV-2.1_AC-2
 export interface ConversationSummary {
   id: string;
   title: string;
@@ -8,7 +8,7 @@ export interface ConversationSummary {
   updatedAt: Date;
 }
 
-// @zen-impl: NAV-1_AC-4
+// @awa-impl: NAV-1_AC-4
 export interface SidebarState {
   isCollapsed: boolean;
 }

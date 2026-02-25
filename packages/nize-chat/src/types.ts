@@ -1,4 +1,4 @@
-// @zen-component: PLAN-027-Types
+// @awa-component: PLAN-027-Types
 
 import type { UIMessage } from "ai";
 
@@ -19,7 +19,7 @@ export interface ChatRequest {
 // ============================================================================
 
 /** Chat configuration fetched from the Rust API */
-// @zen-impl: PLAN-028-3.2
+// @awa-impl: PLAN-028-3.2
 export interface ChatConfig {
   /** Model spec in provider:model format (e.g. "anthropic:claude-haiku-4-5-20251001") */
   modelName: string;
@@ -33,7 +33,7 @@ export interface ChatConfig {
     openai?: string;
     google?: string;
   };
-  // @zen-impl: PLAN-029-3.3
+  // @awa-impl: PLAN-029-3.3
   /** Whether MCP tool calling is enabled */
   toolsEnabled: boolean;
   /** Maximum number of tool-call steps per message */

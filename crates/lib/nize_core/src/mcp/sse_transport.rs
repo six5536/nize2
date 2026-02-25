@@ -1,4 +1,4 @@
-// @zen-component: XMCP-SseClientTransport
+// @awa-component: XMCP-SseClientTransport
 //
 //! Legacy SSE client transport for MCP servers.
 //!
@@ -147,7 +147,7 @@ impl SseClientTransport {
     }
 }
 
-// @zen-impl: PLAN-033 Step 1.2 — Transport<RoleClient> for SseClientTransport
+// @awa-impl: PLAN-033 Step 1.2 — Transport<RoleClient> for SseClientTransport
 impl Transport<RoleClient> for SseClientTransport {
     type Error = SseTransportError;
 
@@ -155,7 +155,7 @@ impl Transport<RoleClient> for SseClientTransport {
         "SseClientTransport".into()
     }
 
-    // @zen-impl: PLAN-033 T-XMCP-032 — send JSON-RPC messages via POST
+    // @awa-impl: PLAN-033 T-XMCP-032 — send JSON-RPC messages via POST
     fn send(
         &mut self,
         item: rmcp::service::TxJsonRpcMessage<RoleClient>,
@@ -172,7 +172,7 @@ impl Transport<RoleClient> for SseClientTransport {
         }
     }
 
-    // @zen-impl: PLAN-033 T-XMCP-033 — receive JSON-RPC messages from SSE stream
+    // @awa-impl: PLAN-033 T-XMCP-033 — receive JSON-RPC messages from SSE stream
     fn receive(
         &mut self,
     ) -> impl Future<Output = Option<rmcp::service::RxJsonRpcMessage<RoleClient>>> + Send {
@@ -192,7 +192,7 @@ impl Transport<RoleClient> for SseClientTransport {
         }
     }
 
-    // @zen-impl: PLAN-033 T-XMCP-034 — close transport
+    // @awa-impl: PLAN-033 T-XMCP-034 — close transport
     fn close(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send {
         self.cancel.cancel();
         self.tx = None;
@@ -206,7 +206,7 @@ impl Transport<RoleClient> for SseClientTransport {
 /// 2. Waits for the `endpoint` event to discover the message URL
 /// 3. Reads incoming SSE events and forwards server messages
 /// 4. Reads outgoing messages and POSTs them to the endpoint URL
-// @zen-impl: PLAN-033 T-XMCP-031 — background worker
+// @awa-impl: PLAN-033 T-XMCP-031 — background worker
 async fn run_worker(
     base_url: String,
     client: reqwest::Client,
@@ -421,7 +421,7 @@ async fn post_message(
 mod tests {
     use super::*;
 
-    // @zen-test: PLAN-033 T-XMCP-038 — endpoint discovery from SSE endpoint event
+    // @awa-test: PLAN-033 T-XMCP-038 — endpoint discovery from SSE endpoint event
     #[test]
     fn resolve_endpoint_url_absolute() {
         let result = resolve_endpoint_url(
@@ -431,21 +431,21 @@ mod tests {
         assert_eq!(result, "http://localhost:3000/message?sessionId=abc");
     }
 
-    // @zen-test: PLAN-033 T-XMCP-038 — endpoint discovery relative URL
+    // @awa-test: PLAN-033 T-XMCP-038 — endpoint discovery relative URL
     #[test]
     fn resolve_endpoint_url_relative() {
         let result = resolve_endpoint_url("http://localhost:3000/sse", "/message?sessionId=abc");
         assert_eq!(result, "http://localhost:3000/message?sessionId=abc");
     }
 
-    // @zen-test: PLAN-033 T-XMCP-038 — endpoint discovery relative path
+    // @awa-test: PLAN-033 T-XMCP-038 — endpoint discovery relative path
     #[test]
     fn resolve_endpoint_url_relative_no_slash() {
         let result = resolve_endpoint_url("http://localhost:3000/sse", "message?sessionId=abc");
         assert_eq!(result, "http://localhost:3000/message?sessionId=abc");
     }
 
-    // @zen-test: PLAN-033 T-XMCP-038 — endpoint discovery trims whitespace
+    // @awa-test: PLAN-033 T-XMCP-038 — endpoint discovery trims whitespace
     #[test]
     fn resolve_endpoint_url_trims_whitespace() {
         let result =
@@ -453,7 +453,7 @@ mod tests {
         assert_eq!(result, "http://localhost:3000/message?sessionId=abc");
     }
 
-    // @zen-test: PLAN-033 T-XMCP-037 — SSE event parsing: message event with JSON-RPC
+    // @awa-test: PLAN-033 T-XMCP-037 — SSE event parsing: message event with JSON-RPC
     #[test]
     fn parse_sse_message_valid_jsonrpc() {
         let sse = sse_stream::Sse {
@@ -466,7 +466,7 @@ mod tests {
         assert!(msg.is_some());
     }
 
-    // @zen-test: PLAN-033 T-XMCP-037 — SSE event parsing: default event (no event field)
+    // @awa-test: PLAN-033 T-XMCP-037 — SSE event parsing: default event (no event field)
     #[test]
     fn parse_sse_message_no_event_field() {
         let sse = sse_stream::Sse {
@@ -481,7 +481,7 @@ mod tests {
         assert!(msg.is_some());
     }
 
-    // @zen-test: PLAN-033 T-XMCP-037 — SSE event parsing: skip endpoint events
+    // @awa-test: PLAN-033 T-XMCP-037 — SSE event parsing: skip endpoint events
     #[test]
     fn parse_sse_message_skips_endpoint_event() {
         let sse = sse_stream::Sse {
@@ -494,7 +494,7 @@ mod tests {
         assert!(msg.is_none());
     }
 
-    // @zen-test: PLAN-033 T-XMCP-037 — SSE event parsing: skip events without data
+    // @awa-test: PLAN-033 T-XMCP-037 — SSE event parsing: skip events without data
     #[test]
     fn parse_sse_message_no_data() {
         let sse = sse_stream::Sse {
@@ -507,7 +507,7 @@ mod tests {
         assert!(msg.is_none());
     }
 
-    // @zen-test: PLAN-033 T-XMCP-037 — SSE event parsing: invalid JSON data
+    // @awa-test: PLAN-033 T-XMCP-037 — SSE event parsing: invalid JSON data
     #[test]
     fn parse_sse_message_invalid_json() {
         let sse = sse_stream::Sse {
@@ -520,7 +520,7 @@ mod tests {
         assert!(msg.is_none());
     }
 
-    // @zen-test: PLAN-033 T-XMCP-039 — error: transport not started
+    // @awa-test: PLAN-033 T-XMCP-039 — error: transport not started
     #[test]
     fn sse_transport_error_display() {
         let e = SseTransportError::NotConnected;
@@ -533,7 +533,7 @@ mod tests {
         assert_eq!(e.to_string(), "SSE transport closed");
     }
 
-    // @zen-test: PLAN-033 T-XMCP-039 — new transport is not started
+    // @awa-test: PLAN-033 T-XMCP-039 — new transport is not started
     #[test]
     fn sse_transport_new_state() {
         let transport = SseClientTransport::new("http://localhost:3000/sse");
@@ -541,7 +541,7 @@ mod tests {
         assert!(transport.tx.is_none());
     }
 
-    // @zen-test: PLAN-033 T-XMCP-038 — endpoint discovery from mock SSE stream
+    // @awa-test: PLAN-033 T-XMCP-038 — endpoint discovery from mock SSE stream
     #[tokio::test]
     async fn discover_endpoint_from_stream() {
         let events = vec![Ok(sse_stream::Sse {
@@ -560,7 +560,7 @@ mod tests {
         );
     }
 
-    // @zen-test: PLAN-033 T-XMCP-039 — endpoint discovery fails on empty stream
+    // @awa-test: PLAN-033 T-XMCP-039 — endpoint discovery fails on empty stream
     #[tokio::test]
     async fn discover_endpoint_empty_stream() {
         let events: Vec<Result<sse_stream::Sse, sse_stream::Error>> = vec![];
@@ -570,7 +570,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // @zen-test: PLAN-033 T-XMCP-039 — endpoint discovery skips non-endpoint events
+    // @awa-test: PLAN-033 T-XMCP-039 — endpoint discovery skips non-endpoint events
     #[tokio::test]
     async fn discover_endpoint_skips_message_events() {
         let events = vec![
@@ -594,7 +594,7 @@ mod tests {
         assert_eq!(result.unwrap(), "http://localhost:8080/msg?sid=x");
     }
 
-    // @zen-test: PLAN-033 T-XMCP-039 — endpoint discovery cancelled
+    // @awa-test: PLAN-033 T-XMCP-039 — endpoint discovery cancelled
     #[tokio::test]
     async fn discover_endpoint_cancelled() {
         let cancel = CancellationToken::new();

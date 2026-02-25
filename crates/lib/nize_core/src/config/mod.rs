@@ -1,4 +1,4 @@
-// @zen-component: CFG-ConfigCache
+// @awa-component: CFG-ConfigCache
 //
 //! Configuration module — cache, resolution, and validation.
 

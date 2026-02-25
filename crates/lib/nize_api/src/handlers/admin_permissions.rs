@@ -1,4 +1,4 @@
-// @zen-component: PLAN-017-AdminPermissionsHandler
+// @awa-component: PLAN-017-AdminPermissionsHandler
 //
 //! Admin permission request handlers — demo stubs.
 

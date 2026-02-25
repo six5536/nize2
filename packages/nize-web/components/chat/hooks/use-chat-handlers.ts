@@ -1,4 +1,4 @@
-// @zen-component: CHAT-Handlers
+// @awa-component: CHAT-Handlers
 
 import { useCallback, useState } from "react";
 import { type UIMessage } from "ai";

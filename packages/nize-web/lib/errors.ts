@@ -1,4 +1,4 @@
-// @zen-component: NAV-Errors
+// @awa-component: NAV-Errors
 
 export class NavigationError extends Error {
   constructor(

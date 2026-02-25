@@ -1,6 +1,6 @@
 "use client";
 
-// @zen-component: NAV-ConversationItem
+// @awa-component: NAV-ConversationItem
 
 import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
@@ -13,14 +13,14 @@ interface ConversationItemProps {
   onDelete: () => void;
 }
 
-// @zen-impl: NAV-1.2_AC-2
-// @zen-impl: NAV-1.2_AC-3
-// @zen-impl: NAV-1.2_AC-4
-// @zen-impl: NAV-3_AC-1
+// @awa-impl: NAV-1.2_AC-2
+// @awa-impl: NAV-1.2_AC-3
+// @awa-impl: NAV-1.2_AC-4
+// @awa-impl: NAV-3_AC-1
 export function ConversationItem({ conversation, isActive, onSelect, onDelete }: ConversationItemProps) {
   const [isHovered, setIsHovered] = useState(false);
 
-  // @zen-impl: NAV-1.2_AC-2
+  // @awa-impl: NAV-1.2_AC-2
   const relativeTime = formatDistanceToNow(conversation.updatedAt, { addSuffix: true });
 
   const handleDeleteClick = (e: React.MouseEvent) => {

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# @zen-impl: PLAN-006-1.2
+# @awa-impl: PLAN-006-1.2
 # Copy sidecar binaries to the Tauri binaries/ directory with the correct
 # platform triple suffix. Tauri externalBin expects this naming convention.
 #
@@ -47,7 +47,7 @@ for BIN in $SIDECARS; do
   echo "setup-sidecar-binaries: $SRC → $DEST"
 done
 
-# @zen-impl: PLAN-016-2.3
+# @awa-impl: PLAN-016-2.3
 # Copy bundled Bun binary if it exists (downloaded by scripts/download-bun.sh).
 # In dev mode, create a symlink to the system Bun binary.
 if [ -f "$BINARIES_DIR/bun-${TRIPLE}" ] || [ -f "$BINARIES_DIR/bun-${TRIPLE}.exe" ]; then

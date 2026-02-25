@@ -1,4 +1,4 @@
-// @zen-component: MCP-AccessControlHook
+// @awa-component: MCP-AccessControlHook
 //
 //! Access control hook — verifies user has access to the target MCP server.
 //!
@@ -21,7 +21,7 @@ impl AccessControlHook {
     }
 }
 
-// @zen-impl: MCP-1.3_AC-1 (partial: access control for tool execution)
+// @awa-impl: MCP-1.3_AC-1 (partial: access control for tool execution)
 #[async_trait]
 impl ToolHook for AccessControlHook {
     async fn before_call(

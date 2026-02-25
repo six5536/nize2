@@ -1,7 +1,7 @@
-// @zen-test: CHAT_P-7
-// @zen-test: CHAT-7.1_AC-1
-// @zen-test: CHAT-7.1_AC-2
-// @zen-test: CHAT-7.1_AC-3
+// @awa-test: CHAT_P-7
+// @awa-test: CHAT-7.1_AC-1
+// @awa-test: CHAT-7.1_AC-2
+// @awa-test: CHAT-7.1_AC-3
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
@@ -44,7 +44,7 @@ describe("CodeBlock", () => {
     expect(screen.getByText("typescript")).toBeInTheDocument();
   });
 
-  // @zen-test: CHAT-7.1_AC-1
+  // @awa-test: CHAT-7.1_AC-1
   it("copy button has group-hover visibility class", () => {
     const { container } = render(<CodeBlock language="javascript">console.log('test');</CodeBlock>);
 
@@ -55,8 +55,8 @@ describe("CodeBlock", () => {
     expect(copyButton).toHaveClass("group-hover:opacity-100");
   });
 
-  // @zen-test: CHAT_P-7
-  // @zen-test: CHAT-7.1_AC-2
+  // @awa-test: CHAT_P-7
+  // @awa-test: CHAT-7.1_AC-2
   it("copies exact code content to clipboard on click", async () => {
     const codeContent = 'function test() {\n  return "hello";\n}';
     const { container } = render(<CodeBlock>{codeContent}</CodeBlock>);
@@ -70,7 +70,7 @@ describe("CodeBlock", () => {
     });
   });
 
-  // @zen-test: CHAT-7.1_AC-3
+  // @awa-test: CHAT-7.1_AC-3
   it("shows success toast on successful copy", async () => {
     mockCopy.mockResolvedValue(true);
 

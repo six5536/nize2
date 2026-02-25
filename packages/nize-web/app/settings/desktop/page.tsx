@@ -1,4 +1,4 @@
-// @zen-impl: PLAN-021 — desktop settings page (Tauri-only)
+// @awa-impl: PLAN-021 — desktop settings page (Tauri-only)
 // Ported from packages/nize-desktop/src/MainApp.tsx
 
 "use client";

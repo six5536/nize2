@@ -1,5 +1,5 @@
-// @zen-component: CFG-NizeWebApi
-// @zen-impl: PLAN-021 — Tauri IPC port discovery with fallbacks
+// @awa-component: CFG-NizeWebApi
+// @awa-impl: PLAN-021 — Tauri IPC port discovery with fallbacks
 
 /**
  * API configuration for connecting to the nize API server.

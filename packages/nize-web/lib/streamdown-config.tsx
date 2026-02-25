@@ -1,4 +1,4 @@
-// @zen-component: CHAT-MessageBubble
+// @awa-component: CHAT-MessageBubble
 // Streamdown configuration for markdown rendering with syntax highlighting
 
 import type { ReactNode, ComponentType, JSX } from "react";

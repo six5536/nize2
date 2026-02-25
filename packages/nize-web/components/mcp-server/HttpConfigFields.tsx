@@ -1,4 +1,4 @@
-// @zen-component: PLAN-032-HttpConfigFields
+// @awa-component: PLAN-032-HttpConfigFields
 
 /**
  * HTTP transport configuration fields:

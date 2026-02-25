@@ -1,4 +1,4 @@
-// @zen-component: CHAT-ScrollHook
+// @awa-component: CHAT-ScrollHook
 
 import { useCallback, useRef, useEffect, type RefObject } from "react";
 

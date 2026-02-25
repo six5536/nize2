@@ -1,8 +1,8 @@
 "use client";
 
-// @zen-component: CHAT-ChatContainer
-// @zen-impl: NAV-1.2_AC-2, NAV-2_AC-1, NAV-2.1_AC-1
-// @zen-impl: DEV-2_AC-2
+// @awa-component: CHAT-ChatContainer
+// @awa-impl: NAV-1.2_AC-2, NAV-2_AC-1, NAV-2.1_AC-1
+// @awa-impl: DEV-2_AC-2
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
@@ -63,8 +63,8 @@ export default function ConversationChatPage() {
     resetScrollState();
   }, [conversationId, setMessages, resetScrollState]);
 
-  // @zen-impl: DEV-2_AC-2
-  // @zen-impl: TRC-5_AC-2 - Wire conversationId to dev panel
+  // @awa-impl: DEV-2_AC-2
+  // @awa-impl: TRC-5_AC-2 - Wire conversationId to dev panel
   const { setChatState, setConversationId, setIsAdmin, incrementTraceKey } = useDevPanel();
   useEffect(() => {
     setChatState({ messages, isLoading, error: null, input });
@@ -79,13 +79,13 @@ export default function ConversationChatPage() {
     prevIsLoadingRef.current = isLoading;
   }, [isLoading, incrementTraceKey]);
 
-  // @zen-impl: TRC-5_AC-2 - Set conversation ID for trace tab
+  // @awa-impl: TRC-5_AC-2 - Set conversation ID for trace tab
   useEffect(() => {
     setConversationId(conversationId);
     return () => setConversationId(null);
   }, [conversationId, setConversationId]);
 
-  // @zen-impl: TRC-5_AC-4 - Set admin status from user roles
+  // @awa-impl: TRC-5_AC-4 - Set admin status from user roles
   useEffect(() => {
     setIsAdmin(user?.roles?.includes("admin") ?? false);
   }, [user?.roles, setIsAdmin]);
@@ -130,7 +130,7 @@ export default function ConversationChatPage() {
     loadHistory();
   }, [conversationId, isAuthenticated, authLoading, setMessages, router, authFetch]);
 
-  // @zen-impl: AUTH-3_AC-1
+  // @awa-impl: AUTH-3_AC-1
   const handleLogout = useCallback(async () => {
     await logout();
     router.push("/login");

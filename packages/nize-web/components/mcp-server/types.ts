@@ -1,4 +1,4 @@
-// @zen-component: PLAN-032-McpServerTypes
+// @awa-component: PLAN-032-McpServerTypes
 
 /**
  * Shared types for MCP server form components.
@@ -37,7 +37,7 @@ export interface HttpConfig {
   apiKey?: string;
 }
 
-// @zen-impl: PLAN-033 T-XMCP-090 — SSE config type
+// @awa-impl: PLAN-033 T-XMCP-090 — SSE config type
 export interface SseConfig {
   transport: "sse";
   url: string;
@@ -46,7 +46,7 @@ export interface SseConfig {
   apiKeyHeader?: string;
 }
 
-// @zen-impl: PLAN-033 T-XMCP-091 — Managed HTTP/SSE config type
+// @awa-impl: PLAN-033 T-XMCP-091 — Managed HTTP/SSE config type
 export interface ManagedHttpConfig {
   transport: "managed-sse" | "managed-http";
   command: string;

@@ -1,5 +1,5 @@
-// @zen-impl: PLAN-012-1.3 — Next.js config with standalone output
-// @zen-impl: PLAN-021 — removed basePath (no longer served in iframe)
+// @awa-impl: PLAN-012-1.3 — Next.js config with standalone output
+// @awa-impl: PLAN-021 — removed basePath (no longer served in iframe)
 import type { NextConfig } from "next";
 
 const apiPort = process.env.NIZE_API_PORT || "3001";

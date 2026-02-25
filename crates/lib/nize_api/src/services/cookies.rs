@@ -1,4 +1,4 @@
-// @zen-component: CFG-CookieAuth
+// @awa-component: CFG-CookieAuth
 //
 //! Cookie service — set/get/clear httpOnly auth cookies.
 //!

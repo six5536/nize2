@@ -1,4 +1,4 @@
-// @zen-component: EMB-EmbeddingConfig
+// @awa-component: EMB-EmbeddingConfig
 //
 //! Embedding configuration resolution.
 //!
@@ -37,7 +37,7 @@ impl EmbeddingConfig {
     /// Priority: admin config → env var → definition default.
     /// Auto-selects `"openai"` if `OPENAI_API_KEY` is set and no explicit
     /// provider was configured.
-    // @zen-impl: PLAN-028-4.1
+    // @awa-impl: PLAN-028-4.1
     pub async fn resolve(
         pool: &PgPool,
         cache: &Arc<RwLock<ConfigCache>>,
@@ -156,7 +156,7 @@ impl EmbeddingConfig {
 mod tests {
     use super::*;
 
-    // @zen-test: PLAN-022 — from_env defaults to local when no env vars
+    // @awa-test: PLAN-022 — from_env defaults to local when no env vars
     #[test]
     fn from_env_defaults_to_local() {
         // When EMBEDDING_PROVIDER and OPENAI_API_KEY are not set, from_env
@@ -174,7 +174,7 @@ mod tests {
         assert!(config.openai_api_key.is_none());
     }
 
-    // @zen-test: PLAN-022 — config with explicit provider
+    // @awa-test: PLAN-022 — config with explicit provider
     #[test]
     fn config_with_explicit_provider() {
         let config = EmbeddingConfig {
@@ -186,7 +186,7 @@ mod tests {
         assert_eq!(config.provider, "ollama");
     }
 
-    // @zen-test: PLAN-022 — config with openai provider requires api key
+    // @awa-test: PLAN-022 — config with openai provider requires api key
     #[test]
     fn config_openai_with_key() {
         let config = EmbeddingConfig {
@@ -199,7 +199,7 @@ mod tests {
         assert_eq!(config.openai_api_key.as_deref(), Some("sk-test-key"));
     }
 
-    // @zen-test: PLAN-022 — config with custom active model
+    // @awa-test: PLAN-022 — config with custom active model
     #[test]
     fn config_custom_active_model() {
         let config = EmbeddingConfig {

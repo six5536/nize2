@@ -1,14 +1,14 @@
 "use client";
 
-// @zen-component: NAV-NewChatButton
+// @awa-component: NAV-NewChatButton
 
 interface NewChatButtonProps {
   onNewChat: () => void;
   disabled?: boolean;
 }
 
-// @zen-impl: NAV-1.1_AC-1
-// @zen-impl: NAV-1.1_AC-2
+// @awa-impl: NAV-1.1_AC-1
+// @awa-impl: NAV-1.1_AC-2
 export function NewChatButton({ onNewChat, disabled }: NewChatButtonProps) {
   return (
     <button onClick={onNewChat} disabled={disabled} className="w-full flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">

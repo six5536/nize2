@@ -1,4 +1,4 @@
-// @zen-component: PLAN-027-Barrel
+// @awa-component: PLAN-027-Barrel
 
 export { chatApp } from "./app";
 export { processChat, ConversationNotFoundError } from "./chat-service";

@@ -1,4 +1,4 @@
-// @zen-component: PLAN-023-EmbeddingsSearchUI
+// @awa-component: PLAN-023-EmbeddingsSearchUI
 
 /**
  * Admin embedding search page at /settings/admin/embeddings/search

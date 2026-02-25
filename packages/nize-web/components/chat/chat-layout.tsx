@@ -1,6 +1,6 @@
 "use client";
 
-// @zen-component: NAV-ChatLayout
+// @awa-component: NAV-ChatLayout
 
 import { useState, useEffect } from "react";
 import { Sidebar } from "@/components/sidebar/sidebar";
@@ -11,8 +11,8 @@ interface ChatLayoutProps {
   conversationId?: string;
 }
 
-// @zen-impl: NAV-1_AC-1
-// @zen-impl: NAV-1_AC-5
+// @awa-impl: NAV-1_AC-1
+// @awa-impl: NAV-1_AC-5
 export function ChatLayout({ children, conversationId }: ChatLayoutProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);

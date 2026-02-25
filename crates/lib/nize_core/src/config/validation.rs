@@ -1,4 +1,4 @@
-// @zen-component: CFG-ConfigResolver
+// @awa-component: CFG-ConfigResolver
 //
 //! Config value validation — runs validators defined on config definitions.
 
@@ -91,7 +91,7 @@ mod tests {
         }
     }
 
-    // @zen-test: CFG_P-1
+    // @awa-test: CFG_P-1
     #[test]
     fn required_rejects_empty() {
         let validators = vec![make_validator("required", None, Some("Required"))];
@@ -99,7 +99,7 @@ mod tests {
         assert_eq!(errors, vec!["Required"]);
     }
 
-    // @zen-test: CFG_P-1
+    // @awa-test: CFG_P-1
     #[test]
     fn required_accepts_non_empty() {
         let validators = vec![make_validator("required", None, Some("Required"))];
@@ -107,7 +107,7 @@ mod tests {
         assert!(errors.is_empty());
     }
 
-    // @zen-test: CFG_P-1
+    // @awa-test: CFG_P-1
     #[test]
     fn min_rejects_below_threshold() {
         let validators = vec![make_validator("min", Some(json!(0)), Some("Must be >= 0"))];
@@ -115,7 +115,7 @@ mod tests {
         assert_eq!(errors, vec!["Must be >= 0"]);
     }
 
-    // @zen-test: CFG_P-1
+    // @awa-test: CFG_P-1
     #[test]
     fn min_accepts_at_threshold() {
         let validators = vec![make_validator("min", Some(json!(0)), Some("Must be >= 0"))];
@@ -123,7 +123,7 @@ mod tests {
         assert!(errors.is_empty());
     }
 
-    // @zen-test: CFG_P-1
+    // @awa-test: CFG_P-1
     #[test]
     fn max_rejects_above_threshold() {
         let validators = vec![make_validator("max", Some(json!(2)), Some("Must be <= 2"))];
@@ -131,7 +131,7 @@ mod tests {
         assert_eq!(errors, vec!["Must be <= 2"]);
     }
 
-    // @zen-test: CFG_P-1
+    // @awa-test: CFG_P-1
     #[test]
     fn max_accepts_at_threshold() {
         let validators = vec![make_validator("max", Some(json!(2)), Some("Must be <= 2"))];
@@ -139,7 +139,7 @@ mod tests {
         assert!(errors.is_empty());
     }
 
-    // @zen-test: CFG_P-1
+    // @awa-test: CFG_P-1
     #[test]
     fn multiple_validators_accumulate_errors() {
         let validators = vec![

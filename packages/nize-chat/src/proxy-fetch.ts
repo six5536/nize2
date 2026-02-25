@@ -1,4 +1,4 @@
-// @zen-component: PLAN-028-ProxyFetch
+// @awa-component: PLAN-028-ProxyFetch
 
 /**
  * Create a custom `fetch` function that routes requests through the Rust AI proxy.
@@ -11,7 +11,7 @@
  * @param providerType - Provider type: "anthropic", "openai", or "google"
  * @returns A `fetch`-compatible function for use with AI SDK provider constructors
  */
-// @zen-impl: PLAN-028-3.1
+// @awa-impl: PLAN-028-3.1
 export function createProxyFetch(apiBaseUrl: string, cookie: string, providerType: string): typeof globalThis.fetch {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     // Extract the original target URL

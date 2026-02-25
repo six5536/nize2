@@ -1,6 +1,6 @@
 "use client";
 
-// @zen-component: CFG-NizeWebAuthContext
+// @awa-component: CFG-NizeWebAuthContext
 
 /**
  * Auth context for cookie-based authentication.

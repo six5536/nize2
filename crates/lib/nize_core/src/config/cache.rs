@@ -1,4 +1,4 @@
-// @zen-component: CFG-ConfigCache
+// @awa-component: CFG-ConfigCache
 //
 //! In-memory config cache with TTL-based expiration.
 

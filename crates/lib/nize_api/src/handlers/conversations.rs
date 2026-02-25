@@ -1,4 +1,4 @@
-// @zen-component: PLAN-017-ConversationsHandler
+// @awa-component: PLAN-017-ConversationsHandler
 //
 //! Conversations request handlers.
 

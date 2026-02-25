@@ -55,7 +55,7 @@ fn validate_http_config(url: &str, auth_type_str: &str) -> Result<(), McpError> 
     Ok(())
 }
 
-// @zen-impl: PLAN-033 T-XMCP-080 — SSE config validation
+// @awa-impl: PLAN-033 T-XMCP-080 — SSE config validation
 /// Validate an SSE server config.
 fn validate_sse_config(sse: &SseServerConfig) -> Result<(), McpError> {
     if sse.url.trim().is_empty() {
@@ -87,7 +87,7 @@ fn validate_sse_config(sse: &SseServerConfig) -> Result<(), McpError> {
     Ok(())
 }
 
-// @zen-impl: PLAN-033 T-XMCP-081 — managed config validation
+// @awa-impl: PLAN-033 T-XMCP-081 — managed config validation
 /// Validate a managed (managed-sse / managed-http) server config.
 fn validate_managed_config(
     config: &nize_core::models::mcp::ManagedHttpServerConfig,
@@ -243,7 +243,7 @@ pub async fn create_user_server(
     client_secret: Option<&str>,
     encryption_key: &str,
 ) -> Result<UserServerView, McpError> {
-    // @zen-impl: XMCP-5_AC-1 — users may only create Http or Sse servers
+    // @awa-impl: XMCP-5_AC-1 — users may only create Http or Sse servers
     match transport {
         TransportType::Http | TransportType::Sse => {}
         _ => {
@@ -882,7 +882,7 @@ pub async fn test_connection(
         ServerConfig::Sse(sse) => {
             nize_core::mcp::execution::test_sse_connection(sse, api_key, oauth_headers).await
         }
-        // @zen-impl: PLAN-033 T-XMCP-072 — managed transports spawn temporary process for testing
+        // @awa-impl: PLAN-033 T-XMCP-072 — managed transports spawn temporary process for testing
         ServerConfig::ManagedSse(managed) => {
             nize_core::mcp::execution::test_managed_connection(
                 managed,

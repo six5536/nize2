@@ -1,4 +1,4 @@
-// @zen-impl: PLAN-007-1.3 — esbuild config for pglite-server bundle
+// @awa-impl: PLAN-007-1.3 — esbuild config for pglite-server bundle
 import * as esbuild from "esbuild";
 import { copyFileSync, mkdirSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -22,7 +22,7 @@ await esbuild.build({
   // Mark node builtins as external.
   external: ["node:*"],
   banner: {
-    js: "// @zen-impl: PLAN-007-1.3 — bundled PGlite server",
+    js: "// @awa-impl: PLAN-007-1.3 — bundled PGlite server",
   },
 });
 

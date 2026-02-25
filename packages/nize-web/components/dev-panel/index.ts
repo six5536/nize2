@@ -1,4 +1,4 @@
-// @zen-component: DEV-DevPanel
+// @awa-component: DEV-DevPanel
 
 export { DevPanel } from "./dev-panel";
 export { DevPanelProvider } from "./dev-panel-provider";

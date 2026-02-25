@@ -1,4 +1,4 @@
-// @zen-component: CFG-ConfigEndpoints
+// @awa-component: CFG-ConfigEndpoints
 //
 //! Configuration request handlers.
 

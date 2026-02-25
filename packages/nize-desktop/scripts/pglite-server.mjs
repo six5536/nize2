@@ -1,4 +1,4 @@
-// @zen-component: PLAN-007-PgLiteServer
+// @awa-component: PLAN-007-PgLiteServer
 // PGlite server entry point.
 //
 // Starts a PGlite instance with pgvector and exposes the standard PG wire
@@ -35,7 +35,7 @@ const dataDir = args.db;
 const requestedPort = parseInt(args.port, 10);
 const databaseName = args.database;
 
-// @zen-impl: PLAN-007-1.2 — create PGlite instance with vector extension
+// @awa-impl: PLAN-007-1.2 — create PGlite instance with vector extension
 const db = new PGlite({
   dataDir: `file://${dataDir}`,
   extensions: { vector },
@@ -43,21 +43,21 @@ const db = new PGlite({
 
 await db.waitReady;
 
-// @zen-impl: PLAN-007-1.2 — enable pgvector extension
+// @awa-impl: PLAN-007-1.2 — enable pgvector extension
 await db.exec("CREATE EXTENSION IF NOT EXISTS vector");
 
-// @zen-impl: PLAN-007-1.2 — create application database (PGlite runs in single-db mode)
+// @awa-impl: PLAN-007-1.2 — create application database (PGlite runs in single-db mode)
 // PGlite doesn't support CREATE DATABASE — it operates on a single database.
 // The database name argument is informational only.
 
-// @zen-impl: PLAN-007-1.2 — start pglite-socket server
+// @awa-impl: PLAN-007-1.2 — start pglite-socket server
 const server = new PGLiteSocketServer({
   db,
   port: requestedPort,
   host: "127.0.0.1",
 });
 
-// @zen-impl: PLAN-007-1.2 — print JSON port to stdout (sidecar protocol)
+// @awa-impl: PLAN-007-1.2 — print JSON port to stdout (sidecar protocol)
 server.addEventListener("listening", (event) => {
   const { port } = event.detail;
   const ready = JSON.stringify({ port });
@@ -66,7 +66,7 @@ server.addEventListener("listening", (event) => {
 
 await server.start();
 
-// @zen-impl: PLAN-007-1.2 — graceful shutdown
+// @awa-impl: PLAN-007-1.2 — graceful shutdown
 async function shutdown() {
   try {
     await server.stop();

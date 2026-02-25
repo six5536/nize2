@@ -1,4 +1,4 @@
-// @zen-component: PLAN-032-ServerForm
+// @awa-component: PLAN-032-ServerForm
 
 /**
  * Unified MCP server form for both create and edit modes.
@@ -29,7 +29,7 @@ interface ServerFormProps {
   initialValues?: ServerFormValues;
   /** Show transport selector (admin). */
   showTransport?: boolean;
-  // @zen-impl: XMCP-5_AC-1 — restrict transport options shown in the dropdown
+  // @awa-impl: XMCP-5_AC-1 — restrict transport options shown in the dropdown
   /** Restrict transport options shown in the dropdown. Defaults to all. */
   transportOptions?: TransportType[];
   /** Show visibility selector (admin). */
@@ -63,9 +63,9 @@ interface ServerFormProps {
   onSuccess?: () => void;
 }
 
-// @zen-impl: PLAN-032 Step 7
-// @zen-impl: PLAN-032 Step 8
-// @zen-impl: XMCP-5_AC-1
+// @awa-impl: PLAN-032 Step 7
+// @awa-impl: PLAN-032 Step 8
+// @awa-impl: XMCP-5_AC-1
 const ALL_TRANSPORT_OPTIONS: { value: TransportType; label: string }[] = [
   { value: "http", label: "HTTP (Remote)" },
   { value: "stdio", label: "Stdio (Local)" },
@@ -119,7 +119,7 @@ export function ServerForm({ mode, initialValues, showTransport = false, transpo
     return true;
   };
 
-  // @zen-impl: PLAN-032 Step 8 — Test Connection: auto-auth if needed → test
+  // @awa-impl: PLAN-032 Step 8 — Test Connection: auto-auth if needed → test
   const handleTest = async () => {
     setTesting(true);
     setTestResult(null);
@@ -157,7 +157,7 @@ export function ServerForm({ mode, initialValues, showTransport = false, transpo
       // First attempt: test connection
       let result = await onTestConnection(config, serverId);
 
-      // @zen-impl: PLAN-032 Step 8 — auto-initiate OAuth if authRequired
+      // @awa-impl: PLAN-032 Step 8 — auto-initiate OAuth if authRequired
       if (result.authRequired && serverId) {
         const oauthResult = await initiateAndRunOAuth(serverId);
         if (oauthResult.success) {
@@ -182,7 +182,7 @@ export function ServerForm({ mode, initialValues, showTransport = false, transpo
     }
   };
 
-  // @zen-impl: PLAN-032 Step 8 — Save/Create: save → revoke if changed → auth → test
+  // @awa-impl: PLAN-032 Step 8 — Save/Create: save → revoke if changed → auth → test
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 

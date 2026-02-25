@@ -1,4 +1,4 @@
-// @zen-component: EMB-ToolIndexer
+// @awa-component: EMB-ToolIndexer
 //
 //! Tool embedding indexer — generates and stores embeddings for MCP server tools.
 //!
@@ -20,7 +20,7 @@ use super::config::EmbeddingConfig;
 use super::models;
 use super::provider;
 
-// @zen-impl: MCP-7_AC-2
+// @awa-impl: MCP-7_AC-2
 /// Build embedding text by concatenating server context with tool description.
 ///
 /// Matches the reference implementation's `buildEmbeddingText()`.

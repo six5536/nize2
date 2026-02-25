@@ -1,4 +1,4 @@
-// @zen-component: MCP-HookPipeline
+// @awa-component: MCP-HookPipeline
 //
 //! Hook/middleware pipeline for MCP tool calls.
 //!

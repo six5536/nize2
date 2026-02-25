@@ -1,4 +1,4 @@
-// @zen-component: CHAT-CodeBlock
+// @awa-component: CHAT-CodeBlock
 
 "use client";
 
@@ -16,10 +16,10 @@ interface CodeBlockProps {
   className?: string;
 }
 
-// @zen-impl: CHAT-7_AC-3
-// @zen-impl: CHAT-7.1_AC-1
-// @zen-impl: CHAT-7.1_AC-2
-// @zen-impl: CHAT-7.1_AC-3
+// @awa-impl: CHAT-7_AC-3
+// @awa-impl: CHAT-7.1_AC-1
+// @awa-impl: CHAT-7.1_AC-2
+// @awa-impl: CHAT-7.1_AC-3
 export function CodeBlock({ children, language, className }: CodeBlockProps) {
   const [, copy] = useCopyToClipboard();
   const [showCopied, setShowCopied] = useState(false);

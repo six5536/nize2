@@ -1,5 +1,5 @@
-// @zen-component: PLAN-011-McpTokenSection
-// @zen-impl: PLAN-021 — ported from packages/nize-desktop/src/settings/McpTokenSection.tsx
+// @awa-component: PLAN-011-McpTokenSection
+// @awa-impl: PLAN-021 — ported from packages/nize-desktop/src/settings/McpTokenSection.tsx
 
 "use client";
 

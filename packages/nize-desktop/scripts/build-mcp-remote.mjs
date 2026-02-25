@@ -1,4 +1,4 @@
-// @zen-impl: PLAN-011-1.1 — esbuild config for mcp-remote bundle
+// @awa-impl: PLAN-011-1.1 — esbuild config for mcp-remote bundle
 import * as esbuild from "esbuild";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -25,7 +25,7 @@ await esbuild.build({
   // Mark node builtins as external.
   external: ["node:*"],
   banner: {
-    js: ["// @zen-impl: PLAN-011-1.1 — bundled mcp-remote stdio proxy", "import { createRequire as __createRequire } from 'node:module';", "const require = __createRequire(import.meta.url);"].join("\n"),
+    js: ["// @awa-impl: PLAN-011-1.1 — bundled mcp-remote stdio proxy", "import { createRequire as __createRequire } from 'node:module';", "const require = __createRequire(import.meta.url);"].join("\n"),
   },
 });
 

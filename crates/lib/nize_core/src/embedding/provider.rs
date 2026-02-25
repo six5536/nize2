@@ -1,4 +1,4 @@
-// @zen-component: EMB-ProviderDispatch
+// @awa-component: EMB-ProviderDispatch
 //
 //! Provider dispatch — routes embedding requests to the correct provider.
 

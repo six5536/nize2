@@ -1,4 +1,4 @@
-// @zen-component: PLAN-027-ModelRegistry
+// @awa-component: PLAN-027-ModelRegistry
 
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -30,7 +30,7 @@ export interface GetChatModelOptions {
  * @param options - Optional custom fetch and base URLs
  * @returns AI SDK LanguageModel instance
  */
-// @zen-impl: PLAN-028-3.4
+// @awa-impl: PLAN-028-3.4
 export function getChatModel(spec: string, options?: GetChatModelOptions) {
   const colonIdx = spec.indexOf(":");
   if (colonIdx === -1) {

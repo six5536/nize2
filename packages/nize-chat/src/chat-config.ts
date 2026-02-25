@@ -1,4 +1,4 @@
-// @zen-component: PLAN-027-ChatConfig
+// @awa-component: PLAN-027-ChatConfig
 
 import { ChatConfig, DEFAULT_CHAT_CONFIG, DEFAULT_TOOLS_SYSTEM_PROMPT } from "./types";
 
@@ -12,7 +12,7 @@ import { ChatConfig, DEFAULT_CHAT_CONFIG, DEFAULT_TOOLS_SYSTEM_PROMPT } from "./
  * @param cookie - Cookie header to forward for auth
  * @returns Resolved ChatConfig
  */
-// @zen-impl: PLAN-028-3.3
+// @awa-impl: PLAN-028-3.3
 export async function fetchChatConfig(apiBaseUrl: string, cookie: string): Promise<ChatConfig> {
   try {
     const res = await fetch(`${apiBaseUrl}/api/config/user`, {
@@ -48,7 +48,7 @@ export async function fetchChatConfig(apiBaseUrl: string, cookie: string): Promi
       temperature: parseFloat(get("agent.model.temperature", String(DEFAULT_CHAT_CONFIG.temperature))),
       compactionMaxMessages: parseInt(get("agent.compaction.maxMessages", String(DEFAULT_CHAT_CONFIG.compactionMaxMessages)), 10),
       baseUrls: Object.keys(baseUrls).length > 0 ? baseUrls : undefined,
-      // @zen-impl: PLAN-029-3.4 — read tool calling config
+      // @awa-impl: PLAN-029-3.4 — read tool calling config
       toolsEnabled: get("agent.tools.enabled", String(DEFAULT_CHAT_CONFIG.toolsEnabled)) === "true",
       toolsMaxSteps: parseInt(get("agent.tools.maxSteps", String(DEFAULT_CHAT_CONFIG.toolsMaxSteps)), 10),
       toolsSystemPrompt: get("agent.tools.systemPrompt", DEFAULT_TOOLS_SYSTEM_PROMPT),

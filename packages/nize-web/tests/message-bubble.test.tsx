@@ -1,6 +1,6 @@
-// @zen-test: CHAT_P-5
-// @zen-test: CHAT-7_AC-1
-// @zen-test: CHAT-7_AC-2
+// @awa-test: CHAT_P-5
+// @awa-test: CHAT-7_AC-1
+// @awa-test: CHAT-7_AC-2
 
 import React from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
@@ -35,7 +35,7 @@ describe("MessageBubble", () => {
     cleanup();
   });
 
-  // @zen-test: CHAT-7_AC-1
+  // @awa-test: CHAT-7_AC-1
   it("renders message parts array correctly", () => {
     const message: UIMessage = {
       id: "test-1",
@@ -52,7 +52,7 @@ describe("MessageBubble", () => {
     expect(screen.getByText("Second part")).toBeInTheDocument();
   });
 
-  // @zen-test: CHAT_P-5
+  // @awa-test: CHAT_P-5
   it("preserves text content semantically through markdown rendering", () => {
     const markdownText = "# Heading\n\nParagraph with **bold** text";
     const message: UIMessage = {
@@ -68,7 +68,7 @@ describe("MessageBubble", () => {
     expect(streamdowns.some((el) => el.textContent === markdownText)).toBe(true);
   });
 
-  // @zen-test: CHAT-7_AC-4
+  // @awa-test: CHAT-7_AC-4
   it("distinguishes user messages from assistant messages visually", () => {
     const userMessage: UIMessage = {
       id: "user-1",

@@ -1,6 +1,6 @@
 "use client";
 
-// @zen-component: CFG-AuthGate
+// @awa-component: CFG-AuthGate
 
 /**
  * Auth gate component for protecting routes.

@@ -1,6 +1,6 @@
 "use client";
 
-// @zen-component: DEV-ResizeHandle
+// @awa-component: DEV-ResizeHandle
 
 import { useCallback, useEffect, useState } from "react";
 import { MIN_PANEL_WIDTH, MIN_PANEL_HEIGHT, MAX_PANEL_WIDTH_RATIO, MAX_PANEL_HEIGHT_RATIO } from "@/lib/types";
@@ -12,7 +12,7 @@ interface ResizeHandleProps {
   onDragStateChange?: (isDragging: boolean) => void;
 }
 
-// @zen-impl: DEV-1_AC-8
+// @awa-impl: DEV-1_AC-8
 export function ResizeHandle({ orientation, onResize, currentSize, onDragStateChange }: ResizeHandleProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [startPos, setStartPos] = useState(0);

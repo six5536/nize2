@@ -1,4 +1,4 @@
-// @zen-component: CFG-ConfigResolver
+// @awa-component: CFG-ConfigResolver
 //
 //! Database queries for the configuration system.
 

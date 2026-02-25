@@ -1,6 +1,6 @@
 "use client";
 
-// @zen-component: DEV-RawChatTab
+// @awa-component: DEV-RawChatTab
 
 import type { ChatStateData } from "@/lib/types";
 import { truncateObjectText } from "@/lib/dev-panel-context";
@@ -9,10 +9,10 @@ interface RawChatTabProps {
   chatState: ChatStateData | null;
 }
 
-// @zen-impl: DEV-2_AC-1
-// @zen-impl: DEV-2_AC-2
-// @zen-impl: DEV-2_AC-3
-// @zen-impl: DEV-2_AC-4
+// @awa-impl: DEV-2_AC-1
+// @awa-impl: DEV-2_AC-2
+// @awa-impl: DEV-2_AC-3
+// @awa-impl: DEV-2_AC-4
 export function RawChatTab({ chatState }: RawChatTabProps) {
   if (!chatState) {
     return <div className="flex items-center justify-center h-32 text-gray-400 text-sm">No active chat</div>;

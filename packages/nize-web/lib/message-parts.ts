@@ -1,11 +1,11 @@
-// @zen-component: CHAT-MessageBubble
+// @awa-component: CHAT-MessageBubble
 // Type definitions and guards for UIMessage parts
 
 import type { UIMessage } from "ai";
 
 /**
  * Tool invocation states from AI SDK v6
- * @zen-impl: CHAT-7.2_AC-1
+ * @awa-impl: CHAT-7.2_AC-1
  */
 export type ToolState = "input-streaming" | "input-available" | "output-available" | "output-error";
 

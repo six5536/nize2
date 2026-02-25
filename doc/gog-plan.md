@@ -226,7 +226,7 @@ This is a **new file**. It validates Google ID tokens using Google's public JWKS
 **Option A: Manual JWKS (no new deps, more code):**
 
 ```go
-// @zen-component: AUTH-GoogleIDValidator
+// @awa-component: AUTH-GoogleIDValidator
 package auth
 
 import (
@@ -716,14 +716,14 @@ Update the Configuration table:
 | `GOGMCP_SERVICE_ACCOUNT_FILE` | No | Service account (jwt mode only) |
 | `GOGMCP_QUOTA_PROJECT` | No | Google Cloud quota/billing project |
 
-### Step 13: Update Zen Specs (if maintaining)
+### Step 13: Update awa Specs (if maintaining)
 
-Update `.zen/specs/REQ-AUTH-authentication.md`:
+Update `.awa/specs/REQ-AUTH-authentication.md`:
 - Add new requirements for Google OIDC mode (AUTH-5: Google OIDC Validation)
 - Mark AUTH-1 (JWT Validation) as applicable to legacy jwt mode
 - Add AUTH-5_AC-1 through AUTH-5_AC-N for the new mode
 
-Update `.zen/specs/DESIGN-MCP-server.md`:
+Update `.awa/specs/DESIGN-MCP-server.md`:
 - Document the `GoogleIDValidator` component
 - Update the `AUTH-JWTValidator` section to note it's legacy
 

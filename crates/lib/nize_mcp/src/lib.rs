@@ -67,7 +67,7 @@ pub fn mcp_router_with_manifest(
         None => ClientPool::new(),
     });
 
-    // @zen-impl: PLAN-030 Phase 2.3 — spawn idle timeout reaper
+    // @awa-impl: PLAN-030 Phase 2.3 — spawn idle timeout reaper
     let _reaper = client_pool.spawn_reaper(client_pool.idle_timeout());
 
     let service: StreamableHttpService<server::NizeMcpServer, LocalSessionManager> =

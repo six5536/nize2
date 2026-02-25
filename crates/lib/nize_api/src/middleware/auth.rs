@@ -1,4 +1,4 @@
-// @zen-component: AUTH-AccessControl
+// @awa-component: AUTH-AccessControl
 //
 //! Authentication middleware — dual auth: cookie first, Bearer fallback.
 
@@ -19,7 +19,7 @@ use crate::services::cookies::ACCESS_COOKIE;
 #[derive(Debug, Clone)]
 pub struct AuthenticatedUser(pub TokenClaims);
 
-// @zen-impl: AUTH-2_AC-1, AUTH-2_AC-2, AUTH-2_AC-3, AUTH-2_AC-4
+// @awa-impl: AUTH-2_AC-1, AUTH-2_AC-2, AUTH-2_AC-3, AUTH-2_AC-4
 /// Axum middleware: checks for auth token in cookie first, then falls back
 /// to `Authorization: Bearer <token>`. Verifies the JWT and injects
 /// `AuthenticatedUser` into request extensions.
@@ -43,11 +43,11 @@ pub async fn require_auth(
         })
         .ok_or_else(|| AppError::Unauthorized("Missing authentication".into()))?;
 
-    // @zen-impl: AUTH-2_AC-4
+    // @awa-impl: AUTH-2_AC-4
     let claims = verify_access_token(&token, state.config.jwt_secret.as_bytes())
         .ok_or_else(|| AppError::Unauthorized("Invalid or expired token".into()))?;
 
-    // @zen-impl: AUTH-2_AC-2
+    // @awa-impl: AUTH-2_AC-2
     request.extensions_mut().insert(AuthenticatedUser(claims));
 
     Ok(next.run(request).await)

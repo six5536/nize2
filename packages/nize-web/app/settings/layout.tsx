@@ -1,4 +1,4 @@
-// @zen-impl: PLAN-021 — settings layout with sidebar navigation
+// @awa-impl: PLAN-021 — settings layout with sidebar navigation
 
 "use client";
 

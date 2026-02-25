@@ -1,4 +1,4 @@
-// @zen-component: PLAN-020-AdminToolsUI
+// @awa-component: PLAN-020-AdminToolsUI
 
 /**
  * Admin MCP server management page at /settings/admin/tools
@@ -219,7 +219,7 @@ export default function AdminToolsPage() {
     }
   };
 
-  // @zen-impl: PLAN-032 Step 9 — ServerForm callbacks for admin page
+  // @awa-impl: PLAN-032 Step 9 — ServerForm callbacks for admin page
   const handleTestConnection = async (config: ServerConfig, serverId?: string): Promise<TestConnectionResult> => {
     const res = await authFetch("/mcp/test-connection", {
       method: "POST",

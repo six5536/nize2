@@ -1,6 +1,6 @@
 "use client";
 
-// @zen-component: TRC-ChatTraceTab
+// @awa-component: TRC-ChatTraceTab
 
 /**
  * Dev panel tab for displaying chat trace data.
@@ -31,7 +31,7 @@ interface PromptBreakdown {
   fullPrompt: string;
 }
 
-// @zen-impl: TRC-5_AC-1, TRC-5_AC-2, TRC-5_AC-6
+// @awa-impl: TRC-5_AC-1, TRC-5_AC-2, TRC-5_AC-6
 export function ChatTraceTab() {
   const { conversationId, isAdmin, traceKey } = useDevPanel();
   const [events, setEvents] = useState<TraceEvent[]>([]);
@@ -59,7 +59,7 @@ export function ChatTraceTab() {
     setError(null);
   }, [conversationId]);
 
-  // @zen-impl: TRC-5_AC-3 - SSE connection for live updates
+  // @awa-impl: TRC-5_AC-3 - SSE connection for live updates
   // Must be before any conditional returns to satisfy React's Rules of Hooks
   // traceKey changes when new chat activity starts, triggering reconnection
   useEffect(() => {
@@ -124,7 +124,7 @@ export function ChatTraceTab() {
     };
   }, [conversationId, isAdmin, traceKey]);
 
-  // @zen-impl: TRC-5_AC-4 - Admin-required message
+  // @awa-impl: TRC-5_AC-4 - Admin-required message
   if (!isAdmin) {
     return (
       <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
@@ -137,7 +137,7 @@ export function ChatTraceTab() {
     );
   }
 
-  // @zen-impl: TRC-5_AC-5 - Empty conversation state
+  // @awa-impl: TRC-5_AC-5 - Empty conversation state
   if (!conversationId) {
     return (
       <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
@@ -170,7 +170,7 @@ export function ChatTraceTab() {
     );
   };
 
-  // @zen-impl: TRC-5_AC-6 - Render prompt breakdown with formatting
+  // @awa-impl: TRC-5_AC-6 - Render prompt breakdown with formatting
   const renderPromptBreakdown = (payload: { breakdown: PromptBreakdown }) => {
     const { breakdown } = payload;
     if (!breakdown?.sections) return <pre className="text-xs text-green-400">{JSON.stringify(payload, null, 2)}</pre>;

@@ -1,4 +1,4 @@
-// @zen-component: EMB-EmbeddingAPI
+// @awa-component: EMB-EmbeddingAPI
 //
 //! Embedding module — text embedding generation for MCP tool discovery.
 //!

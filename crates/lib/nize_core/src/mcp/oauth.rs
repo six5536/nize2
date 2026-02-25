@@ -1,4 +1,4 @@
-// @zen-component: PLAN-031-OAuthCore
+// @awa-component: PLAN-031-OAuthCore
 //
 //! Google OAuth support for MCP servers.
 //!
@@ -135,7 +135,7 @@ pub struct GoogleTokenResponse {
 }
 
 /// Exchange an authorization code for Google tokens.
-// @zen-impl: PLAN-031 Phase 5.2 — token exchange
+// @awa-impl: PLAN-031 Phase 5.2 — token exchange
 pub async fn exchange_authorization_code(
     token_url: &str,
     client_id: &str,
@@ -180,7 +180,7 @@ pub async fn exchange_authorization_code(
 // =============================================================================
 
 /// Refresh Google tokens using a refresh_token.
-// @zen-impl: PLAN-031 Phase 6.1 — token refresh
+// @awa-impl: PLAN-031 Phase 6.1 — token refresh
 pub async fn refresh_google_tokens(
     token_url: &str,
     client_id: &str,
@@ -241,7 +241,7 @@ mod tests {
     use super::*;
     use std::sync::Arc;
 
-    // @zen-test: PLAN-031 Phase 9.1 — PKCE code verifier generation
+    // @awa-test: PLAN-031 Phase 9.1 — PKCE code verifier generation
     #[test]
     fn code_verifier_is_url_safe_and_sufficient_length() {
         let verifier = generate_code_verifier();
@@ -258,7 +258,7 @@ mod tests {
         );
     }
 
-    // @zen-test: PLAN-031 Phase 9.1 — PKCE S256 code challenge
+    // @awa-test: PLAN-031 Phase 9.1 — PKCE S256 code challenge
     #[test]
     fn code_challenge_is_s256_of_verifier() {
         let verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
@@ -267,7 +267,7 @@ mod tests {
         assert_eq!(challenge, "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
     }
 
-    // @zen-test: PLAN-031 Phase 9.1 — state generation uniqueness
+    // @awa-test: PLAN-031 Phase 9.1 — state generation uniqueness
     #[test]
     fn generate_state_produces_unique_values() {
         let s1 = generate_state();
@@ -276,7 +276,7 @@ mod tests {
         assert!(s1.len() >= 20);
     }
 
-    // @zen-test: PLAN-031 Phase 9.1 — state store insert and take
+    // @awa-test: PLAN-031 Phase 9.1 — state store insert and take
     #[test]
     fn state_store_insert_and_take() {
         let store = OAuthStateStore::new();
@@ -301,7 +301,7 @@ mod tests {
         assert!(store.take("test-key").is_none());
     }
 
-    // @zen-test: PLAN-031 Phase 9.1 — state store expired entry
+    // @awa-test: PLAN-031 Phase 9.1 — state store expired entry
     #[test]
     fn state_store_expired_entry_returns_none() {
         let store = OAuthStateStore::new();
@@ -321,7 +321,7 @@ mod tests {
         assert!(store.take("old-key").is_none());
     }
 
-    // @zen-test: PLAN-031 Phase 9.1 — state store cleanup
+    // @awa-test: PLAN-031 Phase 9.1 — state store cleanup
     #[test]
     fn state_store_cleanup_removes_expired() {
         let store = OAuthStateStore::new();
@@ -356,7 +356,7 @@ mod tests {
         assert!(store.take("stale").is_none());
     }
 
-    // @zen-test: PLAN-031 Phase 9.1 — spawn_cleanup_task compiles
+    // @awa-test: PLAN-031 Phase 9.1 — spawn_cleanup_task compiles
     #[tokio::test]
     async fn spawn_cleanup_task_runs() {
         let store = Arc::new(OAuthStateStore::new());
@@ -366,21 +366,21 @@ mod tests {
         handle.abort();
     }
 
-    // @zen-test: PLAN-031 Phase 6.1 — should_refresh logic
+    // @awa-test: PLAN-031 Phase 6.1 — should_refresh logic
     #[test]
     fn should_refresh_returns_true_when_expired() {
         let past = chrono::Utc::now() - chrono::Duration::hours(1);
         assert!(should_refresh(&past));
     }
 
-    // @zen-test: PLAN-031 Phase 6.1 — should_refresh logic
+    // @awa-test: PLAN-031 Phase 6.1 — should_refresh logic
     #[test]
     fn should_refresh_returns_false_when_fresh() {
         let future = chrono::Utc::now() + chrono::Duration::hours(1);
         assert!(!should_refresh(&future));
     }
 
-    // @zen-test: PLAN-031 Phase 6.1 — should_refresh near expiry
+    // @awa-test: PLAN-031 Phase 6.1 — should_refresh near expiry
     #[test]
     fn should_refresh_returns_true_near_expiry() {
         // 5 minutes remaining out of 1 hour = ~92% elapsed

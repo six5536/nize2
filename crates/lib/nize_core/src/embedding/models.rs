@@ -1,4 +1,4 @@
-// @zen-component: EMB-EmbeddingModels
+// @awa-component: EMB-EmbeddingModels
 //
 //! Database queries for the embedding model registry.
 

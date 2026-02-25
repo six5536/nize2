@@ -1,6 +1,6 @@
 "use client";
 
-// @zen-component: CFG-LoginPage
+// @awa-component: CFG-LoginPage
 
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";

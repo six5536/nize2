@@ -1,4 +1,4 @@
-// @zen-component: PLAN-027-Compaction
+// @awa-component: PLAN-027-Compaction
 
 import { CompactMessage, CompactState, ContextSummary } from "./types";
 

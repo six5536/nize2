@@ -1,6 +1,6 @@
-// @zen-test: CHAT-7.1_AC-2
-// @zen-test: CHAT-7.1_AC-3
-// @zen-test: CHAT-7.1_AC-4
+// @awa-test: CHAT-7.1_AC-2
+// @awa-test: CHAT-7.1_AC-3
+// @awa-test: CHAT-7.1_AC-4
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
@@ -59,7 +59,7 @@ describe("MessageActions", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  // @zen-test: CHAT-7.1_AC-2
+  // @awa-test: CHAT-7.1_AC-2
   it("copies message content to clipboard on click", async () => {
     const content = "This is the message content to copy";
     const message = createAssistantMessage(content);
@@ -74,7 +74,7 @@ describe("MessageActions", () => {
     });
   });
 
-  // @zen-test: CHAT-7.1_AC-3
+  // @awa-test: CHAT-7.1_AC-3
   it("shows success toast on successful copy", async () => {
     mockCopy.mockResolvedValue(true);
     const message = createAssistantMessage("Test content");
@@ -103,7 +103,7 @@ describe("MessageActions", () => {
     });
   });
 
-  // @zen-test: CHAT-7.1_AC-4
+  // @awa-test: CHAT-7.1_AC-4
   it("shows visual feedback (check icon) after copy", async () => {
     mockCopy.mockResolvedValue(true);
     const message = createAssistantMessage("Test content");

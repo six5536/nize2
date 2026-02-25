@@ -1,4 +1,4 @@
-// @zen-impl: PLAN-021 — webview bridge loader for Tauri dev builds
+// @awa-impl: PLAN-021 — webview bridge loader for Tauri dev builds
 "use client";
 
 import { useEffect } from "react";

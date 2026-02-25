@@ -1,9 +1,9 @@
-// @zen-test: CHAT_P-6
-// @zen-test: CHAT-7.2_AC-1
-// @zen-test: CHAT-7.2_AC-2
-// @zen-test: CHAT-7.2_AC-3
-// @zen-test: CHAT-7.2_AC-4
-// @zen-test: CHAT-7.2_AC-5
+// @awa-test: CHAT_P-6
+// @awa-test: CHAT-7.2_AC-1
+// @awa-test: CHAT-7.2_AC-2
+// @awa-test: CHAT-7.2_AC-3
+// @awa-test: CHAT-7.2_AC-4
+// @awa-test: CHAT-7.2_AC-5
 
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
@@ -16,7 +16,7 @@ describe("ToolRenderer", () => {
     cleanup();
   });
 
-  // @zen-test: CHAT-7.2_AC-1
+  // @awa-test: CHAT-7.2_AC-1
   it("renders tool name and status", () => {
     const part: ToolInvocationPart = {
       type: "tool-search_documents",
@@ -31,7 +31,7 @@ describe("ToolRenderer", () => {
     expect(screen.getByText("Complete")).toBeInTheDocument();
   });
 
-  // @zen-test: CHAT-7.2_AC-2
+  // @awa-test: CHAT-7.2_AC-2
   it("displays loading indicator for input-streaming state", () => {
     const part: ToolInvocationPart = {
       type: "tool-search",
@@ -48,7 +48,7 @@ describe("ToolRenderer", () => {
     expect(svg).toBeInTheDocument();
   });
 
-  // @zen-test: CHAT-7.2_AC-2
+  // @awa-test: CHAT-7.2_AC-2
   it("displays loading indicator for input-available state", () => {
     const part: ToolInvocationPart = {
       type: "tool-search",
@@ -62,8 +62,8 @@ describe("ToolRenderer", () => {
     expect(screen.getByText("Running...")).toBeInTheDocument();
   });
 
-  // @zen-test: CHAT_P-6
-  // @zen-test: CHAT-7.2_AC-3
+  // @awa-test: CHAT_P-6
+  // @awa-test: CHAT-7.2_AC-3
   it("displays tool result when state is output-available", async () => {
     const part: ToolInvocationPart = {
       type: "tool-search",
@@ -85,7 +85,7 @@ describe("ToolRenderer", () => {
     expect(screen.getByText(/"doc1"/)).toBeInTheDocument();
   });
 
-  // @zen-test: CHAT-7.2_AC-4
+  // @awa-test: CHAT-7.2_AC-4
   it("displays error message when state is output-error", async () => {
     const part: ToolInvocationPart = {
       type: "tool-search",
@@ -108,7 +108,7 @@ describe("ToolRenderer", () => {
     expect(screen.getByText("Something went wrong")).toBeInTheDocument();
   });
 
-  // @zen-test: CHAT-7.2_AC-5
+  // @awa-test: CHAT-7.2_AC-5
   it("renders tool inputs in expandable/collapsible format", async () => {
     const part: ToolInvocationPart = {
       type: "tool-search",
@@ -133,7 +133,7 @@ describe("ToolRenderer", () => {
     expect(screen.getByText(/"test query"/)).toBeInTheDocument();
   });
 
-  // @zen-test: CHAT_P-6
+  // @awa-test: CHAT_P-6
   it("renders correct state for each lifecycle phase", () => {
     const states: Array<{ state: ToolInvocationPart["state"]; expectedStatus: string }> = [
       { state: "input-streaming", expectedStatus: "Preparing..." },

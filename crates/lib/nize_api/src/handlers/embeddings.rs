@@ -1,4 +1,4 @@
-// @zen-component: PLAN-023-EmbeddingsAdmin
+// @awa-component: PLAN-023-EmbeddingsAdmin
 //
 //! Admin embedding management endpoints.
 

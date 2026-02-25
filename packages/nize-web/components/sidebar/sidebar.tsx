@@ -1,6 +1,6 @@
 "use client";
 
-// @zen-component: NAV-Sidebar
+// @awa-component: NAV-Sidebar
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -18,9 +18,9 @@ interface SidebarProps {
   onMobileClose: () => void;
 }
 
-// @zen-impl: NAV-1_AC-2
-// @zen-impl: NAV-1_AC-3
-// @zen-impl: NAV-1_AC-4
+// @awa-impl: NAV-1_AC-2
+// @awa-impl: NAV-1_AC-3
+// @awa-impl: NAV-1_AC-4
 export function Sidebar({ activeConversationId, isCollapsed, onToggleCollapse, onMobileClose }: SidebarProps) {
   const router = useRouter();
   const authFetch = useAuthFetch();
@@ -54,8 +54,8 @@ export function Sidebar({ activeConversationId, isCollapsed, onToggleCollapse, o
     }
   };
 
-  // @zen-impl: NAV-1.1_AC-2
-  // @zen-impl: NAV-1.1_AC-3
+  // @awa-impl: NAV-1.1_AC-2
+  // @awa-impl: NAV-1.1_AC-3
   const handleNewChat = useCallback(async () => {
     try {
       const res = await authFetch("/conversations", {
@@ -81,7 +81,7 @@ export function Sidebar({ activeConversationId, isCollapsed, onToggleCollapse, o
     }
   }, [router, onMobileClose, authFetch]);
 
-  // @zen-impl: NAV-1.2_AC-3
+  // @awa-impl: NAV-1.2_AC-3
   const handleSelectConversation = useCallback(
     (id: string) => {
       router.push(`/chat/${id}`);
@@ -90,14 +90,14 @@ export function Sidebar({ activeConversationId, isCollapsed, onToggleCollapse, o
     [router, onMobileClose],
   );
 
-  // @zen-impl: NAV-3_AC-1
+  // @awa-impl: NAV-3_AC-1
   const handleDeleteClick = useCallback((conversation: ConversationSummary) => {
     setDeleteTarget(conversation);
   }, []);
 
-  // @zen-impl: NAV-3_AC-2
-  // @zen-impl: NAV-3_AC-3
-  // @zen-impl: NAV-3_AC-4
+  // @awa-impl: NAV-3_AC-2
+  // @awa-impl: NAV-3_AC-3
+  // @awa-impl: NAV-3_AC-4
   const handleDeleteConfirm = useCallback(async () => {
     if (!deleteTarget) return;
 
@@ -111,10 +111,10 @@ export function Sidebar({ activeConversationId, isCollapsed, onToggleCollapse, o
         // Handle navigation after deletion
         if (activeConversationId === deleteTarget.id) {
           if (remaining.length > 0) {
-            // @zen-impl: NAV-3_AC-3
+            // @awa-impl: NAV-3_AC-3
             router.push(`/chat/${remaining[0].id}`);
           } else {
-            // @zen-impl: NAV-3_AC-4
+            // @awa-impl: NAV-3_AC-4
             // Create a new conversation if none remain
             handleNewChat();
           }

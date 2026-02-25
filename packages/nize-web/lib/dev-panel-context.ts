@@ -1,12 +1,12 @@
 "use client";
 
-// @zen-component: DEV-DevPanelContext
+// @awa-component: DEV-DevPanelContext
 
 import { createContext, useContext } from "react";
 import type { ChatStateData } from "./types";
 
-// @zen-impl: DEV-3_AC-4
-// @zen-impl: TRC-5_AC-2, TRC-5_AC-4
+// @awa-impl: DEV-3_AC-4
+// @awa-impl: TRC-5_AC-2, TRC-5_AC-4
 export interface DevPanelContextValue {
   isExpanded: boolean;
   setIsExpanded: (expanded: boolean) => void;
@@ -18,10 +18,10 @@ export interface DevPanelContextValue {
   setPanelWidth: (width: number) => void;
   panelHeight: number;
   setPanelHeight: (height: number) => void;
-  // @zen-impl: TRC-5_AC-4
+  // @awa-impl: TRC-5_AC-4
   isAdmin: boolean;
   setIsAdmin: (isAdmin: boolean) => void;
-  // @zen-impl: TRC-5_AC-2, TRC-5_AC-5
+  // @awa-impl: TRC-5_AC-2, TRC-5_AC-5
   conversationId: string | null;
   setConversationId: (id: string | null) => void;
   // Key that changes when trace SSE should reconnect (e.g., new message sent)

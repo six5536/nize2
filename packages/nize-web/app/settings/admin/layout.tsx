@@ -1,4 +1,4 @@
-// @zen-component: PLAN-020-AdminSettingsGuard
+// @awa-component: PLAN-020-AdminSettingsGuard
 
 /**
  * Admin settings guard layout.

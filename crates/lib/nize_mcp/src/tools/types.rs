@@ -1,4 +1,4 @@
-// @zen-component: MCP-MetaToolTypes
+// @awa-component: MCP-MetaToolTypes
 //
 //! Shared response types for MCP meta-tool discovery.
 //!

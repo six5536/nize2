@@ -1,4 +1,4 @@
-// @zen-component: CHAT-Upload
+// @awa-component: CHAT-Upload
 
 interface ChatUploadProps {
   /** Called when file is selected */

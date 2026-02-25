@@ -1,4 +1,4 @@
-// @zen-component: PLAN-032-StdioConfigFields
+// @awa-component: PLAN-032-StdioConfigFields
 
 /**
  * Stdio transport configuration fields:

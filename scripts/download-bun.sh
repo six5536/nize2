@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# @zen-impl: PLAN-016-2.1
+# @awa-impl: PLAN-016-2.1
 # Download a platform-specific Bun binary for bundling inside the Tauri app.
 #
 # Usage:

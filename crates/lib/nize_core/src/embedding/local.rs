@@ -1,4 +1,4 @@
-// @zen-component: EMB-LocalProvider
+// @awa-component: EMB-LocalProvider
 //
 //! Local deterministic embedding provider using FNV-1a hash.
 //!
@@ -51,7 +51,7 @@ pub fn embed_batch(texts: &[String], dimensions: i32, model: &str) -> Vec<Embedd
 mod tests {
     use super::*;
 
-    // @zen-test: PLAN-022 — local provider determinism
+    // @awa-test: PLAN-022 — local provider determinism
     #[test]
     fn embed_is_deterministic() {
         let a = embed("hello world", 768);
@@ -59,7 +59,7 @@ mod tests {
         assert_eq!(a, b);
     }
 
-    // @zen-test: PLAN-022 — local provider dimensions
+    // @awa-test: PLAN-022 — local provider dimensions
     #[test]
     fn embed_correct_dimensions() {
         let v = embed("test", 1536);
@@ -69,7 +69,7 @@ mod tests {
         assert_eq!(v.len(), 768);
     }
 
-    // @zen-test: PLAN-022 — different inputs produce different embeddings
+    // @awa-test: PLAN-022 — different inputs produce different embeddings
     #[test]
     fn different_texts_produce_different_embeddings() {
         let a = embed("hello", 768);
@@ -77,7 +77,7 @@ mod tests {
         assert_ne!(a, b);
     }
 
-    // @zen-test: PLAN-022 — embeddings are in [-1, 1]
+    // @awa-test: PLAN-022 — embeddings are in [-1, 1]
     #[test]
     fn values_in_expected_range() {
         let v = embed("test embedding range", 768);
@@ -89,7 +89,7 @@ mod tests {
         }
     }
 
-    // @zen-test: PLAN-022 — embed_batch produces correct count
+    // @awa-test: PLAN-022 — embed_batch produces correct count
     #[test]
     fn embed_batch_correct_count() {
         let texts = vec!["one".to_string(), "two".to_string(), "three".to_string()];

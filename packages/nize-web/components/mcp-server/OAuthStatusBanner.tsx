@@ -1,4 +1,4 @@
-// @zen-component: PLAN-032-OAuthStatusBanner
+// @awa-component: PLAN-032-OAuthStatusBanner
 
 /**
  * OAuth connection status banner with Re-authorize button.
@@ -22,7 +22,7 @@ interface OAuthStatusBannerProps {
   onError?: (error: string) => void;
 }
 
-// @zen-impl: PLAN-032 Step 5
+// @awa-impl: PLAN-032 Step 5
 export function OAuthStatusBanner({ serverId, authFetch, onStatusChange, onError }: OAuthStatusBannerProps) {
   const [oauthStatus, setOauthStatus] = useState<OAuthStatus | null>(null);
   const [revoking, setRevoking] = useState(false);
@@ -45,7 +45,7 @@ export function OAuthStatusBanner({ serverId, authFetch, onStatusChange, onError
     fetchStatus();
   }, [fetchStatus]);
 
-  // @zen-impl: PLAN-032 Step 8 — Re-authorize: revoke → initiate → flow → refresh
+  // @awa-impl: PLAN-032 Step 8 — Re-authorize: revoke → initiate → flow → refresh
   const handleReauthorize = async () => {
     onError?.(undefined as unknown as string); // clear previous error
     try {

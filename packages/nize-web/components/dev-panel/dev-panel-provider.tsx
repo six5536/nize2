@@ -1,6 +1,6 @@
 "use client";
 
-// @zen-component: DEV-DevPanelProvider
+// @awa-component: DEV-DevPanelProvider
 
 import { ReactNode, useState, useEffect, useCallback } from "react";
 import { DevPanelContext } from "@/lib/dev-panel-context";
@@ -11,9 +11,9 @@ interface DevPanelProviderProps {
   children: ReactNode;
 }
 
-// @zen-impl: DEV-1_AC-1
-// @zen-impl: DEV-1_AC-2
-// @zen-impl: TRC-5_AC-4
+// @awa-impl: DEV-1_AC-1
+// @awa-impl: DEV-1_AC-2
+// @awa-impl: TRC-5_AC-4
 export function DevPanelProvider({ children }: DevPanelProviderProps) {
   // Only render dev panel in development
   const isDevelopment = process.env.NODE_ENV === "development";
@@ -23,15 +23,15 @@ export function DevPanelProvider({ children }: DevPanelProviderProps) {
   const [chatState, setChatState] = useState<ChatStateData | null>(null);
   const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
   const [panelHeight, setPanelHeight] = useState(DEFAULT_PANEL_HEIGHT);
-  // @zen-impl: TRC-5_AC-4 - Track admin status
+  // @awa-impl: TRC-5_AC-4 - Track admin status
   const [isAdmin, setIsAdmin] = useState(false);
-  // @zen-impl: TRC-5_AC-2, TRC-5_AC-5 - Track current conversation
+  // @awa-impl: TRC-5_AC-2, TRC-5_AC-5 - Track current conversation
   const [conversationId, setConversationId] = useState<string | null>(null);
   // Key that changes when trace SSE should reconnect (e.g., new message sent)
   const [traceKey, setTraceKey] = useState(0);
   const incrementTraceKey = useCallback(() => setTraceKey((k) => k + 1), []);
 
-  // @zen-impl: DEV-1_AC-7
+  // @awa-impl: DEV-1_AC-7
   // Load state from localStorage on mount
   useEffect(() => {
     if (!isDevelopment) return;
@@ -49,7 +49,7 @@ export function DevPanelProvider({ children }: DevPanelProviderProps) {
     }
   }, [isDevelopment]);
 
-  // @zen-impl: DEV-1_AC-7
+  // @awa-impl: DEV-1_AC-7
   // Save state to localStorage when it changes
   useEffect(() => {
     if (!isDevelopment) return;

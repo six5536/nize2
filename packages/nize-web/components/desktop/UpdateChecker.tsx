@@ -1,6 +1,6 @@
-// @zen-component: PLAN-007-UpdateChecker
-// @zen-impl: PLAN-007-6.3
-// @zen-impl: PLAN-021 — ported from packages/nize-desktop/src/UpdateChecker.tsx
+// @awa-component: PLAN-007-UpdateChecker
+// @awa-impl: PLAN-007-6.3
+// @awa-impl: PLAN-021 — ported from packages/nize-desktop/src/UpdateChecker.tsx
 
 "use client";
 
@@ -10,7 +10,7 @@ import { relaunch } from "@tauri-apps/plugin-process";
 
 type UpdateStatus = { kind: "idle" } | { kind: "checking" } | { kind: "available"; version: string } | { kind: "downloading"; progress: number } | { kind: "error"; message: string } | { kind: "restarting" };
 
-// @zen-impl: PLAN-007-6.3
+// @awa-impl: PLAN-007-6.3
 export function UpdateChecker() {
   const [status, setStatus] = useState<UpdateStatus>({ kind: "idle" });
 
@@ -33,7 +33,7 @@ export function UpdateChecker() {
     }
   }
 
-  // @zen-impl: PLAN-007-6.1
+  // @awa-impl: PLAN-007-6.1
   async function installUpdate() {
     try {
       // PGlite data is just files on disk — no database dump needed before update.

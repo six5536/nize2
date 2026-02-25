@@ -1,4 +1,4 @@
-// @zen-component: PLAN-020-UserToolsUI
+// @awa-component: PLAN-020-UserToolsUI
 
 /**
  * User MCP server management page at /settings/tools
@@ -206,7 +206,7 @@ export default function UserToolsPage() {
     }
   };
 
-  // @zen-impl: PLAN-032 Step 10 — ServerForm callbacks for user page
+  // @awa-impl: PLAN-032 Step 10 — ServerForm callbacks for user page
   // User API uses flat fields (url, authType, apiKey), not nested config objects
   const handleTestConnection = async (config: ServerConfig, serverId?: string): Promise<TestConnectionResult> => {
     const res = await authFetch("/mcp/test-connection", {
@@ -224,7 +224,7 @@ export default function UserToolsPage() {
       name: payload.name,
       description: payload.description,
       domain: payload.domain,
-      // @zen-impl: XMCP-5_AC-1 — send transport type to user API
+      // @awa-impl: XMCP-5_AC-1 — send transport type to user API
       transport: httpConfig.transport,
       url: httpConfig.url,
       authType: httpConfig.authType,

@@ -1,4 +1,4 @@
-// @zen-component: PLAN-027-ChatService
+// @awa-component: PLAN-027-ChatService
 
 import { streamText, convertToModelMessages, stepCountIs, type UIMessage, type ToolSet } from "ai";
 import type { ChatConfig, ChatRequest, CompactMessage } from "./types";
@@ -38,7 +38,7 @@ function toCompactMessages(messages: UIMessage[]): CompactMessage[] {
 /**
  * Generate a short title for a conversation based on the first user message.
  */
-// @zen-impl: PLAN-028-3.5
+// @awa-impl: PLAN-028-3.5
 async function generateTitle(userMessage: string, modelSpec: string, modelOptions?: GetChatModelOptions): Promise<string> {
   const model = getChatModel(modelSpec, modelOptions);
   const result = await streamText({
@@ -123,8 +123,8 @@ export interface ProcessChatResult {
  * Process a chat request: get/create conversation, compact history,
  * stream AI response, persist on finish.
  */
-// @zen-impl: PLAN-028-3.5
-// @zen-impl: PLAN-029-3.5
+// @awa-impl: PLAN-028-3.5
+// @awa-impl: PLAN-029-3.5
 export async function processChat(request: ChatRequest, config: ChatConfig, apiBaseUrl: string, cookie: string, mcpBaseUrl?: string): Promise<ProcessChatResult> {
   const conversation = await getOrCreateConversation(apiBaseUrl, cookie, request.conversationId);
 
@@ -156,7 +156,7 @@ export async function processChat(request: ChatRequest, config: ChatConfig, apiB
 
   const model = getChatModel(config.modelName, modelOptions);
 
-  // @zen-impl: PLAN-029-3.5 — create MCP session for tool calling
+  // @awa-impl: PLAN-029-3.5 — create MCP session for tool calling
   let mcpClient: Awaited<ReturnType<typeof createMcpSession>> | null = null;
   let tools: ToolSet | undefined;
 

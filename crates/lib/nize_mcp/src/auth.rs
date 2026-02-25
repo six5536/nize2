@@ -1,4 +1,4 @@
-// @zen-component: MCP-Auth
+// @awa-component: MCP-Auth
 //
 //! MCP bearer token authentication middleware.
 //!
@@ -59,7 +59,7 @@ pub async fn mcp_auth_middleware(
 
     match nize_core::auth::mcp_tokens::validate_mcp_token(&pool, &token).await {
         Ok(Some(user)) => {
-            // @zen-impl: MCP-1.6_AC-1
+            // @awa-impl: MCP-1.6_AC-1
             request.extensions_mut().insert(McpUser {
                 id: user.id,
                 email: user.email,

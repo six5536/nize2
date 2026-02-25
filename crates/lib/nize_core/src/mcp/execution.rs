@@ -1,4 +1,4 @@
-// @zen-component: MCP-ExecutionProxy
+// @awa-component: MCP-ExecutionProxy
 //
 //! Execution proxy — connects to external MCP servers and executes tools.
 //!
@@ -165,7 +165,7 @@ impl ClientPool {
             .count()
     }
 
-    // @zen-impl: PLAN-025 Phase 2.1 — atomic DashMap entry with connecting guard
+    // @awa-impl: PLAN-025 Phase 2.1 — atomic DashMap entry with connecting guard
     /// Get or create a connection to an MCP server.
     async fn get_or_connect(
         &self,
@@ -220,8 +220,8 @@ impl ClientPool {
 
         let transport_type = server.transport.clone();
 
-        // @zen-impl: PLAN-025 Phase 2.2 — match on transport type
-        // @zen-impl: PLAN-033 T-XMCP-044 — dispatch all 5 transport types
+        // @awa-impl: PLAN-025 Phase 2.2 — match on transport type
+        // @awa-impl: PLAN-033 T-XMCP-044 — dispatch all 5 transport types
         match transport_type {
             TransportType::Http => self.connect_http(&server, oauth_headers).await?,
             TransportType::Stdio => self.connect_stdio(&server, server_id).await?,
@@ -236,7 +236,7 @@ impl ClientPool {
     }
 
     /// Connect to an HTTP MCP server via Streamable HTTP transport.
-    // @zen-impl: PLAN-031 Phase 7.1 — OAuth header support
+    // @awa-impl: PLAN-031 Phase 7.1 — OAuth header support
     async fn connect_http(
         &self,
         server: &crate::models::mcp::McpServerRow,
@@ -329,16 +329,16 @@ impl ClientPool {
         Ok(())
     }
 
-    // @zen-impl: PLAN-025 Phase 2.2 — stdio transport via TokioChildProcess
+    // @awa-impl: PLAN-025 Phase 2.2 — stdio transport via TokioChildProcess
     /// Connect to a stdio MCP server by spawning its child process.
     async fn connect_stdio(
         &self,
         server: &crate::models::mcp::McpServerRow,
         server_id: Uuid,
     ) -> Result<(), McpError> {
-        // @zen-impl: PLAN-025 Phase 2.3 — enforce max stdio process limit
-        // @zen-impl: PLAN-030 Phase 3.2 — LRU eviction before ResourceExhausted
-        // @zen-impl: PLAN-033 T-XMCP-052 — use is_managed() for managed process limit
+        // @awa-impl: PLAN-025 Phase 2.3 — enforce max stdio process limit
+        // @awa-impl: PLAN-030 Phase 3.2 — LRU eviction before ResourceExhausted
+        // @awa-impl: PLAN-033 T-XMCP-052 — use is_managed() for managed process limit
         if self.managed_count() >= self.max_managed_processes && !self.evict_lru_managed() {
             return Err(McpError::ResourceExhausted(format!(
                 "Maximum managed process limit ({}) reached",
@@ -359,7 +359,7 @@ impl ClientPool {
 
         let args = config.args.as_deref().unwrap_or_default();
 
-        // @zen-impl: PLAN-025 Phase 4.4 — stderr inherits to server logs
+        // @awa-impl: PLAN-025 Phase 4.4 — stderr inherits to server logs
         let mut cmd = tokio::process::Command::new(&config.command);
         cmd.args(args).stderr(std::process::Stdio::inherit());
 
@@ -370,7 +370,7 @@ impl ClientPool {
             }
         }
 
-        // @zen-impl: PLAN-025 Phase 4.3 — command not found maps to ConnectionFailed
+        // @awa-impl: PLAN-025 Phase 4.3 — command not found maps to ConnectionFailed
         let transport = TokioChildProcess::new(cmd).map_err(|e| {
             McpError::ConnectionFailed(format!(
                 "Failed to spawn stdio process '{}': {e}",
@@ -378,7 +378,7 @@ impl ClientPool {
             ))
         })?;
 
-        // @zen-impl: PLAN-025 Phase 5.2 — write PID to terminator manifest
+        // @awa-impl: PLAN-025 Phase 5.2 — write PID to terminator manifest
         if let Some(ref manifest) = self.manifest_path
             && let Some(pid) = transport.id()
             && let Err(e) = append_manifest(manifest, pid)
@@ -386,7 +386,7 @@ impl ClientPool {
             warn!("Failed to write stdio PID {pid} to manifest: {e}");
         }
 
-        // @zen-impl: PLAN-025 Phase 4.2 — startup timeout for stdio servers
+        // @awa-impl: PLAN-025 Phase 4.2 — startup timeout for stdio servers
         let service: RunningService<RoleClient, ()> =
             tokio::time::timeout(STDIO_CONNECT_TIMEOUT, ().serve(transport))
                 .await
@@ -423,7 +423,7 @@ impl ClientPool {
         Ok(())
     }
 
-    // @zen-impl: PLAN-033 T-XMCP-040 — connect to external SSE server
+    // @awa-impl: PLAN-033 T-XMCP-040 — connect to external SSE server
     /// Connect to an external SSE MCP server via the legacy SSE transport.
     async fn connect_sse(
         &self,
@@ -532,7 +532,7 @@ impl ClientPool {
             .map_err(|e| McpError::ConnectionFailed(format!("Failed to build SSE client: {e}")))
     }
 
-    // @zen-impl: PLAN-033 T-XMCP-043 — connect managed HTTP/SSE server
+    // @awa-impl: PLAN-033 T-XMCP-043 — connect managed HTTP/SSE server
     /// Connect to a managed HTTP/SSE MCP server by spawning a child process
     /// and then connecting via the appropriate protocol.
     async fn connect_managed(
@@ -727,7 +727,7 @@ impl ClientPool {
         Ok(())
     }
 
-    // @zen-impl: PLAN-033 T-XMCP-062 — kill child process on removal
+    // @awa-impl: PLAN-033 T-XMCP-062 — kill child process on removal
     /// Remove a stale connection, killing any child process.
     fn remove(&self, server_id: &Uuid) {
         if let Some((_, mut entry)) = self.connections.remove(server_id) {
@@ -739,8 +739,8 @@ impl ClientPool {
         }
     }
 
-    // @zen-impl: PLAN-030 Phase 2.1 — evict idle managed connections
-    // @zen-impl: PLAN-033 T-XMCP-052 — evict all managed transports, not just stdio
+    // @awa-impl: PLAN-030 Phase 2.1 — evict idle managed connections
+    // @awa-impl: PLAN-033 T-XMCP-052 — evict all managed transports, not just stdio
     /// Evict all managed connections that have been idle longer than `timeout`.
     fn evict_idle(&self, timeout: Duration) {
         let mut evicted = Vec::new();
@@ -760,7 +760,7 @@ impl ClientPool {
         }
     }
 
-    // @zen-impl: PLAN-030 Phase 2.2 — spawn background reaper
+    // @awa-impl: PLAN-030 Phase 2.2 — spawn background reaper
     /// Spawn a background reaper task that evicts idle managed connections.
     /// Returns a `JoinHandle` — the task runs until the Tokio runtime shuts down.
     pub fn spawn_reaper(self: &Arc<Self>, idle_timeout: Duration) -> tokio::task::JoinHandle<()> {
@@ -774,8 +774,8 @@ impl ClientPool {
         })
     }
 
-    // @zen-impl: PLAN-030 Phase 3.1 — LRU eviction for capacity management
-    // @zen-impl: PLAN-033 T-XMCP-052 — evict LRU across all managed transports
+    // @awa-impl: PLAN-030 Phase 3.1 — LRU eviction for capacity management
+    // @awa-impl: PLAN-033 T-XMCP-052 — evict LRU across all managed transports
     /// Evict the single least-recently-used managed connection.
     /// Returns `true` if an entry was evicted.
     fn evict_lru_managed(&self) -> bool {
@@ -802,7 +802,7 @@ impl Default for ClientPool {
     }
 }
 
-// @zen-impl: PLAN-025 Phase 5.2 — append PID kill command to terminator manifest
+// @awa-impl: PLAN-025 Phase 5.2 — append PID kill command to terminator manifest
 /// Appends a `kill <pid>` line to the terminator manifest file (atomic append + fsync).
 fn append_manifest(manifest: &Path, pid: u32) -> Result<(), String> {
     use std::io::Write;
@@ -824,7 +824,7 @@ fn append_manifest(manifest: &Path, pid: u32) -> Result<(), String> {
 // Managed process helpers
 // =============================================================================
 
-// @zen-impl: PLAN-033 T-XMCP-041 — spawn managed child process
+// @awa-impl: PLAN-033 T-XMCP-041 — spawn managed child process
 /// Spawn a managed child process with piped stdin for lifecycle coupling.
 fn spawn_managed_process(
     config: &ManagedHttpServerConfig,
@@ -847,7 +847,7 @@ fn spawn_managed_process(
         .map_err(|e| format!("spawn '{}': {e}", config.command))
 }
 
-// @zen-impl: PLAN-033 T-XMCP-042 — wait for managed server readiness
+// @awa-impl: PLAN-033 T-XMCP-042 — wait for managed server readiness
 /// Retry HTTP GET to the given URL until it succeeds or timeout elapses.
 async fn wait_for_ready(url: &str, timeout: Duration) -> Result<(), String> {
     let client = reqwest::Client::builder()
@@ -1119,7 +1119,7 @@ pub async fn test_stdio_connection(config: &StdioServerConfig) -> TestConnection
 // SSE connection testing via rmcp
 // =============================================================================
 
-// @zen-impl: PLAN-033 T-XMCP-070 — test SSE connection
+// @awa-impl: PLAN-033 T-XMCP-070 — test SSE connection
 /// Test a legacy SSE MCP server connection by connecting to the SSE endpoint
 /// and performing an MCP handshake.
 pub async fn test_sse_connection(
@@ -1253,7 +1253,7 @@ pub async fn test_sse_connection(
 // Managed connection testing (spawn → connect → test → kill)
 // =============================================================================
 
-// @zen-impl: PLAN-033 T-XMCP-072 — test managed transport connection
+// @awa-impl: PLAN-033 T-XMCP-072 — test managed transport connection
 /// Test a managed MCP server by spawning a temporary child process, waiting for
 /// it to become ready, connecting via the appropriate protocol (SSE or
 /// StreamableHttp), then performing an MCP handshake and tool discovery.
@@ -1505,7 +1505,7 @@ fn add_custom_headers(
 
 /// Resolve OAuth headers for a server, refreshing tokens if needed.
 /// Returns `None` if the server does not use OAuth auth.
-// @zen-impl: PLAN-031 Phase 7.3 — token refresh before connection
+// @awa-impl: PLAN-031 Phase 7.3 — token refresh before connection
 async fn resolve_oauth_headers(
     pool: &PgPool,
     user_id: &str,
@@ -1646,7 +1646,7 @@ async fn resolve_oauth_headers(
 /// 3. Calls the tool with the provided parameters.
 /// 4. Records an audit log entry.
 /// 5. Returns the result.
-// @zen-impl: PLAN-031 Phase 7.3 — OAuth token lifecycle during tool execution
+// @awa-impl: PLAN-031 Phase 7.3 — OAuth token lifecycle during tool execution
 pub async fn execute_tool(
     pool: &PgPool,
     client_pool: &ClientPool,
@@ -1830,7 +1830,7 @@ fn call_tool_result_to_json(result: &CallToolResult) -> serde_json::Value {
 mod tests {
     use super::*;
 
-    // @zen-test: PLAN-025 Phase 2 — ClientPool construction
+    // @awa-test: PLAN-025 Phase 2 — ClientPool construction
     #[test]
     fn client_pool_new_creates_empty_pool() {
         let pool = ClientPool::new();
@@ -1839,7 +1839,7 @@ mod tests {
         assert_eq!(pool.max_managed_processes, DEFAULT_MAX_MANAGED_PROCESSES);
     }
 
-    // @zen-test: PLAN-025 Phase 5.4 — ClientPool with manifest
+    // @awa-test: PLAN-025 Phase 5.4 — ClientPool with manifest
     #[test]
     fn client_pool_with_manifest_stores_path() {
         let path = PathBuf::from("/tmp/test-manifest");
@@ -1847,7 +1847,7 @@ mod tests {
         assert_eq!(pool.manifest_path, Some(path));
     }
 
-    // @zen-test: PLAN-025 Phase 2.3 — max managed processes configuration
+    // @awa-test: PLAN-025 Phase 2.3 — max managed processes configuration
     #[test]
     fn client_pool_set_max_managed_processes() {
         let mut pool = ClientPool::new();
@@ -1855,14 +1855,14 @@ mod tests {
         assert_eq!(pool.max_managed_processes, 10);
     }
 
-    // @zen-test: PLAN-025 Phase 2.3 — managed count tracking
+    // @awa-test: PLAN-025 Phase 2.3 — managed count tracking
     #[test]
     fn client_pool_managed_count_tracks_transport_type() {
         let pool = ClientPool::new();
         assert_eq!(pool.managed_count(), 0);
     }
 
-    // @zen-test: PLAN-025 Phase 2 — Default implementation
+    // @awa-test: PLAN-025 Phase 2 — Default implementation
     #[test]
     fn client_pool_default_matches_new() {
         let pool = ClientPool::default();
@@ -1871,7 +1871,7 @@ mod tests {
         assert_eq!(pool.max_managed_processes, DEFAULT_MAX_MANAGED_PROCESSES);
     }
 
-    // @zen-test: PLAN-025 Phase 5.2 — manifest PID append
+    // @awa-test: PLAN-025 Phase 5.2 — manifest PID append
     #[test]
     fn append_manifest_writes_kill_command() {
         let dir = tempfile::tempdir().unwrap();
@@ -1884,7 +1884,7 @@ mod tests {
         assert_eq!(content, "kill 12345\n");
     }
 
-    // @zen-test: PLAN-025 Phase 5.2 — manifest appends multiple PIDs
+    // @awa-test: PLAN-025 Phase 5.2 — manifest appends multiple PIDs
     #[test]
     fn append_manifest_appends_multiple_pids() {
         let dir = tempfile::tempdir().unwrap();
@@ -1898,21 +1898,21 @@ mod tests {
         assert_eq!(content, "kill 100\nkill 200\nkill 300\n");
     }
 
-    // @zen-test: PLAN-025 Phase 5.2 — manifest append fails for missing file
+    // @awa-test: PLAN-025 Phase 5.2 — manifest append fails for missing file
     #[test]
     fn append_manifest_fails_for_missing_file() {
         let result = append_manifest(Path::new("/nonexistent/manifest.txt"), 123);
         assert!(result.is_err());
     }
 
-    // @zen-test: PLAN-025 Phase 2 — remove on empty pool is no-op
+    // @awa-test: PLAN-025 Phase 2 — remove on empty pool is no-op
     #[test]
     fn client_pool_remove_nonexistent_is_noop() {
         let pool = ClientPool::new();
         pool.remove(&Uuid::new_v4()); // Should not panic
     }
 
-    // @zen-test: PLAN-030 Phase 1.2 — last_accessed AtomicU64 stores and loads correctly
+    // @awa-test: PLAN-030 Phase 1.2 — last_accessed AtomicU64 stores and loads correctly
     #[test]
     fn pool_entry_last_accessed_atomic_roundtrip() {
         let epoch = Instant::now();
@@ -1930,7 +1930,7 @@ mod tests {
         assert!(stored >= 5, "expected at least 5ms, got {stored}");
     }
 
-    // @zen-test: PLAN-030 Phase 1.2 — idle_duration increases over time
+    // @awa-test: PLAN-030 Phase 1.2 — idle_duration increases over time
     #[test]
     fn pool_entry_idle_duration_logic() {
         let epoch = Instant::now();
@@ -1946,7 +1946,7 @@ mod tests {
         assert!(idle >= Duration::from_millis(10));
     }
 
-    // @zen-test: PLAN-030 Phase 1.3 — idle_timeout configuration
+    // @awa-test: PLAN-030 Phase 1.3 — idle_timeout configuration
     #[test]
     fn client_pool_set_idle_timeout() {
         let mut pool = ClientPool::new();
@@ -1955,7 +1955,7 @@ mod tests {
         assert_eq!(pool.idle_timeout(), Duration::from_secs(60));
     }
 
-    // @zen-test: PLAN-030 Phase 1.1 — epoch is initialized
+    // @awa-test: PLAN-030 Phase 1.1 — epoch is initialized
     #[test]
     fn client_pool_epoch_is_recent() {
         let before = Instant::now();
@@ -1966,14 +1966,14 @@ mod tests {
         assert!(pool.epoch <= after);
     }
 
-    // @zen-test: PLAN-030 Phase 3.1 — evict_lru_managed returns false on empty pool
+    // @awa-test: PLAN-030 Phase 3.1 — evict_lru_managed returns false on empty pool
     #[test]
     fn evict_lru_managed_returns_false_on_empty_pool() {
         let pool = ClientPool::new();
         assert!(!pool.evict_lru_managed());
     }
 
-    // @zen-test: PLAN-030 Phase 2.1 — evict_idle is no-op on empty pool
+    // @awa-test: PLAN-030 Phase 2.1 — evict_idle is no-op on empty pool
     #[test]
     fn evict_idle_noop_on_empty_pool() {
         let pool = ClientPool::new();
@@ -1981,7 +1981,7 @@ mod tests {
         assert_eq!(pool.connections.len(), 0);
     }
 
-    // @zen-test: PLAN-030 Phase 1.1 — default pool has idle_timeout and epoch
+    // @awa-test: PLAN-030 Phase 1.1 — default pool has idle_timeout and epoch
     #[test]
     fn client_pool_default_has_idle_timeout_and_epoch() {
         let pool = ClientPool::default();

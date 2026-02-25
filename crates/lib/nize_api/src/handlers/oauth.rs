@@ -1,4 +1,4 @@
-// @zen-component: PLAN-031-OAuthHandler
+// @awa-component: PLAN-031-OAuthHandler
 //
 //! OAuth callback handler for Google OAuth flow.
 
@@ -18,7 +18,7 @@ pub struct OAuthCallbackParams {
 }
 
 /// `GET /auth/oauth/mcp/callback` — OAuth callback from Google.
-// @zen-impl: PLAN-031 Phase 5.2
+// @awa-impl: PLAN-031 Phase 5.2
 pub async fn oauth_callback_handler(
     State(state): State<AppState>,
     Query(params): Query<OAuthCallbackParams>,

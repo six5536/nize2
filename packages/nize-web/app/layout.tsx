@@ -1,6 +1,6 @@
-// @zen-impl: PLAN-012-1.2 — root layout for nize-web
-// @zen-impl: CFG-NizeWebAuthContext
-// @zen-impl: PLAN-021 — webview bridge injection for Tauri dev builds
+// @awa-impl: PLAN-012-1.2 — root layout for nize-web
+// @awa-impl: CFG-NizeWebAuthContext
+// @awa-impl: PLAN-021 — webview bridge injection for Tauri dev builds
 
 import type { Metadata } from "next";
 import { Toaster } from "sonner";
@@ -15,12 +15,12 @@ export const metadata: Metadata = {
   description: "Manage your data with AI chat",
 };
 
-// @zen-impl: DEV-1_AC-3
-// @zen-impl: DEV-3_AC-1
-// @zen-impl: DEV-3_AC-2
-// @zen-impl: DEV-3_AC-3
-// @zen-impl: DEV-3_AC-5
-// @zen-impl: CHAT-7.1_AC-3
+// @awa-impl: DEV-1_AC-3
+// @awa-impl: DEV-3_AC-1
+// @awa-impl: DEV-3_AC-2
+// @awa-impl: DEV-3_AC-3
+// @awa-impl: DEV-3_AC-5
+// @awa-impl: CHAT-7.1_AC-3
 export default function RootLayout({
   children,
 }: Readonly<{

@@ -1,4 +1,4 @@
-// @zen-component: CHAT-Header
+// @awa-component: CHAT-Header
 
 interface ChatHeaderProps {
   /** User display name or email */

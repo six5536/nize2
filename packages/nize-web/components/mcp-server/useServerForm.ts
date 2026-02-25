@@ -1,4 +1,4 @@
-// @zen-component: PLAN-032-UseServerForm
+// @awa-component: PLAN-032-UseServerForm
 
 /**
  * Hook managing MCP server form state, validation, and config building.
@@ -72,7 +72,7 @@ interface UseServerFormReturn {
   hasOAuthConfigChanged: boolean;
 }
 
-// @zen-impl: PLAN-032 Step 6
+// @awa-impl: PLAN-032 Step 6
 export function useServerForm(initialValues?: ServerFormValues, options?: { mode?: "create" | "edit" }): UseServerFormReturn {
   const mode = options?.mode || "create";
   const cfg = initialValues?.config || {};

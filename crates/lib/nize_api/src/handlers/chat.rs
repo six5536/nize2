@@ -1,4 +1,4 @@
-// @zen-component: PLAN-017-ChatHandler
+// @awa-component: PLAN-017-ChatHandler
 //
 //! Chat request handler — demo stub.
 

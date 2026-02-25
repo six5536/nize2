@@ -1,4 +1,4 @@
-// @zen-component: PLAN-017-TraceHandler
+// @awa-component: PLAN-017-TraceHandler
 //
 //! Dev chat-trace handler — demo stub.
 

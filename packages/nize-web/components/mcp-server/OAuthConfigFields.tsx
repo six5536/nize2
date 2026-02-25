@@ -1,4 +1,4 @@
-// @zen-component: PLAN-032-OAuthConfigFields
+// @awa-component: PLAN-032-OAuthConfigFields
 
 /**
  * OAuth configuration input fields:

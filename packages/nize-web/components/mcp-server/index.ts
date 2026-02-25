@@ -1,4 +1,4 @@
-// @zen-component: PLAN-032-McpServerIndex
+// @awa-component: PLAN-032-McpServerIndex
 
 export { ServerForm } from "./ServerForm";
 export { HttpConfigFields } from "./HttpConfigFields";

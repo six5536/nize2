@@ -27,8 +27,8 @@ describe("DevPanel", () => {
     localStorage.clear();
   });
 
-  // @zen-test: DEV_P-2
-  // @zen-test: DEV_P-3
+  // @awa-test: DEV_P-2
+  // @awa-test: DEV_P-3
   describe("localStorage persistence", () => {
     it("loads expanded state from localStorage on mount", () => {
       localStorage.setItem(DEV_PANEL_STORAGE_KEY, JSON.stringify({ isExpanded: true }));
@@ -87,7 +87,7 @@ describe("DevPanel", () => {
     });
   });
 
-  // @zen-test: DEV-1.1_AC-2
+  // @awa-test: DEV-1.1_AC-2
   describe("tab selection", () => {
     it("calls onTabChange when tab is clicked", () => {
       let selectedTab = "tab1";
@@ -123,7 +123,7 @@ describe("DevPanel", () => {
     });
   });
 
-  // @zen-test: DEV-2_AC-4
+  // @awa-test: DEV-2_AC-4
   describe("text truncation", () => {
     it("truncates long text content in messages", () => {
       const longText = "a".repeat(300);
@@ -148,7 +148,7 @@ describe("DevPanel", () => {
     });
   });
 
-  // @zen-test: DEV_P-1
+  // @awa-test: DEV_P-1
   describe("production bundle exclusion", () => {
     it("verifies dev panel components are tree-shakeable", () => {
       // This test verifies the architectural decision to use dynamic imports
@@ -170,7 +170,7 @@ describe("DevPanel", () => {
     });
   });
 
-  // @zen-test: DEV_P-3
+  // @awa-test: DEV_P-3
   describe("layout independence", () => {
     it("does not affect main content layout when collapsed", () => {
       const { container } = render(

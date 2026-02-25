@@ -1,4 +1,4 @@
-// @zen-component: MCP-MetaToolTests
+// @awa-component: MCP-MetaToolTests
 //
 //! Tests for MCP meta-tool discovery stubs.
 
@@ -10,7 +10,7 @@ mod tests {
     use crate::tools::dummy;
     use crate::tools::types::ExecutionResult;
 
-    // @zen-test: MCP-1_AC-1
+    // @awa-test: MCP-1_AC-1
     #[test]
     fn server_exposes_six_tools() {
         let tools = NizeMcpServer::list_tools();
@@ -24,7 +24,7 @@ mod tests {
         assert!(names.contains(&"browse_tool_domain"));
     }
 
-    // @zen-test: MCP-1.1_AC-1
+    // @awa-test: MCP-1.1_AC-1
     #[test]
     fn discover_tools_returns_ranked_matches() {
         let result = dummy::discover_tools("read file", None);
@@ -48,7 +48,7 @@ mod tests {
         assert!(first["score"].is_f64());
     }
 
-    // @zen-test: MCP-1.1_AC-2
+    // @awa-test: MCP-1.1_AC-2
     #[test]
     fn discover_tools_filters_by_domain() {
         let result = dummy::discover_tools("query", Some("filesystem"));
@@ -59,7 +59,7 @@ mod tests {
         assert_eq!(result.tools.len(), 2);
     }
 
-    // @zen-test: MCP-1.1_AC-3
+    // @awa-test: MCP-1.1_AC-3
     #[test]
     fn discover_tools_unknown_domain_returns_suggestion() {
         let result = dummy::discover_tools("query", Some("nonexistent"));
@@ -67,7 +67,7 @@ mod tests {
         assert!(result.suggestion.is_some());
     }
 
-    // @zen-test: MCP-1.4_AC-1
+    // @awa-test: MCP-1.4_AC-1
     #[test]
     fn list_tool_domains_returns_domains() {
         let domains = dummy::list_tool_domains();
@@ -85,7 +85,7 @@ mod tests {
         }
     }
 
-    // @zen-test: MCP-1.5_AC-1
+    // @awa-test: MCP-1.5_AC-1
     #[test]
     fn browse_tool_domain_returns_tools_for_known_domain() {
         let result = dummy::browse_tool_domain("filesystem");
@@ -93,14 +93,14 @@ mod tests {
         assert!(result.tools.iter().all(|t| t.domain == "filesystem"));
     }
 
-    // @zen-test: MCP-1.5_AC-2
+    // @awa-test: MCP-1.5_AC-2
     #[test]
     fn browse_tool_domain_empty_for_unknown_domain() {
         let result = dummy::browse_tool_domain("nonexistent");
         assert!(result.tools.is_empty());
     }
 
-    // @zen-test: MCP-1.2_AC-1
+    // @awa-test: MCP-1.2_AC-1
     #[test]
     fn get_tool_manifest_returns_manifest_structure() {
         let manifest = dummy::get_tool_manifest("tool-read-file");
@@ -125,7 +125,7 @@ mod tests {
         assert!(input["required"].is_boolean());
     }
 
-    // @zen-test: MCP-1.3_AC-1
+    // @awa-test: MCP-1.3_AC-1
     #[test]
     fn execution_result_serialises_correctly() {
         let result = ExecutionResult {

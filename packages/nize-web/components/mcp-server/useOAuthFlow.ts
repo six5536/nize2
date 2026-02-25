@@ -1,4 +1,4 @@
-// @zen-component: PLAN-032-UseOAuthFlow
+// @awa-component: PLAN-032-UseOAuthFlow
 
 /**
  * Hook consolidating OAuth popup/poll logic.
@@ -34,7 +34,7 @@ interface UseOAuthFlowReturn {
   cancel: () => void;
 }
 
-// @zen-impl: PLAN-032 Step 3
+// @awa-impl: PLAN-032 Step 3
 export function useOAuthFlow(): UseOAuthFlowReturn {
   const [inProgress, setInProgress] = useState(false);
   const cancelRef = useRef<(() => void) | null>(null);

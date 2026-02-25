@@ -1,4 +1,4 @@
-// @zen-component: PLAN-027-HonoApp
+// @awa-component: PLAN-027-HonoApp
 
 import { Hono } from "hono";
 import { processChat, ConversationNotFoundError } from "./chat-service";
@@ -22,7 +22,7 @@ chatApp.post("/chat", async (c) => {
   // - fallback to localhost:3001
   const apiBaseUrl = process.env.NIZE_API_URL ?? (process.env.NIZE_API_PORT ? `http://127.0.0.1:${process.env.NIZE_API_PORT}` : "http://127.0.0.1:3001");
 
-  // @zen-impl: PLAN-029-2.3 — resolve MCP base URL for tool calling
+  // @awa-impl: PLAN-029-2.3 — resolve MCP base URL for tool calling
   // - NIZE_MCP_URL env var (explicit)
   // - NIZE_MCP_PORT env var (e.g. set by nize-web-server.mjs)
   // - fallback to localhost:19560

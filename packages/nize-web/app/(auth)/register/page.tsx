@@ -1,6 +1,6 @@
 "use client";
 
-// @zen-component: CFG-RegisterPage
+// @awa-component: CFG-RegisterPage
 
 import { useState } from "react";
 import Link from "next/link";

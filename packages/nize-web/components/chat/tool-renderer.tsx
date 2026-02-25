@@ -1,4 +1,4 @@
-// @zen-component: CHAT-ToolRenderer
+// @awa-component: CHAT-ToolRenderer
 
 "use client";
 
@@ -12,7 +12,7 @@ interface ToolRendererProps {
   part: ToolInvocationPart;
 }
 
-// @zen-impl: RSL-2.1_AC-1, RSL-2.1_AC-2
+// @awa-impl: RSL-2.1_AC-1, RSL-2.1_AC-2
 interface TruncatedResponse {
   readonly type: "response_truncated";
   readonly toolName: string;
@@ -26,11 +26,11 @@ function isTruncatedResponse(value: unknown): value is TruncatedResponse {
   return typeof value === "object" && value !== null && "type" in value && (value as TruncatedResponse).type === "response_truncated";
 }
 
-// @zen-impl: CHAT-7.2_AC-1
-// @zen-impl: CHAT-7.2_AC-2
-// @zen-impl: CHAT-7.2_AC-3
-// @zen-impl: CHAT-7.2_AC-4
-// @zen-impl: CHAT-7.2_AC-5
+// @awa-impl: CHAT-7.2_AC-1
+// @awa-impl: CHAT-7.2_AC-2
+// @awa-impl: CHAT-7.2_AC-3
+// @awa-impl: CHAT-7.2_AC-4
+// @awa-impl: CHAT-7.2_AC-5
 export function ToolRenderer({ part }: ToolRendererProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { type, toolName: explicitToolName, input, state, output, errorText } = part;

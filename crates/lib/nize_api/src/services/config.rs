@@ -1,4 +1,4 @@
-// @zen-component: CFG-ConfigService
+// @awa-component: CFG-ConfigService
 //
 //! Configuration service — orchestrates config operations for the API layer.
 
@@ -67,7 +67,7 @@ fn mask_secret_items(items: Vec<ResolvedConfigItem>) -> Vec<ResolvedConfigItem> 
 // ---------------------------------------------------------------------------
 
 /// Get all config items resolved for a user.
-// @zen-impl: PLAN-028-1.3
+// @awa-impl: PLAN-028-1.3
 pub async fn get_user_config(
     pool: &PgPool,
     cache: &Arc<RwLock<ConfigCache>>,
@@ -78,7 +78,7 @@ pub async fn get_user_config(
 }
 
 /// Update a single user config override.
-// @zen-impl: PLAN-028-1.2
+// @awa-impl: PLAN-028-1.2
 pub async fn update_user_config(
     pool: &PgPool,
     cache: &Arc<RwLock<ConfigCache>>,
@@ -276,7 +276,7 @@ pub async fn get_admin_config(
 }
 
 /// Update an admin config value (system or user-override scope).
-// @zen-impl: PLAN-028-1.2
+// @awa-impl: PLAN-028-1.2
 pub async fn update_admin_config(
     pool: &PgPool,
     cache: &Arc<RwLock<ConfigCache>>,
@@ -331,7 +331,7 @@ pub async fn update_admin_config(
 ///
 /// Resolution order: user-override → system → env var → None.
 /// Only works for `display_type = "secret"` definitions.
-// @zen-impl: PLAN-028-1.4
+// @awa-impl: PLAN-028-1.4
 pub async fn decrypt_secret_config_value(
     pool: &PgPool,
     _cache: &Arc<RwLock<ConfigCache>>,
@@ -384,19 +384,19 @@ pub async fn decrypt_secret_config_value(
 mod tests {
     use super::*;
 
-    // @zen-test: PLAN-028-1.2 — mask hides all but last 4 chars
+    // @awa-test: PLAN-028-1.2 — mask hides all but last 4 chars
     #[test]
     fn mask_shows_last_four_chars() {
         assert_eq!(mask_secret_value("sk-abc123xyz"), "••••••3xyz");
     }
 
-    // @zen-test: PLAN-028-1.2 — mask returns empty for empty input
+    // @awa-test: PLAN-028-1.2 — mask returns empty for empty input
     #[test]
     fn mask_empty_returns_empty() {
         assert_eq!(mask_secret_value(""), "");
     }
 
-    // @zen-test: PLAN-028-1.2 — mask short values (<= 4 chars)
+    // @awa-test: PLAN-028-1.2 — mask short values (<= 4 chars)
     #[test]
     fn mask_short_value_fully_masked() {
         assert_eq!(mask_secret_value("abcd"), "••••");
@@ -404,14 +404,14 @@ mod tests {
         assert_eq!(mask_secret_value("a"), "••••");
     }
 
-    // @zen-test: PLAN-028-1.2 — mask preserves exactly 4 trailing chars
+    // @awa-test: PLAN-028-1.2 — mask preserves exactly 4 trailing chars
     #[test]
     fn mask_preserves_trailing_four() {
         // "12345" has 5 chars, tail = chars[1..] = "2345"
         assert_eq!(mask_secret_value("12345"), "••••••2345");
     }
 
-    // @zen-test: PLAN-028-1.2 — mask_secret_items applies to secret display type only
+    // @awa-test: PLAN-028-1.2 — mask_secret_items applies to secret display type only
     #[test]
     fn mask_items_only_secrets() {
         let items = vec![
@@ -449,7 +449,7 @@ mod tests {
         assert_eq!(masked[1].value, "claude-sonnet-4-20250514");
     }
 
-    // @zen-test: PLAN-028-1.1 — encrypt-on-write roundtrips correctly
+    // @awa-test: PLAN-028-1.1 — encrypt-on-write roundtrips correctly
     #[test]
     fn encrypt_decrypt_roundtrip() {
         let key = "test-encryption-key-for-roundtrip";

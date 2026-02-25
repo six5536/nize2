@@ -1,4 +1,4 @@
-// @zen-component: MCP-MetaToolHandler
+// @awa-component: MCP-MetaToolHandler
 //
 //! Parameter types for meta-tool discovery MCP tools.
 

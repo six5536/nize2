@@ -1,4 +1,4 @@
-// @zen-component: MCP-AuditHook
+// @awa-component: MCP-AuditHook
 //
 //! Audit hook — logs all MCP tool calls to the `mcp_config_audit` table.
 //!
@@ -22,7 +22,7 @@ impl AuditHook {
     }
 }
 
-// @zen-impl: MCP-1.3_AC-1 (partial: audit logging for tool calls)
+// @awa-impl: MCP-1.3_AC-1 (partial: audit logging for tool calls)
 #[async_trait]
 impl ToolHook for AuditHook {
     async fn before_call(

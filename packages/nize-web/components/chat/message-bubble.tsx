@@ -1,4 +1,4 @@
-// @zen-component: CHAT-MessageBubble
+// @awa-component: CHAT-MessageBubble
 
 "use client";
 
@@ -17,9 +17,9 @@ interface MessageBubbleProps {
   isStreaming?: boolean;
 }
 
-// @zen-impl: CHAT-7_AC-1
-// @zen-impl: CHAT-7_AC-2
-// @zen-impl: CHAT-7_AC-4
+// @awa-impl: CHAT-7_AC-1
+// @awa-impl: CHAT-7_AC-2
+// @awa-impl: CHAT-7_AC-4
 export function MessageBubble({ message, isStreaming = false }: MessageBubbleProps) {
   const isUser = message.role === "user";
 

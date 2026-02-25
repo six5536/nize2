@@ -1,4 +1,4 @@
-// @zen-component: MCP-DiscoveryService
+// @awa-component: MCP-DiscoveryService
 //
 //! Semantic tool discovery — pgvector similarity search for MCP tools.
 //!

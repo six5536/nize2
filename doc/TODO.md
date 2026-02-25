@@ -1,7 +1,7 @@
 - IDEA: File/data handles for LLMS via MCP tools - a standard (uri?)
 
 
-/zen.brainstorm This project will be an amazing tool.
+/awa.brainstorm This project will be an amazing tool.
 
 The purpose is to give LLMs the ability to share files and other data between MCP servers and other code they call.
 

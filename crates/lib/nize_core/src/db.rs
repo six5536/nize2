@@ -348,7 +348,7 @@ impl LocalDbManager {
     }
 }
 
-// @zen-component: PLAN-007-PgLiteManager
+// @awa-component: PLAN-007-PgLiteManager
 /// Manages a PGlite instance running inside a Bun process via pglite-socket.
 ///
 /// Spawns `bun pglite-server.mjs` and exposes the standard PG wire protocol on
@@ -367,7 +367,7 @@ pub struct PgLiteManager {
 }
 
 impl PgLiteManager {
-    // @zen-impl: PLAN-007-3.1
+    // @awa-impl: PLAN-007-3.1
     /// Creates a new `PgLiteManager`.
     pub fn new(data_dir: PathBuf, database_name: &str) -> Self {
         Self {
@@ -387,7 +387,7 @@ impl PgLiteManager {
         Ok(Self::new(data_dir, DEFAULT_DATABASE))
     }
 
-    // @zen-impl: PLAN-007-3.1
+    // @awa-impl: PLAN-007-3.1
     /// Starts the PGlite server by spawning `bun pglite-server.mjs`.
     ///
     /// Reads `{"port": N}` from stdout (sidecar protocol) and waits for the
@@ -449,7 +449,7 @@ impl PgLiteManager {
         Ok(())
     }
 
-    // @zen-impl: PLAN-007-3.1
+    // @awa-impl: PLAN-007-3.1
     /// Stops the PGlite server by killing the Bun process.
     pub fn stop(&mut self) -> Result<()> {
         if !self.started {
@@ -477,7 +477,7 @@ impl PgLiteManager {
         Ok(())
     }
 
-    // @zen-impl: PLAN-007-3.1
+    // @awa-impl: PLAN-007-3.1
     /// Returns the PostgreSQL connection URL for the PGlite instance.
     pub fn connection_url(&self) -> String {
         format!(
@@ -501,7 +501,7 @@ impl PgLiteManager {
         self.child_pid
     }
 
-    // @zen-impl: PLAN-007-3.1
+    // @awa-impl: PLAN-007-3.1
     /// Returns a shell command string that will kill this PGlite instance.
     ///
     /// Suitable for writing to a cleanup manifest (e.g. for `nize_terminator`).
@@ -657,7 +657,7 @@ pub fn default_pglite_data_dir() -> Option<PathBuf> {
 
 /// Wraps a string in single quotes for shell safety if it contains spaces or
 /// special characters. Single quotes within the value are escaped.
-// @zen-impl: PLAN-006-3.4
+// @awa-impl: PLAN-006-3.4
 #[cfg(unix)]
 fn shell_escape(s: String) -> String {
     if s.chars()

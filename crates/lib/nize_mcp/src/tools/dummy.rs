@@ -1,4 +1,4 @@
-// @zen-component: MCP-DummyData
+// @awa-component: MCP-DummyData
 //
 //! Hardcoded dummy data for MCP meta-tool stub responses.
 //!

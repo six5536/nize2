@@ -69,8 +69,8 @@ struct SidecarReady {
     mcp_port: u16,
 }
 
-// @zen-impl: PLAN-012-3.1 — nize-web sidecar ready payload
-// @zen-impl: PLAN-021 — nize-web sidecar only used in production (not dev)
+// @awa-impl: PLAN-012-3.1 — nize-web sidecar ready payload
+// @awa-impl: PLAN-021 — nize-web sidecar only used in production (not dev)
 /// JSON payload the nize-web sidecar prints to stdout on startup.
 #[cfg(not(debug_assertions))]
 #[derive(Deserialize)]
@@ -88,8 +88,8 @@ struct ApiSidecar {
     mcp_port: u16,
 }
 
-// @zen-impl: PLAN-012-3.1 — nize-web sidecar state
-// @zen-impl: PLAN-021 — nize-web sidecar only used in production (not dev)
+// @awa-impl: PLAN-012-3.1 — nize-web sidecar state
+// @awa-impl: PLAN-021 — nize-web sidecar only used in production (not dev)
 /// Holds the nize-web child process and its bound port.
 #[cfg(not(debug_assertions))]
 struct NizeWebSidecar {
@@ -147,7 +147,7 @@ fn start_api_sidecar(
         .arg(max_connections.to_string())
         .arg("--sidecar");
 
-    // @zen-impl: PLAN-025 Phase 5.1 — pass manifest path to sidecar for stdio PID tracking
+    // @awa-impl: PLAN-025 Phase 5.1 — pass manifest path to sidecar for stdio PID tracking
     if let Some(manifest) = manifest_path {
         cmd.arg("--terminator-manifest").arg(manifest);
     }
@@ -185,8 +185,8 @@ fn start_api_sidecar(
     })
 }
 
-// @zen-impl: PLAN-012-3.2 — spawn nize-web sidecar
-// @zen-impl: PLAN-021 — nize-web sidecar only used in production (not dev)
+// @awa-impl: PLAN-012-3.2 — spawn nize-web sidecar
+// @awa-impl: PLAN-021 — nize-web sidecar only used in production (not dev)
 /// Spawns `bun nize-web-server.mjs --port=0` and reads the port from its JSON stdout line.
 #[cfg(not(debug_assertions))]
 fn start_nize_web_sidecar(
@@ -203,12 +203,12 @@ fn start_nize_web_sidecar(
     cmd.arg(server_script)
         .arg(format!("--port={nize_web_port_val}"));
 
-    // @zen-impl: CFG-NizeWebApi — pass API port so nize-web can reach the backend
+    // @awa-impl: CFG-NizeWebApi — pass API port so nize-web can reach the backend
     if let Some(p) = api_port {
         cmd.arg(format!("--api-port={p}"));
     }
 
-    // @zen-impl: PLAN-029-2.1 — pass MCP port so nize-chat can reach the MCP server
+    // @awa-impl: PLAN-029-2.1 — pass MCP port so nize-chat can reach the MCP server
     if let Some(p) = mcp_port {
         cmd.arg(format!("--mcp-port={p}"));
     }
@@ -269,14 +269,14 @@ fn kill_child_gracefully(child: &mut Child) {
     let _ = child.wait();
 }
 
-// @zen-impl: PLAN-005 — manifest path helper
+// @awa-impl: PLAN-005 — manifest path helper
 /// Returns the manifest file path: `$TMPDIR/nize-<pid>-cleanup.manifest`.
 fn manifest_path() -> PathBuf {
     let pid = std::process::id();
     std::env::temp_dir().join(format!("nize-{pid}-cleanup.manifest"))
 }
 
-// @zen-impl: PLAN-005 — create manifest and spawn terminator
+// @awa-impl: PLAN-005 — create manifest and spawn terminator
 /// Creates an empty manifest file and spawns `nize_terminator` watching our PID.
 fn create_manifest_and_spawn_terminator(manifest: &Path) -> Result<Child, String> {
     // Create (or truncate) the manifest file.
@@ -300,7 +300,7 @@ fn create_manifest_and_spawn_terminator(manifest: &Path) -> Result<Child, String
     Ok(child)
 }
 
-// @zen-impl: PLAN-005 — atomic append to manifest
+// @awa-impl: PLAN-005 — atomic append to manifest
 /// Appends a cleanup command line to the manifest file (atomic append + fsync).
 fn append_cleanup(manifest: &Path, cmd: &str) -> Result<(), String> {
     let mut file = OpenOptions::new()
@@ -357,8 +357,8 @@ async fn get_mcp_port(state: tauri::State<'_, Mutex<AppServices>>) -> Result<u16
     }
 }
 
-// @zen-impl: PLAN-012-3.5 — Tauri command to expose nize-web port to frontend
-// @zen-impl: PLAN-021 — only meaningful in production (dev uses devUrl directly)
+// @awa-impl: PLAN-012-3.5 — Tauri command to expose nize-web port to frontend
+// @awa-impl: PLAN-021 — only meaningful in production (dev uses devUrl directly)
 #[tauri::command]
 async fn get_nize_web_port(state: tauri::State<'_, Mutex<AppServices>>) -> Result<u16, String> {
     #[cfg(not(debug_assertions))]
@@ -390,7 +390,7 @@ pub fn run() {
     #[cfg(debug_assertions)]
     rebuild_sidecars();
 
-    // @zen-impl: PLAN-005 — spawn terminator before managed processes
+    // @awa-impl: PLAN-005 — spawn terminator before managed processes
     // 1. Create empty manifest file.
     // 2. Spawn nize_terminator watching our PID.
     // 3. Start PGlite, append cleanup command to manifest.
@@ -429,7 +429,7 @@ pub fn run() {
         });
     }
 
-    // @zen-impl: PLAN-007-5.1 — start PGlite and the API sidecar before the Tauri event loop.
+    // @awa-impl: PLAN-007-5.1 — start PGlite and the API sidecar before the Tauri event loop.
     let services = {
         let exe = std::env::current_exe().expect("current_exe");
         let exe_dir = exe.parent().expect("exe parent dir");
@@ -444,7 +444,7 @@ pub fn run() {
             }
         };
 
-        // @zen-impl: PLAN-007-5.1 — resolve pglite-server.mjs from resources.
+        // @awa-impl: PLAN-007-5.1 — resolve pglite-server.mjs from resources.
         let server_script = {
             // Production macOS .app: Contents/MacOS/exe → Contents/Resources/pglite/
             let resource = exe_dir
@@ -506,7 +506,7 @@ pub fn run() {
             });
         }
 
-        // @zen-impl: PLAN-007-5.2 — append PGlite kill command to terminator manifest.
+        // @awa-impl: PLAN-007-5.2 — append PGlite kill command to terminator manifest.
         if let Some(kill_cmd) = pglite.kill_command() {
             if let Err(e) = append_cleanup(&manifest_path, &kill_cmd) {
                 error!("Failed to write cleanup command to manifest: {e}");
@@ -524,8 +524,8 @@ pub fn run() {
             }
         };
 
-        // @zen-impl: PLAN-012-3.4 — start nize-web sidecar after API sidecar
-        // @zen-impl: PLAN-021 — in dev, Tauri loads Next.js directly via devUrl;
+        // @awa-impl: PLAN-012-3.4 — start nize-web sidecar after API sidecar
+        // @awa-impl: PLAN-021 — in dev, Tauri loads Next.js directly via devUrl;
         //   nize-web sidecar only needed in production.
         #[cfg(not(debug_assertions))]
         let nize_web = {
@@ -580,7 +580,7 @@ pub fn run() {
     run_tauri(services);
 }
 
-// @zen-impl: PLAN-007-5.3
+// @awa-impl: PLAN-007-5.3
 fn run_tauri(services: AppServices) {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -617,21 +617,21 @@ fn run_tauri(services: AppServices) {
                         kill_child_gracefully(&mut sidecar._process);
                     }
 
-                    // @zen-impl: PLAN-012-3.7 — kill nize-web sidecar on exit
-                    // @zen-impl: PLAN-021 — only in production (dev uses devUrl)
+                    // @awa-impl: PLAN-012-3.7 — kill nize-web sidecar on exit
+                    // @awa-impl: PLAN-021 — only in production (dev uses devUrl)
                     #[cfg(not(debug_assertions))]
                     if let Some(mut nize_web) = guard.nize_web.take() {
                         kill_child_gracefully(&mut nize_web._process);
                     }
 
-                    // @zen-impl: PLAN-007-5.3 — stop PGlite on exit.
+                    // @awa-impl: PLAN-007-5.3 — stop PGlite on exit.
                     if let Some(mut pglite) = guard._pglite.take() {
                         if let Err(e) = pglite.stop() {
                             error!("Failed to stop PGlite: {e}");
                         }
                     }
 
-                    // @zen-impl: PLAN-005 — kill terminator and delete manifest on graceful exit
+                    // @awa-impl: PLAN-005 — kill terminator and delete manifest on graceful exit
                     if let Some(mut terminator) = guard.terminator.take() {
                         if let Err(e) = terminator.kill() {
                             // Expected if terminator already exited (e.g. parent-death race).

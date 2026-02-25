@@ -1,4 +1,4 @@
-// @zen-impl: PLAN-012-2.2 — build script for nize-web sidecar bundle
+// @awa-impl: PLAN-012-2.2 — build script for nize-web sidecar bundle
 //
 // Builds the Next.js standalone output and copies it (along with the wrapper
 // script) into the Tauri resources directory so it can be bundled with the app.

@@ -14,7 +14,7 @@ use crate::models::auth::TokenClaims;
 /// Access token lifetime: 15 minutes.
 const ACCESS_TOKEN_EXPIRY_SECS: i64 = 15 * 60;
 
-// @zen-impl: AUTH-1_AC-1, AUTH-1_AC-3
+// @awa-impl: AUTH-1_AC-1, AUTH-1_AC-3
 /// Generate a signed JWT access token (HS256, 15 min expiry).
 pub fn generate_access_token(
     user_id: &str,
@@ -38,7 +38,7 @@ pub fn generate_access_token(
     .map_err(|e| AuthError::TokenError(format!("jwt encode: {e}")))
 }
 
-// @zen-impl: AUTH-2_AC-4
+// @awa-impl: AUTH-2_AC-4
 /// Verify a JWT access token, returning the claims on success.
 pub fn verify_access_token(token: &str, secret: &[u8]) -> Option<TokenClaims> {
     let key = DecodingKey::from_secret(secret);

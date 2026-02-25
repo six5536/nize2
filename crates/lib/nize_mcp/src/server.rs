@@ -1,4 +1,4 @@
-// @zen-component: MCP-Server
+// @awa-component: MCP-Server
 //
 //! MCP server handler — defines the Nize MCP server and its tools.
 
@@ -116,7 +116,7 @@ impl NizeMcpServer {
         Ok(CallToolResult::success(vec![Content::text(greeting)]))
     }
 
-    // @zen-impl: MCP-1.1_AC-1
+    // @awa-impl: MCP-1.1_AC-1
     /// Search for tools by describing what you want to do.
     #[tool(description = "Search for tools by describing what you want to do")]
     async fn discover_tools(
@@ -194,7 +194,7 @@ impl NizeMcpServer {
         json_result(&result)
     }
 
-    // @zen-impl: MCP-1.2_AC-1
+    // @awa-impl: MCP-1.2_AC-1
     /// Get detailed parameters for a specific tool.
     #[tool(description = "Get detailed parameters for a specific tool")]
     async fn get_tool_schema(
@@ -231,7 +231,7 @@ impl NizeMcpServer {
         json_result(manifest)
     }
 
-    // @zen-impl: MCP-1.3_AC-1
+    // @awa-impl: MCP-1.3_AC-1
     /// Run a discovered tool with parameters.
     #[tool(description = "Run a discovered tool with parameters")]
     async fn execute_tool(
@@ -298,7 +298,7 @@ impl NizeMcpServer {
         json_result(&result)
     }
 
-    // @zen-impl: MCP-1.4_AC-1
+    // @awa-impl: MCP-1.4_AC-1
     /// List available tool categories.
     #[tool(description = "List available tool categories")]
     async fn list_tool_domains(
@@ -335,7 +335,7 @@ impl NizeMcpServer {
         json_result(&domains)
     }
 
-    // @zen-impl: MCP-1.5_AC-1
+    // @awa-impl: MCP-1.5_AC-1
     /// List all tools in a category.
     #[tool(description = "List all tools in a category")]
     async fn browse_tool_domain(

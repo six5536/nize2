@@ -1,6 +1,6 @@
 "use client";
 
-// @zen-component: DEV-TabBar
+// @awa-component: DEV-TabBar
 
 import type { TabDefinition } from "@/lib/types";
 
@@ -10,9 +10,9 @@ interface TabBarProps {
   onTabChange: (tab: string) => void;
 }
 
-// @zen-impl: DEV-1.1_AC-1
-// @zen-impl: DEV-1.1_AC-2
-// @zen-impl: DEV-1.1_AC-3
+// @awa-impl: DEV-1.1_AC-1
+// @awa-impl: DEV-1.1_AC-2
+// @awa-impl: DEV-1.1_AC-3
 export function TabBar({ tabs, activeTab, onTabChange }: TabBarProps) {
   return (
     <div className="shrink-0 border-b border-gray-700">

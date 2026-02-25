@@ -1,4 +1,4 @@
-// @zen-component: PLAN-017-McpConfigHandler
+// @awa-component: PLAN-017-McpConfigHandler
 //
 //! MCP server configuration request handlers.
 
@@ -24,7 +24,7 @@ pub struct CreateUserServerRequest {
     pub description: Option<String>,
     pub domain: Option<String>,
     pub url: String,
-    // @zen-impl: XMCP-5_AC-1 — transport selector for user servers (http or sse only)
+    // @awa-impl: XMCP-5_AC-1 — transport selector for user servers (http or sse only)
     #[serde(default = "default_transport")]
     pub transport: TransportType,
     #[serde(default = "default_auth_type")]
@@ -211,7 +211,7 @@ pub async fn list_server_tools_handler(
 // ---------------------------------------------------------------------------
 
 /// `GET /mcp/servers/{serverId}/oauth/status` — get OAuth status.
-// @zen-impl: PLAN-031 Phase 5.3
+// @awa-impl: PLAN-031 Phase 5.3
 pub async fn oauth_status_handler(
     State(state): State<AppState>,
     axum::Extension(user): axum::Extension<AuthenticatedUser>,
@@ -241,7 +241,7 @@ pub async fn oauth_status_handler(
 }
 
 /// `POST /mcp/servers/{serverId}/oauth/initiate` — initiate OAuth flow.
-// @zen-impl: PLAN-031 Phase 5.1
+// @awa-impl: PLAN-031 Phase 5.1
 pub async fn oauth_initiate_handler(
     State(state): State<AppState>,
     axum::Extension(user): axum::Extension<AuthenticatedUser>,
@@ -322,7 +322,7 @@ pub async fn oauth_initiate_handler(
 }
 
 /// `POST /mcp/servers/{serverId}/oauth/revoke` — revoke OAuth token.
-// @zen-impl: PLAN-031 Phase 5.4
+// @awa-impl: PLAN-031 Phase 5.4
 pub async fn oauth_revoke_handler(
     State(state): State<AppState>,
     axum::Extension(user): axum::Extension<AuthenticatedUser>,
@@ -394,19 +394,16 @@ pub async fn test_connection_handler(
                         None => None,
                     };
 
-                    let access_token =
-                        match nize_core::mcp::secrets::decrypt(
-                            &row.access_token_encrypted,
-                            &state.config.mcp_encryption_key,
-                        ) {
-                            Ok(token) => Some(token),
-                            Err(e) => {
-                                tracing::warn!(
-                                    "Failed to decrypt OAuth access token for test: {e}"
-                                );
-                                None
-                            }
-                        };
+                    let access_token = match nize_core::mcp::secrets::decrypt(
+                        &row.access_token_encrypted,
+                        &state.config.mcp_encryption_key,
+                    ) {
+                        Ok(token) => Some(token),
+                        Err(e) => {
+                            tracing::warn!("Failed to decrypt OAuth access token for test: {e}");
+                            None
+                        }
+                    };
 
                     match (id_token, access_token) {
                         (Some(id_token), Some(access_token)) => Some(OAuthHeaders {
@@ -606,19 +603,18 @@ pub async fn admin_update_server_handler(
                             },
                             None => None,
                         };
-                        let access_token =
-                            match nize_core::mcp::secrets::decrypt(
-                                &row.access_token_encrypted,
-                                &state.config.mcp_encryption_key,
-                            ) {
-                                Ok(token) => Some(token),
-                                Err(e) => {
-                                    tracing::warn!(
-                                        "Failed to decrypt OAuth access token for tool discovery: {e}"
-                                    );
-                                    None
-                                }
-                            };
+                        let access_token = match nize_core::mcp::secrets::decrypt(
+                            &row.access_token_encrypted,
+                            &state.config.mcp_encryption_key,
+                        ) {
+                            Ok(token) => Some(token),
+                            Err(e) => {
+                                tracing::warn!(
+                                    "Failed to decrypt OAuth access token for tool discovery: {e}"
+                                );
+                                None
+                            }
+                        };
                         match (id_token, access_token) {
                             (Some(id_token), Some(access_token)) => Some(OAuthHeaders {
                                 id_token,

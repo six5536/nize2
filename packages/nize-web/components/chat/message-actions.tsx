@@ -1,4 +1,4 @@
-// @zen-component: CHAT-MessageActions
+// @awa-component: CHAT-MessageActions
 
 "use client";
 
@@ -15,9 +15,9 @@ interface MessageActionsProps {
   message: UIMessage;
 }
 
-// @zen-impl: CHAT-7.1_AC-2
-// @zen-impl: CHAT-7.1_AC-3
-// @zen-impl: CHAT-7.1_AC-4
+// @awa-impl: CHAT-7.1_AC-2
+// @awa-impl: CHAT-7.1_AC-3
+// @awa-impl: CHAT-7.1_AC-4
 export function MessageActions({ message }: MessageActionsProps) {
   const [, copy] = useCopyToClipboard();
   const [showCopied, setShowCopied] = useState(false);

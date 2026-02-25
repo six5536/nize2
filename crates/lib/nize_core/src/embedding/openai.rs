@@ -1,4 +1,4 @@
-// @zen-component: EMB-OpenAIProvider
+// @awa-component: EMB-OpenAIProvider
 //
 //! OpenAI embedding provider.
 //!

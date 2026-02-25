@@ -1,4 +1,4 @@
-// @zen-component: PLAN-005-PidWatch
+// @awa-component: PLAN-005-PidWatch
 //! Platform-specific parent-death detection.
 //!
 //! - macOS: `kqueue` with `EVFILT_PROC` + `NOTE_EXIT` (instant notification).
@@ -31,7 +31,7 @@ pub fn wait_for_pid_exit(pid: u32) {
         }
     }
 
-    // @zen-impl: PLAN-006-3.1
+    // @awa-impl: PLAN-006-3.1
     #[cfg(target_os = "windows")]
     {
         windows_wait(pid);
@@ -132,7 +132,7 @@ fn pidfd_wait(pid: u32) -> bool {
     }
 }
 
-// @zen-impl: PLAN-006-3.1
+// @awa-impl: PLAN-006-3.1
 /// Windows: use `OpenProcess(SYNCHRONIZE)` + `WaitForSingleObject(INFINITE)`.
 ///
 /// Opens the target process with SYNCHRONIZE access (minimal privilege),
@@ -163,7 +163,7 @@ fn windows_wait(pid: u32) {
     }
 }
 
-// @zen-impl: PLAN-006-3.1
+// @awa-impl: PLAN-006-3.1
 /// Windows fallback: poll `OpenProcess` every second (for permission-denied edge cases).
 #[cfg(target_os = "windows")]
 fn windows_poll_wait(pid: u32) {
@@ -184,7 +184,7 @@ fn windows_poll_wait(pid: u32) {
 mod tests {
     use super::*;
 
-    // @zen-test: PLAN-005-PidWatch
+    // @awa-test: PLAN-005-PidWatch
     #[cfg(unix)]
     #[test]
     fn wait_for_already_dead_pid() {
@@ -210,7 +210,7 @@ mod tests {
         wait_for_pid_exit(pid);
     }
 
-    // @zen-test: PLAN-005-PidWatch
+    // @awa-test: PLAN-005-PidWatch
     #[cfg(unix)]
     #[test]
     fn wait_detects_exit() {
@@ -256,7 +256,7 @@ mod tests {
         assert!(is_pid_alive_unix(pid));
     }
 
-    // @zen-test: PLAN-006-3.5
+    // @awa-test: PLAN-006-3.5
     #[cfg(windows)]
     #[test]
     fn wait_for_already_dead_pid_windows() {
@@ -276,7 +276,7 @@ mod tests {
         wait_for_pid_exit(pid);
     }
 
-    // @zen-test: PLAN-006-3.5
+    // @awa-test: PLAN-006-3.5
     #[cfg(windows)]
     #[test]
     fn wait_detects_exit_windows() {

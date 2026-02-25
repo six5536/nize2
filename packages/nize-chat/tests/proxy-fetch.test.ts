@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createProxyFetch } from "../src/proxy-fetch.js";
 
-// @zen-test: PLAN-028-3.1
+// @awa-test: PLAN-028-3.1
 
 describe("createProxyFetch", () => {
   const originalFetch = globalThis.fetch;

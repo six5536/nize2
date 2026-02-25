@@ -1,5 +1,5 @@
-// @zen-component: PLAN-015-BridgeClient
-// @zen-impl: PLAN-021 — ported from packages/nize-desktop/src/webview-bridge.ts
+// @awa-component: PLAN-015-BridgeClient
+// @awa-impl: PLAN-021 — ported from packages/nize-desktop/src/webview-bridge.ts
 //
 // WebView Bridge client — loaded in the Tauri webview (dev builds only).
 //
@@ -46,7 +46,7 @@ let refMap: Map<number, Element> = new Map();
 
 // --- Console interceptor ---
 
-// @zen-impl: PLAN-015-1.3
+// @awa-impl: PLAN-015-1.3
 const originalConsole = {
   log: console.log,
   warn: console.warn,
@@ -74,7 +74,7 @@ function interceptConsole() {
 
 // --- DOM snapshot ---
 
-// @zen-impl: PLAN-015-1.2
+// @awa-impl: PLAN-015-1.2
 function computeRole(el: Element): string {
   const explicit = el.getAttribute("role");
   if (explicit) return explicit;
@@ -320,7 +320,7 @@ function findByText(text: string): Element | null {
   return null;
 }
 
-// @zen-impl: PLAN-015-1.1
+// @awa-impl: PLAN-015-1.1
 async function handleCommand(cmd: BridgeCommand): Promise<BridgeResponse> {
   try {
     switch (cmd.method) {

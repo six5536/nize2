@@ -1,4 +1,4 @@
--- @zen-impl: PLAN-029-4.1 — tool calling config definitions
+-- @awa-impl: PLAN-029-4.1 — tool calling config definitions
 -- Add config definitions for MCP tool calling settings.
 
 -- agent.tools.enabled — toggle for MCP tool calling

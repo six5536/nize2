@@ -1,4 +1,4 @@
-# @zen-impl: PLAN-007-8.1
+# @awa-impl: PLAN-007-8.1
 # Desktop Build CI — builds Tauri desktop app for macOS, Linux, and Windows.
 name: Desktop Build
 

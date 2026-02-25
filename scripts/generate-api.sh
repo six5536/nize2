@@ -12,7 +12,7 @@ log() { echo "[generate-api] $*"; }
 
 # --- Step 1: TypeSpec Compile ---
 log "Compiling TypeSpec..."
-bunx tsp compile "$ROOT_DIR/.zen/specs/API-NIZE-index.tsp"
+bunx tsp compile "$ROOT_DIR/.awa/specs/API-NIZE-index.tsp"
 log "TypeSpec compilation complete."
 
 # --- Step 2: YAML → JSON ---

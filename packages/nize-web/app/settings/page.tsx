@@ -1,8 +1,8 @@
-// @zen-component: CFG-UserSettingsUI
-// @zen-impl: CFG-4_AC-1
-// @zen-impl: CFG-4_AC-2
-// @zen-impl: CFG-4_AC-3
-// @zen-impl: CFG-4_AC-4
+// @awa-component: CFG-UserSettingsUI
+// @awa-impl: CFG-4_AC-1
+// @awa-impl: CFG-4_AC-2
+// @awa-impl: CFG-4_AC-3
+// @awa-impl: CFG-4_AC-4
 
 "use client";
 
@@ -207,7 +207,7 @@ export default function SettingsPage() {
           </select>
         );
 
-      // @zen-impl: PLAN-028-2.1
+      // @awa-impl: PLAN-028-2.1
       case "secret": {
         const currentValue = String(config.value);
         const isConfigured = currentValue.length > 0;

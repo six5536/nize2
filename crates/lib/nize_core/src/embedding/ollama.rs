@@ -1,4 +1,4 @@
-// @zen-component: EMB-OllamaProvider
+// @awa-component: EMB-OllamaProvider
 //
 //! Ollama embedding provider.
 //!

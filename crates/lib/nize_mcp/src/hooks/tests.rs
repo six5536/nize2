@@ -1,4 +1,4 @@
-// @zen-component: MCP-HookTests
+// @awa-component: MCP-HookTests
 
 #[cfg(test)]
 mod tests {
@@ -84,7 +84,7 @@ mod tests {
         }
     }
 
-    // @zen-test: PLAN-024 — pipeline runs before_call in order
+    // @awa-test: PLAN-024 — pipeline runs before_call in order
     #[tokio::test]
     async fn pipeline_before_call_order() {
         let before_order = Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -123,7 +123,7 @@ mod tests {
         assert_eq!(*order, vec!["A", "B"]);
     }
 
-    // @zen-test: PLAN-024 — pipeline runs after_call in reverse order
+    // @awa-test: PLAN-024 — pipeline runs after_call in reverse order
     #[tokio::test]
     async fn pipeline_after_call_reverse_order() {
         let before_order = Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -162,7 +162,7 @@ mod tests {
         assert_eq!(*order, vec!["B", "A"]);
     }
 
-    // @zen-test: PLAN-024 — pipeline short-circuits on before_call error
+    // @awa-test: PLAN-024 — pipeline short-circuits on before_call error
     #[tokio::test]
     async fn pipeline_short_circuits_on_error() {
         let after_counter = Arc::new(AtomicU32::new(0));
@@ -193,7 +193,7 @@ mod tests {
         assert_eq!(after_counter.load(Ordering::SeqCst), 0);
     }
 
-    // @zen-test: PLAN-024 — empty pipeline is no-op
+    // @awa-test: PLAN-024 — empty pipeline is no-op
     #[tokio::test]
     async fn empty_pipeline_is_noop() {
         let pipeline = HookPipeline::empty();
@@ -205,7 +205,7 @@ mod tests {
         pipeline.run_after(&ctx, &mut outcome).await.unwrap();
     }
 
-    // @zen-test: PLAN-024 — scope filtering works correctly
+    // @awa-test: PLAN-024 — scope filtering works correctly
     #[tokio::test]
     async fn scope_filtering() {
         let before_order = Arc::new(std::sync::Mutex::new(Vec::new()));

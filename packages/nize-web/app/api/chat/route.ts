@@ -1,4 +1,4 @@
-// @zen-component: PLAN-027-NextAdapter
+// @awa-component: PLAN-027-NextAdapter
 
 import { chatApp } from "@six5536/nize-chat";
 

@@ -1,6 +1,6 @@
-// @zen-component: PLAN-011-McpClientSettings
-// @zen-impl: PLAN-011-3.1
-// @zen-impl: PLAN-021 — ported from packages/nize-desktop/src/settings/McpClientSettings.tsx
+// @awa-component: PLAN-011-McpClientSettings
+// @awa-impl: PLAN-011-3.1
+// @awa-impl: PLAN-021 — ported from packages/nize-desktop/src/settings/McpClientSettings.tsx
 
 "use client";
 

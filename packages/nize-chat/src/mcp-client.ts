@@ -1,4 +1,4 @@
-// @zen-component: PLAN-029-McpClient
+// @awa-component: PLAN-029-McpClient
 
 import { createMCPClient, type MCPTransport } from "@ai-sdk/mcp";
 
@@ -183,7 +183,7 @@ class StreamableHttpTransport implements MCPTransport {
  * @param mcpBaseUrl - Base URL of the MCP server (e.g. "http://127.0.0.1:19560")
  * @returns MCPClient instance (caller must close when done)
  */
-// @zen-impl: PLAN-029-3.2
+// @awa-impl: PLAN-029-3.2
 export async function createMcpSession(apiBaseUrl: string, cookie: string, mcpBaseUrl: string) {
   // Create/overwrite MCP bearer token via REST API
   const tokenRes = await fetch(`${apiBaseUrl}/api/auth/mcp-tokens`, {

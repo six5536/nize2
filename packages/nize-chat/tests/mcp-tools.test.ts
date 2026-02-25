@@ -1,6 +1,6 @@
-// @zen-test: PLAN-029-3.2
-// @zen-test: PLAN-029-3.3
-// @zen-test: PLAN-029-3.4
+// @awa-test: PLAN-029-3.2
+// @awa-test: PLAN-029-3.3
+// @awa-test: PLAN-029-3.4
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 

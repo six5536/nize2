@@ -1,6 +1,6 @@
 "use client";
 
-// @zen-component: NAV-DeleteConfirmDialog
+// @awa-component: NAV-DeleteConfirmDialog
 
 interface DeleteConfirmDialogProps {
   isOpen: boolean;
@@ -9,7 +9,7 @@ interface DeleteConfirmDialogProps {
   onCancel: () => void;
 }
 
-// @zen-impl: NAV-3_AC-1
+// @awa-impl: NAV-3_AC-1
 export function DeleteConfirmDialog({ isOpen, conversationTitle, onConfirm, onCancel }: DeleteConfirmDialogProps) {
   if (!isOpen) return null;
 

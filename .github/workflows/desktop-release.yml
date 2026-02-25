@@ -1,4 +1,4 @@
-# @zen-impl: PLAN-007-8.2
+# @awa-impl: PLAN-007-8.2
 # Desktop Release — builds, signs, and publishes Tauri desktop installers to GitHub Releases.
 name: Desktop Release
 
@@ -143,7 +143,7 @@ jobs:
         run: bash scripts/setup-sidecar-binaries.sh release
 
       # ── Tauri build + sign ───────────────────────────────────────────
-      # @zen-impl: PLAN-006-5.2
+      # @awa-impl: PLAN-006-5.2
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:

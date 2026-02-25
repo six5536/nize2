@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { DefaultToolOutputSummarizer, maybeCompact } from "../src/compaction.js";
 import type { CompactMessage } from "../src/types.js";
 
-// @zen-test: PLAN-027-Compaction
+// @awa-test: PLAN-027-Compaction
 describe("maybeCompact", () => {
   it("should not compact when message count is under threshold", () => {
     const messages: CompactMessage[] = [
@@ -70,7 +70,7 @@ describe("maybeCompact", () => {
   });
 });
 
-// @zen-test: PLAN-027-ToolOutputSummarizer
+// @awa-test: PLAN-027-ToolOutputSummarizer
 describe("ToolOutputSummarizer", () => {
   describe("summarize large outputs", () => {
     it("should not modify messages under the limit", () => {

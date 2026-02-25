@@ -1,4 +1,4 @@
-// @zen-component: PLAN-017-IngestHandler
+// @awa-component: PLAN-017-IngestHandler
 //
 //! Ingestion request handlers — demo stubs.
 

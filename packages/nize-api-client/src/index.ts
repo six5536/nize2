@@ -1,4 +1,4 @@
-// @zen-component: AUTH-ClientAPI
+// @awa-component: AUTH-ClientAPI
 
 /**
  * @six5536/nize-api-client
@@ -43,7 +43,7 @@ export class ApiError extends Error {
  * Typed API client for Nize backend.
  * Uses fetch directly — no Tauri invoke needed.
  */
-// @zen-impl: AUTH-1_AC-1, AUTH-3_AC-1, AUTH-4_AC-1
+// @awa-impl: AUTH-1_AC-1, AUTH-3_AC-1, AUTH-4_AC-1
 export class NizeApiClient {
   constructor(private config: ApiClientConfig) {}
 

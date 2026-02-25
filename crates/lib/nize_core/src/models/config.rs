@@ -1,4 +1,4 @@
-// @zen-component: CFG-Schema
+// @awa-component: CFG-Schema
 //
 //! Configuration domain models.
 //!

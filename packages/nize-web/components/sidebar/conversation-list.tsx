@@ -1,6 +1,6 @@
 "use client";
 
-// @zen-component: NAV-ConversationList
+// @awa-component: NAV-ConversationList
 
 import { ConversationItem } from "./conversation-item";
 import type { ConversationSummary } from "@/lib/types";
@@ -12,8 +12,8 @@ interface ConversationListProps {
   onDelete: (conversation: ConversationSummary) => void;
 }
 
-// @zen-impl: NAV-1.2_AC-1
-// @zen-impl: NAV-1.2_AC-5
+// @awa-impl: NAV-1.2_AC-1
+// @awa-impl: NAV-1.2_AC-5
 export function ConversationList({ conversations, activeId, onSelect, onDelete }: ConversationListProps) {
   if (conversations.length === 0) {
     return <div className="p-4 text-sm text-gray-500 text-center">No conversations yet</div>;

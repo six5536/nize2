@@ -1,4 +1,4 @@
-// @zen-component: PLAN-028-AiProxy
+// @awa-component: PLAN-028-AiProxy
 //
 //! AI proxy handler — routes AI SDK requests through Rust with injected auth headers.
 //!
@@ -61,7 +61,7 @@ fn get_provider_mapping(provider: &str) -> Option<ProviderMapping> {
 }
 
 /// `POST /ai-proxy` — proxy AI SDK requests with injected auth headers.
-// @zen-impl: PLAN-028-1.4
+// @awa-impl: PLAN-028-1.4
 pub async fn ai_proxy_handler(
     State(state): State<AppState>,
     axum::Extension(user): axum::Extension<AuthenticatedUser>,
@@ -175,7 +175,7 @@ pub async fn ai_proxy_handler(
 mod tests {
     use super::*;
 
-    // @zen-test: PLAN-028-1.4 — known provider types resolve correctly
+    // @awa-test: PLAN-028-1.4 — known provider types resolve correctly
     #[test]
     fn known_providers_resolve() {
         assert!(get_provider_mapping("anthropic").is_some());
@@ -183,7 +183,7 @@ mod tests {
         assert!(get_provider_mapping("google").is_some());
     }
 
-    // @zen-test: PLAN-028-1.4 — unknown provider type rejected
+    // @awa-test: PLAN-028-1.4 — unknown provider type rejected
     #[test]
     fn unknown_provider_rejected() {
         assert!(get_provider_mapping("unknown").is_none());
@@ -191,7 +191,7 @@ mod tests {
         assert!(get_provider_mapping("azure").is_none());
     }
 
-    // @zen-test: PLAN-028-1.4 — anthropic uses x-api-key header
+    // @awa-test: PLAN-028-1.4 — anthropic uses x-api-key header
     #[test]
     fn anthropic_auth_header() {
         let m = get_provider_mapping("anthropic").unwrap();
@@ -199,7 +199,7 @@ mod tests {
         assert_eq!(m.auth_header_prefix, "");
     }
 
-    // @zen-test: PLAN-028-1.4 — openai uses Bearer auth
+    // @awa-test: PLAN-028-1.4 — openai uses Bearer auth
     #[test]
     fn openai_auth_header() {
         let m = get_provider_mapping("openai").unwrap();
@@ -207,7 +207,7 @@ mod tests {
         assert_eq!(m.auth_header_prefix, "Bearer ");
     }
 
-    // @zen-test: PLAN-028-1.4 — google uses x-goog-api-key header
+    // @awa-test: PLAN-028-1.4 — google uses x-goog-api-key header
     #[test]
     fn google_auth_header() {
         let m = get_provider_mapping("google").unwrap();

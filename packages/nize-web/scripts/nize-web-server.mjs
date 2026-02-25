@@ -1,5 +1,5 @@
-// @zen-component: PLAN-012-NizeWebServer
-// @zen-impl: PLAN-021 — simplified: no dev mode, no reverse proxy
+// @awa-component: PLAN-012-NizeWebServer
+// @awa-impl: PLAN-021 — simplified: no dev mode, no reverse proxy
 // nize-web production sidecar wrapper.
 //
 // Starts the Next.js standalone server on a port and prints
@@ -35,7 +35,7 @@ const requestedPort = parseInt(args.port, 10);
 const apiPort = args["api-port"];
 const mcpPort = args["mcp-port"];
 
-// @zen-impl: PLAN-012-2.1 — find free port for ephemeral binding
+// @awa-impl: PLAN-012-2.1 — find free port for ephemeral binding
 async function findFreePort() {
   return new Promise((resolve, reject) => {
     const srv = createServer();
@@ -74,7 +74,7 @@ if (requestedPort !== 0) {
 // Prepare runtime env payload served at /__nize-env.js.
 const envPayload = `window.__NIZE_ENV__=${JSON.stringify({ apiPort: apiPort || "" })};\n`;
 
-// @zen-impl: PLAN-012-2.1 — start Next.js standalone server
+// @awa-impl: PLAN-012-2.1 — start Next.js standalone server
 // In a monorepo the standalone output nests the server under packages/nize-web/.
 const standaloneDir = join(__dirname, "standalone");
 const serverPath = join(standaloneDir, "packages", "nize-web", "server.js");
@@ -89,7 +89,7 @@ const child = spawn(process.execPath, [serverPath], {
     ...process.env,
     PORT: String(internalPort),
     HOSTNAME: "127.0.0.1",
-    // @zen-impl: PLAN-029-2.2 — pass MCP port to Next.js process for nize-chat
+    // @awa-impl: PLAN-029-2.2 — pass MCP port to Next.js process for nize-chat
     ...(mcpPort ? { NIZE_MCP_PORT: mcpPort } : {}),
   },
   stdio: ["pipe", "pipe", "inherit"],
@@ -98,7 +98,7 @@ const child = spawn(process.execPath, [serverPath], {
 // Forward child stdout to stderr so it doesn't interfere with the sidecar protocol.
 child.stdout.pipe(process.stderr);
 
-// @zen-impl: PLAN-012-2.1 — poll until server is ready
+// @awa-impl: PLAN-012-2.1 — poll until server is ready
 async function waitForServer(targetPort, maxAttempts = 50) {
   for (let i = 0; i < maxAttempts; i++) {
     try {
@@ -211,10 +211,10 @@ if (isBun) {
   proxy.listen(port, "127.0.0.1");
 }
 
-// @zen-impl: PLAN-012-2.1 — print JSON port to stdout (sidecar protocol)
+// @awa-impl: PLAN-012-2.1 — print JSON port to stdout (sidecar protocol)
 process.stdout.write(JSON.stringify({ port }) + "\n");
 
-// @zen-impl: PLAN-012-2.1 — graceful shutdown
+// @awa-impl: PLAN-012-2.1 — graceful shutdown
 function shutdown() {
   child.kill("SIGTERM");
   setTimeout(() => process.exit(0), 5000);
